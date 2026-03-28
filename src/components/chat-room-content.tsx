@@ -1,7 +1,7 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
 import List from "@mui/material/List";
@@ -13,9 +13,11 @@ import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 export default function ChatRoomContent() {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     return (
         <Box
+            ref={containerRef}
             sx={(theme) => ({
                 height: "100%",
                 width: "100%",
@@ -62,6 +64,7 @@ export default function ChatRoomContent() {
                 <ChatRoomInputForm />
             )}
             <ContextMenu
+                containerRef={containerRef}
                 items={[
                     { label: "Contact Info", onClick: () => { }, icon: <InfoOutlined fontSize="medium" /> },
                     { label: "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },

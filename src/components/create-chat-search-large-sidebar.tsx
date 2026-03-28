@@ -10,11 +10,7 @@ import TextField from "@mui/material/TextField";
 import { useRef, useState } from "react";
 import CreateChatHeaderLargeSidebar from "./create-chat-header-large-sidebar";
 
-type Props = {
-    setActiveSideBar: (nav: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => void;
-}
-
-export default function CreateChatSearchLargeSidebar({ setActiveSideBar }: Props) {
+export default function CreateChatSearchLargeSidebar() {
     const [value, setValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
     const grouped = groupContactsByLetter(contacts);
@@ -26,9 +22,7 @@ export default function CreateChatSearchLargeSidebar({ setActiveSideBar }: Props
 
     return (
         <div className="flex flex-col gap-y-3 h-full">
-            <CreateChatHeaderLargeSidebar
-                setActiveSideBar={setActiveSideBar}
-            />
+            <CreateChatHeaderLargeSidebar />
             <TextField
                 hiddenLabel
                 id="filled-search-bar"

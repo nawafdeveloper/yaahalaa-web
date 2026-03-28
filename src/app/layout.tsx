@@ -4,6 +4,8 @@ import "./globals.css";
 import { headers } from "next/headers";
 import MainClientUIAuthWrapper from "@/components/main-client-ui-auth-warper";
 import MainClientUIAppWrapper from "@/components/main-client-ui-app-warper";
+import { getLocale } from "@/lib/locale";
+import { isRTL } from '@/lib/locale-utils';
 
 const rubik = Rubik({
   weight: ["300", "400", "500", "700"],
@@ -21,6 +23,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale()
   const headersList = await headers();
   const country = headersList.get("X-CF-Country");
 
@@ -28,7 +31,7 @@ export default async function RootLayout({
 
   if (!session) {
     return (
-      <html lang="en">
+      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
         <body className={`${rubik.variable} antialiased`}>
           <MainClientUIAuthWrapper country={country} />
         </body>
@@ -37,7 +40,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
       <body className={`${rubik.variable} antialiased`}>
         <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
       </body>

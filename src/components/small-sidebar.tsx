@@ -2,18 +2,20 @@
 
 import IconButton from "@mui/material/IconButton";
 import Tooltip from '@mui/material/Tooltip';
-import { ChatOutlined, Chat, SettingsOutlined, Settings, Person, PersonOutlined, Archive, ArchiveOutlined } from "@mui/icons-material";
+import { SettingsOutlined, Settings, Person, PersonOutlined, Archive, ArchiveOutlined } from "@mui/icons-material";
 import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
 import mockChats from "@/mocks/chat-items";
+import { useSidebarStore } from "@/store/use-active-sidebar-store";
 
 interface Props {
     activeNav: 'chats' | 'settings' | 'profile' | 'archive';
     setActiveNav: (nav: 'chats' | 'settings' | 'profile' | 'archive') => void;
-    setActiveSideBar: (side: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => void;
 }
 
-export default function SmallSideBar({ activeNav, setActiveNav, setActiveSideBar }: Props) {
+export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
+    const { setActiveSideBar } = useSidebarStore();
+    
     const handleSetActiveNav = (nav: 'chats' | 'settings' | 'profile' | 'archive', side: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => {
         setActiveNav(nav);
         setActiveSideBar(side);
@@ -67,7 +69,7 @@ export default function SmallSideBar({ activeNav, setActiveNav, setActiveSideBar
                                     <path fillRule="evenodd" clipRule="evenodd" d="M22.0022 6.66667C22.0022 5.19391 20.8082 4 19.3355 4H1.7921C1.01481 4 0.542166 4.86348 0.94208 5.53L3.00211 9V17.3333C3.00211 18.8061 4.19601 20 5.66877 20H19.3355C20.8082 20 22.0022 18.8061 22.0022 17.3333V6.66667ZM7.00211 10C7.00211 9.44772 7.44982 9 8.00211 9H17.0022C17.5544 9 18.0022 9.44772 18.0022 10C18.0022 10.5523 17.5544 11 17.0022 11H8.00211C7.44982 11 7.00211 10.5523 7.00211 10ZM8.00211 13C7.44982 13 7.00211 13.4477 7.00211 14C7.00211 14.5523 7.44982 15 8.00211 15H14.0022C14.5544 15 15.0022 14.5523 15.0022 14C15.0022 13.4477 14.5544 13 14.0022 13H8.00211Z" fill="currentColor" />
                                 </svg>
                             ) : (
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <svg className="text-[#636261] dark:text-[#A5A5A5]" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path fillRule="evenodd" clipRule="evenodd" d="M3.00208 9L0.942085 5.53C0.542171 4.86348 1.01478 4 1.79207 4H19.3355C20.8082 4 22.0021 5.19391 22.0021 6.66667V17.3333C22.0021 18.8061 20.8082 20 19.3355 20H5.66875C4.19599 20 3.00208 18.8061 3.00208 17.3333V9ZM5.00208 8.44603L3.53447 6H19.3355C19.7037 6 20.0021 6.29848 20.0021 6.66667V17.3333C20.0021 17.7015 19.7037 18 19.3355 18H5.66875C5.30056 18 5.00208 17.7015 5.00208 17.3333V8.44603Z" fill="currentColor" />
                                     <path d="M7 10C7 9.44772 7.44772 9 8 9H17C17.5523 9 18 9.44772 18 10C18 10.5523 17.5523 11 17 11H8C7.44772 11 7 10.5523 7 10Z" fill="currentColor" />
                                     <path d="M7 14C7 13.4477 7.44772 13 8 13H14C14.5523 13 15 13.4477 15 14C15 14.5523 14.5523 15 14 15H8C7.44772 15 7 14.5523 7 14Z" fill="currentColor" />
@@ -144,42 +146,6 @@ export default function SmallSideBar({ activeNav, setActiveNav, setActiveSideBar
                             <Settings sx={(theme) => ({ color: theme.palette.mode === "dark" ? "#ffffff" : "#000000" })} />
                         ) : (
                             <SettingsOutlined
-                                sx={(theme) => ({
-                                    color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                                })}
-                            />
-                        )}
-                    </IconButton>
-                </Tooltip>
-                <Tooltip
-                    title="Profile"
-                    placement="right"
-                    slotProps={{
-                        tooltip: {
-                            sx: (theme) => ({
-                                backgroundColor:
-                                    theme.palette.mode === "dark" ? "#ffffff" : "#000000",
-                                color: theme.palette.mode === "dark" ? "#000000" : "#ffffff",
-                            }),
-                        },
-                    }}
-                >
-                    <IconButton
-                        onClick={() => handleSetActiveNav('profile', 'main-profile')}
-                        sx={(theme) => ({
-                            backgroundColor: activeNav === 'profile' ? theme.palette.mode === "dark" ? "#333333" : "#EAE9E7" : "transparent",
-                            "&:hover": {
-                                backgroundColor:
-                                    theme.palette.mode === "dark"
-                                        ? "#333333"
-                                        : "#e5e5e5",
-                            },
-                        })}
-                    >
-                        {activeNav === 'profile' ? (
-                            <Person sx={(theme) => ({ color: theme.palette.mode === "dark" ? "#ffffff" : "#000000" })} />
-                        ) : (
-                            <PersonOutlined
                                 sx={(theme) => ({
                                     color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
                                 })}

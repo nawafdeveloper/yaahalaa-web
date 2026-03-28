@@ -5,12 +5,11 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import React from 'react'
 import CreateChatMoreInfoButton from './create-chat-more-info-button';
+import { useSidebarStore } from '@/store/use-active-sidebar-store';
 
-type Props = {
-    setActiveSideBar: (nav: "main-chat" | "search-chat" | "create-chat" | "main-setting" | "main-profile" | "main-archive") => void;
-}
-
-export default function CreateChatHeaderLargeSidebar({ setActiveSideBar }: Props) {
+export default function CreateChatHeaderLargeSidebar() {
+    const { setActiveSideBar } = useSidebarStore();
+    
     return (
         <div className="flex flex-row items-center justify-between w-full px-5">
             <div className="flex flex-row items-center gap-x-3 w-full">

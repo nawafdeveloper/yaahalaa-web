@@ -19,6 +19,7 @@
 		"@mui/material": "^7.3.6",
 		"@mui/styled-engine-sc": "^7.3.6",
 		"@opennextjs/cloudflare": "^1.14.4",
+		"@videojs/react": "^10.0.0-beta.11",
 		"@vidstack/react": "^1.12.13",
 		"framer-motion": "^12.23.26",
 		"mui-one-time-password-input": "^5.0.0",
@@ -28,9 +29,11 @@
 		"react-dom": "^19.0.0",
 		"react-h5-audio-player": "^3.10.1",
 		"react-lazy-load-image-component": "^1.6.3",
+		"react-player": "^3.4.0",
 		"react-voice-visualizer": "^2.0.8",
 		"unicode-emoji-json": "^0.8.0",
-		"wavesurfer.js": "^7.12.1"
+		"wavesurfer.js": "^7.12.1",
+		"zustand": "^5.0.12"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",

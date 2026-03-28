@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, RefObject } from "react";
 import { ListItemIcon, ListItemText, Menu, MenuItem, MenuList } from "@mui/material";
 import { SvgIconComponent } from "@mui/icons-material";
 
@@ -12,13 +12,17 @@ interface ContextMenuItem {
 
 interface ContextMenuProps {
     items: ContextMenuItem[];
+    containerRef?: React.RefObject<HTMLElement | null>;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ items }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ items, containerRef }) => {
     const [anchorPosition, setAnchorPosition] = useState<{ top: number; left: number } | null>(null);
 
     useEffect(() => {
         const handleContextMenu = (event: MouseEvent) => {
+            if (containerRef?.current && !containerRef.current.contains(event.target as Node)) {
+                return;
+            }
             event.preventDefault();
             setAnchorPosition({ top: event.clientY, left: event.clientX });
         };
@@ -34,7 +38,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items }) => {
             document.removeEventListener("contextmenu", handleContextMenu);
             document.removeEventListener("click", handleClick);
         };
-    }, [anchorPosition]);
+    }, [containerRef, anchorPosition]);
 
     return (
         <Menu
@@ -47,7 +51,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items }) => {
                     backgroundColor: theme.palette.mode === "dark" ? "rgba(2,5,5,1)" : "#fff",
                     borderRadius: 3,
                     boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
-                    
                 }),
             }}
             slotProps={{
@@ -74,7 +77,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items }) => {
                             px: 1,
                         })}
                     >
-                        {item.icon &&
+                        {item.icon && (
                             <ListItemIcon
                                 sx={(theme) => ({
                                     color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
@@ -82,7 +85,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items }) => {
                             >
                                 {item.icon}
                             </ListItemIcon>
-                        }
+                        )}
                         <ListItemText
                             primary={item.label}
                             primaryTypographyProps={{

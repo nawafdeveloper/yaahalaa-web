@@ -2,14 +2,13 @@
 
 import { generateVideoThumbnailFromUrl } from '@/lib/generate-thumbnail';
 import { Message } from '@/types/messages.type';
-import { Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, ShortcutRounded, VideocamRounded } from '@mui/icons-material';
+import { CheckCircle, Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, VideocamRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import Checkbox from '@mui/material/Checkbox';
-import IconButton from '@mui/material/IconButton';
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -24,15 +23,28 @@ import Link from 'next/link';
 import ChatRoomActionBubble from './chat-room-action-bubble';
 import ChatRoomReactionButton from './chat-room-reaction-button';
 import ChatRoomForwardButton from './chat-room-forward-button';
+import useMediaPreviewStore from '@/store/media-preview-store';
+import { Avatar, Button } from '@mui/material';
+import PollComponent from './chat-poll-item';
+import { convertToPollWithVotes } from '@/utils/convert-to-poll-with-votes';
 
 type Props = {
     message: Message;
     isSelectMode: boolean;
     selectedMessages: string[];
     setSelectedMessages: (value: string[]) => void;
+    isFirstInGroup?: boolean;
 }
 
-export default function ChatRoomMessageBubble({ message, isSelectMode, selectedMessages, setSelectedMessages }: Props) {
+export default function ChatRoomMessageBubble({
+    message,
+    isSelectMode,
+    selectedMessages,
+    setSelectedMessages,
+    isFirstInGroup = true,
+}: Props) {
+    const { openPreview } = useMediaPreviewStore();
+
     const [thumbnail, setThumbnail] = useState('');
     const [imageLoaded, setImageLoaded] = useState(false);
     const [isListEnter, setIsListEnter] = useState(false);
@@ -63,7 +75,6 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
             setImageLoaded(false);
             const thumbnailBlob = await generateVideoThumbnailFromUrl(message.media_url || '');
             const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
-
             setThumbnail(thumbnailUrl);
         } catch (error) {
             console.log(error);
@@ -74,10 +85,7 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
 
     const filePreperation = async () => {
         try {
-            if (message.attached_media !== 'file') {
-                return null;
-            }
-
+            if (message.attached_media !== 'file') return null;
             if (message.media_url) {
                 const size = await getFileSize(message.media_url);
                 setFileSize(size || 0);
@@ -92,11 +100,24 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
         filePreperation();
     }, []);
 
+    const me = message.sender_user_id === 'user_456';
+    const isSender = me;
+
+    const TAIL_WIDTH = 8;
+
+    const getHue = (userId: string): number => {
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+            hash |= 0;
+        }
+        return Math.abs(hash) % 360;
+    };
+
     return (
-        <ListItem
-            disablePadding
-        >
+        <ListItem disablePadding>
             <ListItemButton
+                dir='ltr'
                 onClick={isSelectMode ? handleToggle(message.message_id) : () => { }}
                 dense={false}
                 disableRipple={!isSelectMode}
@@ -106,13 +127,13 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                 sx={{
                     cursor: isSelectMode ? "pointer" : "default",
                     ...(!isSelectMode && {
-                        "&:hover": {
-                            backgroundColor: "transparent",
-                        },
-                    })
+                        "&:hover": { backgroundColor: "transparent" },
+                    }),
+                    paddingTop: isFirstInGroup ? undefined : '2px',
+                    paddingBottom: isFirstInGroup ? undefined : '2px',
                 }}
             >
-                <div className='flex flex-row items-center w-full md:max-w-7xl md:mx-auto gap-x-3'>
+                <div className={`flex flex-row items-center w-full md:max-w-7xl md:mx-auto ${!isSender ? 'gap-x-3' : ''}`}>
                     {isSelectMode && (
                         <ListItemIcon>
                             <Checkbox
@@ -120,28 +141,82 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                 checked={selectedMessages.includes(message.message_id)}
                                 tabIndex={-1}
                                 disableRipple
-                                sx={{
-                                    '&.Mui-checked': {
-                                        color: "#25D366",
-                                    },
-                                }}
+                                sx={{ '&.Mui-checked': { color: "#25D366" } }}
                             />
                         </ListItemIcon>
                     )}
-                    <div className='flex flex-row items-start'>
-                        <span className='text-white dark:text-[#222424]' aria-hidden="true" data-icon="tail-in" ><svg viewBox="0 0 8 13" height="13" width="8" preserveAspectRatio="xMidYMid meet" version="1.1" x="0px" y="0px" enableBackground="new 0 0 8 13"><title>tail-in</title><path opacity="0.13" fill="currentColor" d="M1.533,3.568L8,12.193V1H2.812 C1.042,1,0.474,2.156,1.533,3.568z"></path><path fill="currentColor" d="M1.533,2.568L8,11.193V0L2.812,0C1.042,0,0.474,1.156,1.533,2.568z"></path></svg></span>
-                        <Card sx={(theme) => ({
-                            maxWidth: { lg: mediaPrev ? 250 : '100%', xs: mediaPrev ? 200 : '100%' },
-                            padding: "3px",
-                            borderTopRightRadius: 7,
-                            borderBottomRightRadius: 7,
-                            borderBottomLeftRadius: 7,
-                            borderTopLeftRadius: 0,
-                            position: 'relative',
-                            overflow: 'visible',
-                            boxShadow: "0px 2px 0px rgba(0,0,0,0.09)",
-                            backgroundColor: theme.palette.mode === "dark" ? "rgba(22,24,24,1)" : "#FFFFFF",
-                        })}
+                    {!isSelectMode && isSender && (
+                        <div className="flex flex-row items-center gap-x-1 mr-1 ml-auto">
+                            <ChatRoomForwardButton />
+                            {isListEnter && <ChatRoomReactionButton />}
+                        </div>
+                    )}
+                    <div className={`flex flex-row items-start`}>
+                        {!isSender && (
+                            <div style={{ width: 34, flexShrink: 0, alignSelf: 'flex-start', marginRight: 4 }}>
+                                {isFirstInGroup ? (
+                                    <Avatar
+                                        sx={(theme) => {
+                                            const hue = getHue(message.sender_user_id);
+                                            const mode = theme.palette.mode;
+
+                                            if (mode === 'dark') {
+                                                return {
+                                                    width: 34,
+                                                    height: 34,
+                                                    backgroundColor: `hsl(${hue}, 70%, 20%)`, // dark background
+                                                    color: `hsl(${hue}, 80%, 65%)`,          // bright icon
+                                                    fontSize: 16,
+                                                };
+                                            } else {
+                                                return {
+                                                    width: 34,
+                                                    height: 34,
+                                                    backgroundColor: `hsl(${hue}, 70%, 85%)`, // light background
+                                                    color: `hsl(${hue}, 80%, 30%)`,          // dark icon
+                                                    fontSize: 16,
+                                                };
+                                            }
+                                        }}
+                                        src={""}
+                                        alt={message.sender_user_id}
+                                    >
+                                        <Person fontSize="small" />
+                                    </Avatar>
+                                ) : (
+                                    <div style={{ width: 34, height: 34 }} />
+                                )}
+                            </div>
+                        )}
+                        {!isSender && (
+                            isFirstInGroup ? (
+                                <span className='text-white dark:text-[#222424]' aria-hidden="true" data-icon="tail-in">
+                                    <svg viewBox="0 0 8 13" height="13" width={TAIL_WIDTH} preserveAspectRatio="xMidYMid meet" version="1.1" x="0px" y="0px" enableBackground="new 0 0 8 13">
+                                        <title>tail-in</title>
+                                        <path opacity="0.13" fill="currentColor" d="M1.533,3.568L8,12.193V1H2.812 C1.042,1,0.474,2.156,1.533,3.568z"></path>
+                                        <path fill="currentColor" d="M1.533,2.568L8,11.193V0L2.812,0C1.042,0,0.474,1.156,1.533,2.568z"></path>
+                                    </svg>
+                                </span>
+                            ) : (
+                                <div style={{ width: TAIL_WIDTH, flexShrink: 0 }} />
+                            )
+                        )}
+
+                        <Card
+                            sx={(theme) => ({
+                                maxWidth: { lg: mediaPrev ? 250 : '100%', xs: mediaPrev ? 200 : '100%' },
+                                padding: "3px",
+                                borderTopRightRadius: isSender ? (isFirstInGroup ? 0 : 7) : 7,
+                                borderBottomRightRadius: 7,
+                                borderBottomLeftRadius: 7,
+                                borderTopLeftRadius: isSender ? 7 : (isFirstInGroup ? 0 : 7),
+                                position: 'relative',
+                                overflow: 'visible',
+                                boxShadow: "0px 2px 0px rgba(0,0,0,0.09)",
+                                backgroundColor: isSender
+                                    ? theme.palette.mode === "dark" ? "#182A1F" : "#DCF8C6"
+                                    : theme.palette.mode === "dark" ? "rgba(22,24,24,1)" : "#FFFFFF",
+                            })}
                             onMouseEnter={() => !isSelectMode && setIsBubbleEnter(true)}
                             onMouseLeave={() => setIsBubbleEnter(false)}
                         >
@@ -170,6 +245,33 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                     pointerEvents: 'none'
                                 }}
                             />
+                            {!isSender && (
+                                <Button
+                                    variant="text"
+                                    size="small"
+                                    className="pl-2 font-semibold! text-xs!"
+                                    sx={(theme) => {
+                                        const hue = getHue(message.sender_user_id);
+                                        const mode = theme.palette.mode;
+
+                                        return {
+                                            color: mode === 'dark'
+                                                ? `hsl(${hue}, 80%, 65%)`
+                                                : `hsl(${hue}, 80%, 30%)`,
+                                            textTransform: 'none',
+                                            minWidth: 'auto',
+                                            padding: 0,
+                                            paddingLeft: 1,
+                                            '&:hover': {
+                                                backgroundColor: 'transparent',
+                                                textDecoration: 'underline',
+                                            },
+                                        };
+                                    }}
+                                >
+                                    {message.sender_user_id}
+                                </Button>
+                            )}
                             {message.is_forward_message && (
                                 <span className='flex flex-row items-center gap-x-2 text-gray-300 dark:text-gray-400 text-xs p-1'>
                                     <ShortcutOutlined fontSize='inherit' />
@@ -182,6 +284,16 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                     <p className='text-gray-500 dark:text-gray-300'>{message.open_graph_data.og_description}</p>
                                     <p className='text-gray-700 dark:text-gray-400 text-xs'>{message.open_graph_data.og_url}</p>
                                 </Link>
+                            )}
+                            {message.poll && (
+                                <PollComponent
+                                    poll={convertToPollWithVotes(message.poll)}
+                                    onVote={(pollId, selectedOptionIds) => {
+                                        // Send vote to your backend, then update the message's poll data
+                                        // e.g., call an API and then refetch or update local state
+                                    }}
+                                    isSender={isSender}
+                                />
                             )}
                             {message.attached_media === 'voice' && (
                                 <div className='flex flex-row items-center gap-x-1 p-2'>
@@ -203,8 +315,8 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                                 RHAP_UI.PROGRESS_BAR,
                                             ]}
                                             customIcons={{
-                                                play: <PlayArrowRounded />,
-                                                pause: <PauseRounded />
+                                                play: <PlayArrowRounded sx={(theme) => ({ color: theme.palette.mode === 'dark' ? 'white' : 'black', marginBottom: 0.5 })} />,
+                                                pause: <PauseRounded sx={(theme) => ({ color: theme.palette.mode === 'dark' ? 'white' : 'black', marginBottom: 0.5 })} />
                                             }}
                                             customProgressBarSection={[]}
                                         />
@@ -232,19 +344,20 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                         >
                                             This is file name
                                         </Typography>
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                color: 'gray',
-                                            }}
-                                        >
+                                        <Typography variant="caption" sx={{ color: 'gray' }}>
                                             {getFileExtension(message.media_url || '')} • {fileSize}
                                         </Typography>
                                     </span>
                                 </button>
                             )}
                             {mediaPrev && (
-                                <button className='overflow-hidden cursor-pointer relative'>
+                                <button
+                                    onClick={() => {
+                                        if (message.attached_media === 'photo' || message.attached_media === 'video') {
+                                            openPreview(message.attached_media, message.media_url || '', message.sender_user_id, message.created_at.toLocaleDateString());
+                                        }
+                                    }}
+                                    className='overflow-hidden cursor-pointer relative'>
                                     {message.attached_media === 'video' && (
                                         <div className='absolute left-0 right-0 top-0 bottom-0 z-5 h-full w-full flex justify-center items-center'>
                                             <div className='w-12 h-12 rounded-full bg-black/30 justify-center items-center flex text-white'>
@@ -262,14 +375,36 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                         effect="blur"
                                         src={(message.attached_media === 'photo' ? message.media_url : message.attached_media === 'video' ? message.video_thumbnail : thumbnail) || ''}
                                         width={'100%'}
-                                        wrapperProps={{
-                                            style: { transitionDelay: "1s" },
-                                        }}
-                                        style={{
-                                            borderRadius: 4,
-                                            overflow: 'hidden'
-                                        }}
+                                        wrapperProps={{ style: { transitionDelay: "1s" } }}
+                                        style={{ borderRadius: 4, overflow: 'hidden' }}
                                     />
+                                </button>
+                            )}
+                            {message.attached_media === 'contact' && (
+                                <button className='flex flex-row w-full cursor-pointer items-center gap-x-3 p-3 rounded-lg bg-[#f7f5f3] dark:bg-[#1a1b1b]'>
+                                    <div className='relative shrink-0 w-12 h-12 rounded-full overflow-hidden'>
+                                        <Avatar
+                                            sx={(theme) => ({
+                                                width: 45,
+                                                height: 45,
+                                                backgroundColor: theme.palette.mode === "dark" ? "rgba(36,40,40,1)" : "#FFFFFF",
+                                                color: theme.palette.mode === "dark" ? "#f7f5f3" : "#1a1b1b",
+                                            })}
+                                            src={message.contact?.contact_image || ""}
+                                            alt={`${message.contact?.contact_name || 'Contact'} Avatar`}
+                                        >
+                                            <Person />
+                                        </Avatar>
+                                    </div>
+                                    <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                        {message.contact?.contact_name ? (
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
+                                                {message.contact.contact_name}
+                                            </Typography>
+                                        ) : message.sender_user_id ? (
+                                            <Typography variant="body2">{message.sender_user_id}</Typography>
+                                        ) : null}
+                                    </Box>
                                 </button>
                             )}
                             <CardContent
@@ -282,65 +417,45 @@ export default function ChatRoomMessageBubble({ message, isSelectMode, selectedM
                                     right: message.attached_media === 'voice' ? 3 : undefined
                                 }}
                             >
-                                <Box
-                                    sx={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'end',
-                                        justifyContent: 'space-between',
-                                        width: '100%',
-                                        gap: 3,
-                                        position: 'relative',
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            flex: 1,
-                                            minWidth: 0,
-                                            overflow: 'hidden',
-                                        }}
-                                    >
+                                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'end', justifyContent: 'space-between', width: '100%', gap: 3, position: 'relative' }}>
+                                    <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                         <Typography
                                             variant="body2"
-                                            sx={{
-                                                display: '-webkit-box',
-                                                WebkitBoxOrient: 'vertical',
-                                                overflow: 'hidden',
-                                                wordBreak: 'break-word',
-                                            }}
+                                            sx={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}
                                         >
                                             {message.message_text_content}
                                         </Typography>
                                     </Box>
-                                    <Box
-                                        sx={{
-                                            flexShrink: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                        }}
-                                    >
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                color: 'gray',
-                                            }}
-                                        >
+                                    <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ color: 'gray' }}>
                                             {message.created_at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                                         </Typography>
                                     </Box>
                                 </Box>
                             </CardContent>
                         </Card>
+                        {isSender && (
+                            isFirstInGroup ? (
+                                <span className='text-[#DCF8C6] dark:text-[#24352A] transform scale-x-[-1]' aria-hidden="true" data-icon="tail-in">
+                                    <svg viewBox="0 0 8 13" height="13" width={TAIL_WIDTH} preserveAspectRatio="xMidYMid meet" version="1.1" x="0px" y="0px" enableBackground="new 0 0 8 13">
+                                        <title>tail-in</title>
+                                        <path opacity="0.13" fill="currentColor" d="M1.533,3.568L8,12.193V1H2.812 C1.042,1,0.474,2.156,1.533,3.568z"></path>
+                                        <path fill="currentColor" d="M1.533,2.568L8,11.193V0L2.812,0C1.042,0,0.474,1.156,1.533,2.568z"></path>
+                                    </svg>
+                                </span>
+                            ) : (
+                                <div style={{ width: TAIL_WIDTH, flexShrink: 0 }} />
+                            )
+                        )}
                     </div>
-                    {!isSelectMode && (
-                        <ChatRoomForwardButton />
-                    )}
-                    {isListEnter && !isSelectMode && (
-                        <ChatRoomReactionButton />
+                    {!isSelectMode && !isSender && (
+                        <div className="flex flex-row items-center gap-x-1">
+                            <ChatRoomForwardButton />
+                            {isListEnter && <ChatRoomReactionButton />}
+                        </div>
                     )}
                 </div>
             </ListItemButton>
         </ListItem>
-    )
+    );
 }

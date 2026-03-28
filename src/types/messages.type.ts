@@ -1,16 +1,16 @@
-type MessageReaction = {
+export type MessageReaction = {
     id: string;
     user_id: string;
     reaction_emoji: string;
 };
 
-type OpenGraphData = {
+export type OpenGraphData = {
     og_url: string | null;
     og_title: string | null;
     og_description: string | null;
 };
 
-type Event = {
+export type Event = {
     event_id: string;
     event_name: string;
     event_description: string | null;
@@ -21,27 +21,37 @@ type Event = {
     event_location: string | null;
 };
 
-type Poll = {
+export type Poll = {
     poll_id: string;
     poll_question: string;
     poll_options: string[];
     poll_multiple_answers: boolean;
 };
 
-type Contact = {
+export type Contact = {
     contact_id: string;
     contact_name: string;
     contact_image: string;
+};
+
+export type Location = {
+    location_id: string;
+    latitude: number;
+    longitude: number;
+    place_id?: string;
+    formatted_address?: string;
+    name?: string;
 };
 
 export type Message = {
     message_id: string;
     sender_user_id: string;
     chat_room_id: string;
-    attached_media: 'photo' | 'video' | 'voice' | 'file' | 'contact' | null;
+    attached_media: 'photo' | 'video' | 'voice' | 'file' | 'contact' | 'location' | null;
     event: Event | null;
     poll: Poll | null;
     reply_message: Message | null;
+    location: Location | null;
     media_url: string | null;
     video_thumbnail: string | null;
     message_raction: MessageReaction | null;

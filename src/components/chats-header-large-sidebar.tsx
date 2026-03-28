@@ -4,12 +4,10 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Image from "next/image";
 import ChatsMoreButtonMenu from "./chats-more-button-menu";
+import { useSidebarStore } from "@/store/use-active-sidebar-store";
 
-interface Props {
-    setActiveSideBar: (nav: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => void;
-}
-
-export default function ChatsHeaderLargeSideBar({ setActiveSideBar }: Props) {
+export default function ChatsHeaderLargeSideBar() {
+    const { setActiveSideBar } = useSidebarStore();
     return (
         <div className="flex flex-row items-center justify-between">
             <Image

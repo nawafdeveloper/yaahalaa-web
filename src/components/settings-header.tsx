@@ -1,0 +1,47 @@
+"use client";
+
+import { useSettingsStore } from '@/store/use-active-setting-store';
+import { ArrowBackOutlined } from '@mui/icons-material';
+import { IconButton, Tooltip } from '@mui/material';
+import React from 'react'
+
+type Props = {
+    title: string;
+}
+
+export default function SettingsHeader({ title }: Props) {
+    const { setActiveSettingsSection } = useSettingsStore();
+    return (
+        <div className="flex flex-row items-center gap-x-3 w-full">
+            <Tooltip
+                title="Back"
+                placement="bottom"
+                slotProps={{
+                    tooltip: {
+                        sx: (theme) => ({
+                            backgroundColor:
+                                theme.palette.mode === "dark" ? "#ffffff" : "#000000",
+                            color: theme.palette.mode === "dark" ? "#000000" : "#ffffff",
+                        }),
+                    },
+                }}
+            >
+                <IconButton
+                    onClick={() => setActiveSettingsSection('settings-main')}
+                    sx={(theme) => ({
+                        "&:hover": {
+                            backgroundColor:
+                                theme.palette.mode === "dark"
+                                    ? "#333333"
+                                    : "#e5e5e5",
+                        },
+                        display: { xs: "none", sm: "flex" }
+                    })}
+                >
+                    <ArrowBackOutlined fontSize="inherit" />
+                </IconButton>
+            </Tooltip>
+            <p className='font-semibold'>{title}</p>
+        </div>
+    )
+}

@@ -1,17 +1,10 @@
 import React from 'react'
-import CreateChatHeaderLargeSidebar from './create-chat-header-large-sidebar';
 import CreateChatSearchLargeSidebar from './create-chat-search-large-sidebar';
 
-type Props = {
-    setActiveSideBar: (nav: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => void;
-}
-
-export default function CreateChatSectionLargeSideBar({ setActiveSideBar }: Props) {
+export default function CreateChatSectionLargeSideBar() {
     return (
         <div className='flex flex-col space-y-4 w-full bg-white dark:bg-[#161717] border-r dark:border-neutral-700 border-neutral-300 overflow-y-auto pt-5'>
-            <CreateChatSearchLargeSidebar
-                setActiveSideBar={setActiveSideBar}
-            />
+            <CreateChatSearchLargeSidebar />
         </div>
     )
 }
