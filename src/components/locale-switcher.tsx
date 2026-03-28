@@ -1,9 +1,21 @@
 'use client';
 
-import { MenuItem, Select, SelectChangeEvent, FormControl, InputLabel } from '@mui/material';
+import {
+    MenuItem,
+    Select,
+    SelectChangeEvent,
+    FormControl,
+    InputLabel,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+    Typography,
+} from '@mui/material';
 import { ChevronRight } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Locale } from '../../proxy';
 import { getLocaleDisplayName } from '@/lib/locale-client';
 import { setLocale } from '@/lib/locale';
@@ -16,25 +28,48 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
     const router = useRouter();
     const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
     const [isPending, startTransition] = useTransition();
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [pendingLocale, setPendingLocale] = useState<Locale | null>(null);
+
+    // Sync selectedLocale with currentLocale prop when it changes
+    useEffect(() => {
+        setSelectedLocale(currentLocale);
+    }, [currentLocale]);
 
     const handleLocaleChange = async (event: SelectChangeEvent) => {
         const newLocale = event.target.value as Locale;
+        if (newLocale === currentLocale) {
+            setSelectedLocale(currentLocale);
+            return;
+        }
+
         setSelectedLocale(newLocale);
-        
-        // Use startTransition for better UX
+        setPendingLocale(newLocale);
+        setIsConfirmOpen(true);
+    };
+
+    const handleConfirmChange = () => {
+        if (!pendingLocale) return;
+        setIsConfirmOpen(false);
+
         startTransition(async () => {
             try {
-                // Call server action directly
-                await setLocale(newLocale);
-                
-                // Refresh the page to apply the new locale
-                router.refresh();
+                await setLocale(pendingLocale);
+                // Force a full page reload to ensure everything updates
+                window.location.reload();
             } catch (error) {
                 console.error('Failed to change locale:', error);
-                // Revert the selection on error
                 setSelectedLocale(currentLocale);
+            } finally {
+                setPendingLocale(null);
             }
         });
+    };
+
+    const handleCancelChange = () => {
+        setIsConfirmOpen(false);
+        setPendingLocale(null);
+        setSelectedLocale(currentLocale);
     };
 
     const locales = [
@@ -43,111 +78,195 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
     ];
 
     return (
-        <FormControl sx={{ width: '100%' }}>
-            <InputLabel
-                id="locale-select-label"
-                sx={{
-                    color: (theme) =>
-                        theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                    '&.Mui-focused': {
-                        color: '#25D366',
-                    },
-                }}
-            >
-                Language
-            </InputLabel>
-            <Select
-                labelId="locale-select-label"
-                id="locale-select"
-                value={selectedLocale}
-                onChange={handleLocaleChange}
-                label="Language"
-                IconComponent={ChevronRight}
-                disabled={isPending}
-                sx={{
-                    borderRadius: '12px',
-                    backgroundColor: (theme) =>
-                        theme.palette.mode === "dark" ? "#2A2A2A" : "#F5F5F5",
-                    opacity: isPending ? 0.7 : 1,
-                    '& .MuiSelect-select': {
-                        padding: '14px 16px',
-                        color: (theme) =>
-                            theme.palette.mode === "dark" ? "#FFFFFF" : "#000000",
-                    },
-                    '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: (theme) =>
-                            theme.palette.mode === "dark" ? "#3A3A3A" : "#E0E0E0",
-                        borderWidth: '1px',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#25D366',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#25D366',
-                        borderWidth: '2px',
-                    },
-                    '& .MuiSelect-icon': {
-                        transform: 'rotate(0deg)',
-                        transition: 'transform 0.2s',
+        <>
+            <FormControl sx={{ width: '100%' }}>
+                <InputLabel
+                    id="locale-select-label"
+                    sx={{
                         color: (theme) =>
                             theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                    },
-                    '&.Mui-focused .MuiSelect-icon': {
-                        transform: 'rotate(90deg)',
-                    },
-                }}
-                MenuProps={{
-                    PaperProps: {
-                        sx: {
-                            maxHeight: 48 * 4.5 + 8,
-                            borderRadius: '12px',
-                            marginTop: '8px',
-                            marginLeft: '8px',
-                            marginRight: '8px',
-                            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
-                            border: '1px solid',
-                            borderColor: (theme) =>
-                                theme.palette.mode === "dark" ? "#3A3A3A" : "#E5E5E5",
+                        '&.Mui-focused': {
+                            color: '#25D366',
                         },
-                    },
-                    anchorOrigin: {
-                        vertical: 'bottom',
-                        horizontal: 'left',
-                    },
-                    transformOrigin: {
-                        vertical: 'top',
-                        horizontal: 'left',
+                    }}
+                >
+                    Language
+                </InputLabel>
+                <Select
+                    labelId="locale-select-label"
+                    id="locale-select"
+                    value={selectedLocale}
+                    onChange={handleLocaleChange}
+                    label="Language"
+                    IconComponent={ChevronRight}
+                    disabled={isPending}
+                    sx={{
+                        borderRadius: '12px',
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#2A2A2A" : "#F5F5F5",
+                        opacity: isPending ? 0.7 : 1,
+                        '& .MuiSelect-select': {
+                            padding: '14px 16px',
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#FFFFFF" : "#000000",
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#E0E0E0",
+                            borderWidth: '1px',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#25D366',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#25D366',
+                            borderWidth: '2px',
+                        },
+                        '& .MuiSelect-icon': {
+                            transform: 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
+                        },
+                        '&.Mui-focused .MuiSelect-icon': {
+                            transform: 'rotate(90deg)',
+                        },
+                    }}
+                    MenuProps={{
+                        PaperProps: {
+                            sx: {
+                                maxHeight: 48 * 4.5 + 8,
+                                borderRadius: '12px',
+                                marginTop: '8px',
+                                marginLeft: '8px',
+                                marginRight: '8px',
+                                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
+                                border: '1px solid',
+                                borderColor: (theme) =>
+                                    theme.palette.mode === "dark" ? "#3A3A3A" : "#E5E5E5",
+                            },
+                        },
+                        anchorOrigin: {
+                            vertical: 'bottom',
+                            horizontal: 'left',
+                        },
+                        transformOrigin: {
+                            vertical: 'top',
+                            horizontal: 'left',
+                        },
+                    }}
+                >
+                    {locales.map((locale) => (
+                        <MenuItem
+                            key={locale.value}
+                            value={locale.value}
+                            sx={{
+                                borderRadius: '8px',
+                                margin: '4px 8px',
+                                padding: '8px 12px',
+                                '&:hover': {
+                                    backgroundColor: (theme) =>
+                                        theme.palette.mode === "dark" ? "#2A2A2A" : "#F0F0F0",
+                                },
+                                '&.Mui-selected': {
+                                    backgroundColor: (theme) =>
+                                        theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                    color: (theme) =>
+                                        theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                                    '&:hover': {
+                                        backgroundColor: (theme) =>
+                                            theme.palette.mode === "dark" ? "#1A4A3A" : "#C4E8C0",
+                                    },
+                                },
+                            }}
+                        >
+                            {locale.label}
+                        </MenuItem>
+                    ))}
+                </Select>
+            </FormControl>
+
+            <Dialog
+                open={isConfirmOpen}
+                onClose={handleCancelChange}
+                aria-labelledby="locale-confirm-title"
+                aria-describedby="locale-confirm-description"
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        minWidth: '450px',
+                        padding: '4px',
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#000000" : "#FFFFFF",
+                        boxShadow: '0px 12px 30px rgba(0, 0, 0, 0.08)',
                     },
                 }}
             >
-                {locales.map((locale) => (
-                    <MenuItem
-                        key={locale.value}
-                        value={locale.value}
+                <DialogTitle
+                    id="locale-confirm-title"
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: '18px',
+                        color: (theme) =>
+                            theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                    }}
+                >
+                    Change Language?
+                </DialogTitle>
+                <DialogContent sx={{ paddingTop: '4px' }}>
+                    <Typography
+                        id="locale-confirm-description"
                         sx={{
-                            borderRadius: '8px',
-                            margin: '4px 8px',
-                            padding: '8px 12px',
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
+                            fontSize: '14px',
+                        }}
+                    >
+                        Switch to {pendingLocale ? getLocaleDisplayName(pendingLocale) : 'this language'}?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ padding: '12px 16px 16px 16px', gap: '8px' }}>
+                    <Button
+                        onClick={handleCancelChange}
+                        variant="outlined"
+                        sx={{
+                            borderRadius: '99px',
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#DCDCDC",
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#D8D8D8" : "#5A5A5A",
+                            textTransform: 'none',
+                            padding: '8px 16px'
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleConfirmChange}
+                        variant="contained"
+                        disabled={isPending}
+                        sx={{
+                            borderRadius: '99px',
+                            backgroundColor: '#25D366',
+                            color: '#0B1B12',
+                            textTransform: 'none',
+                            padding: '8px 16px',
+                            boxShadow: '0px 0px 0px rgba(0, 0, 0, 0.0)',
                             '&:hover': {
-                                backgroundColor: (theme) =>
-                                    theme.palette.mode === "dark" ? "#2A2A2A" : "#F0F0F0",
+                                backgroundColor: '#1FB75A',
                             },
-                            '&.Mui-selected': {
+                            '&.Mui-disabled': {
                                 backgroundColor: (theme) =>
-                                    theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                    theme.palette.mode === "dark" ? "#2D4035" : "#CFEFDB",
                                 color: (theme) =>
-                                    theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
-                                '&:hover': {
-                                    backgroundColor: (theme) =>
-                                        theme.palette.mode === "dark" ? "#1A4A3A" : "#C4E8C0",
-                                },
+                                    theme.palette.mode === "dark" ? "#A1B6A8" : "#6B8F7A",
                             },
                         }}
                     >
-                        {locale.label}
-                    </MenuItem>
-                ))}
-            </Select>
-        </FormControl>
+                        Change
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
     );
 }

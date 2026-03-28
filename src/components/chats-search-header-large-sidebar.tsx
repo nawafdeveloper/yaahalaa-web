@@ -6,15 +6,18 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
 import { useRef, useState } from 'react';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 interface Props {
     activeChatTab: "all" | "unread" | "favourites" | "groups";
     setActiveChatTab: (value: "all" | "unread" | "favourites" | "groups") => void;
 }
 
-export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveChatTab}: Props) {
+export default function ChatsSearchHeaderLargeSidebar({ activeChatTab, setActiveChatTab }: Props) {
     const [value, setValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
 
     const handleClear = () => {
         setValue("");
@@ -25,6 +28,25 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
         setActiveChatTab(tab);
     };
 
+    const getTabLabel = (tab: string) => {
+        if (isRTL) {
+            switch (tab) {
+                case 'all': return 'الكل';
+                case 'unread': return 'غير مقروء';
+                case 'favourites': return 'المفضلة';
+                case 'groups': return 'المجموعات';
+                default: return tab;
+            }
+        }
+        switch (tab) {
+            case 'all': return 'All';
+            case 'unread': return 'Unread';
+            case 'favourites': return 'Favourites';
+            case 'groups': return 'Groups';
+            default: return tab;
+        }
+    };
+
     return (
         <div className='flex flex-col gap-y-3'>
             <TextField
@@ -32,7 +54,7 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
                 id="filled-search-bar"
                 variant="filled"
                 size="small"
-                placeholder="Search for contact"
+                placeholder={isRTL ? 'البحث عن جهة اتصال' : 'Search for contact'}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 inputRef={inputRef}
@@ -89,7 +111,7 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
                         },
                     })}
                 >
-                    All
+                    {getTabLabel('all')}
                 </Button>
                 <Button
                     onClick={() => handleSelectActiveChatTab('unread')}
@@ -105,7 +127,7 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
                         },
                     })}
                 >
-                    Unread
+                    {getTabLabel('unread')}
                 </Button>
                 <Button
                     onClick={() => handleSelectActiveChatTab('favourites')}
@@ -121,7 +143,7 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
                         },
                     })}
                 >
-                    Favourites
+                    {getTabLabel('favourites')}
                 </Button>
                 <Button
                     onClick={() => handleSelectActiveChatTab('groups')}
@@ -137,7 +159,7 @@ export default function ChatsSearchHeaderLargeSidebar({activeChatTab, setActiveC
                         },
                     })}
                 >
-                    Groups
+                    {getTabLabel('groups')}
                 </Button>
             </div>
         </div>

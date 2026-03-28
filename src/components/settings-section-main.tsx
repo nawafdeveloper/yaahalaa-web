@@ -132,7 +132,7 @@ export default function SettingsSectionMain() {
                     ) : null,
                 }}
             />
-            <button className='cursor-pointer'>
+            <button className='cursor-pointer' onClick={() => navigateToSettings('settings-profile')}>
                 <Avatar
                     sx={(theme) => ({
                         width: 120,
@@ -150,7 +150,7 @@ export default function SettingsSectionMain() {
                 sx={{
                     width: '100%',
                 }}
-                spacing={1}
+                spacing={0.5}
             >
                 {settingItems.map((item) => (
                     <ListItemButton

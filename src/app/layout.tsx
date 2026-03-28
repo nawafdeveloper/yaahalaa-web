@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Rubik } from "next/font/google";
+import { Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { headers } from "next/headers";
 import MainClientUIAuthWrapper from "@/components/main-client-ui-auth-warper";
@@ -7,10 +7,10 @@ import MainClientUIAppWrapper from "@/components/main-client-ui-app-warper";
 import { getLocale } from "@/lib/locale";
 import { isRTL } from '@/lib/locale-utils';
 
-const rubik = Rubik({
+const notoSansArabic = Noto_Sans_Arabic({
   weight: ["300", "400", "500", "700"],
-  subsets: ["latin"],
-  variable: "--font-rubik",
+  subsets: ["arabic"],
+  variable: "--font-noto-sans-arabic",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export default async function RootLayout({
   if (!session) {
     return (
       <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
-        <body className={`${rubik.variable} antialiased`}>
+        <body className={`${notoSansArabic.variable} antialiased`}>
           <MainClientUIAuthWrapper country={country} />
         </body>
       </html>
@@ -41,7 +41,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
-      <body className={`${rubik.variable} antialiased`}>
+      <body className={`${notoSansArabic.variable} antialiased`}>
         <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
       </body>
     </html>

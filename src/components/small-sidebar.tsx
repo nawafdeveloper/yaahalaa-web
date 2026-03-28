@@ -7,6 +7,7 @@ import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
 import mockChats from "@/mocks/chat-items";
 import { useSidebarStore } from "@/store/use-active-sidebar-store";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 interface Props {
     activeNav: 'chats' | 'settings' | 'profile' | 'archive';
@@ -15,7 +16,9 @@ interface Props {
 
 export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
     const { setActiveSideBar } = useSidebarStore();
-    
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const handleSetActiveNav = (nav: 'chats' | 'settings' | 'profile' | 'archive', side: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => {
         setActiveNav(nav);
         setActiveSideBar(side);
@@ -26,7 +29,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
         .reduce((acc, curr) => acc + curr, 0);
 
     return (
-        <div className='md:flex md:relative z-50 hidden flex-col items-start justify-between md:h-screen md:max-h-screen md:min-h-screen overflow-y-hidden p-3 dark:bg-[#1d1f1f] bg-[#f7f5f3] border-r dark:border-neutral-700 border-neutral-300'>
+        <div className={`md:flex md:relative z-50 hidden flex-col items-start justify-between md:h-screen md:max-h-screen md:min-h-screen overflow-y-hidden p-3 dark:bg-[#1d1f1f] bg-[#f7f5f3] ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300`}>
             <div className="flex flex-col gap-y-3">
                 <Tooltip
                     title="Chats"

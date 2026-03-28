@@ -4,7 +4,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 const LOCALES = ['ar', 'en'] as const;
 const DEFAULT_LOCALE = 'ar';
-const COOKIE_NAME = 'NEXT_LOCALE';
+const COOKIE_NAME = 'yhla_web_lang_pref';
 
 export type Locale = typeof LOCALES[number];
 

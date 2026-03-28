@@ -8,11 +8,15 @@ import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
-import React from 'react'
+import React from 'react';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 export default function ChatsMoreButtonMenu() {
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         setAnchorEl(event.currentTarget);
     };
@@ -23,14 +27,16 @@ export default function ChatsMoreButtonMenu() {
     return (
         <div>
             <Tooltip
-                title="Menu"
-                placement="bottom"
+                title={isRTL ? 'القائمة' : 'Menu'}
+                placement={isRTL ? "bottom-end" : "bottom"}
                 slotProps={{
                     tooltip: {
                         sx: (theme) => ({
                             backgroundColor:
                                 theme.palette.mode === "dark" ? "#ffffff" : "#000000",
                             color: theme.palette.mode === "dark" ? "#000000" : "#ffffff",
+                            direction: isRTL ? 'rtl' : 'ltr',
+                            textAlign: isRTL ? 'right' : 'left',
                         }),
                     },
                 }}
@@ -52,7 +58,8 @@ export default function ChatsMoreButtonMenu() {
                 >
                     <MoreVertOutlined
                         sx={(theme) => ({
-                            color: theme.palette.mode === "dark" ? "#ffffff" : "#000000"
+                            color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
+                            transform: isRTL ? 'scaleX(-1)' : 'scaleX(1)',
                         })}
                     />
                 </IconButton>
@@ -62,11 +69,20 @@ export default function ChatsMoreButtonMenu() {
                 anchorEl={anchorEl}
                 open={open}
                 onClose={handleClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: isRTL ? 'right' : 'left',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: isRTL ? 'right' : 'left',
+                }}
                 PaperProps={{
                     sx: (theme) => ({
                         backgroundColor: theme.palette.mode === "dark" ? "rgba(2, 5, 5, 1)" : "#ffffff",
                         borderRadius: 3,
                         boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
+                        direction: isRTL ? 'rtl' : 'ltr',
                     }),
                 }}
                 slotProps={{
@@ -86,10 +102,17 @@ export default function ChatsMoreButtonMenu() {
                         },
                         borderRadius: 2,
                         paddingY: 1,
-                        paddingX: 1
+                        paddingX: 1,
+                        direction: isRTL ? 'rtl' : 'ltr',
                     })}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon
+                        sx={{
+                            minWidth: 40,
+                            marginRight: isRTL ? 0 : '16px',
+                            marginLeft: isRTL ? '16px' : 0,
+                        }}
+                    >
                         <GroupAddOutlined
                             fontSize="small"
                             sx={(theme) => ({
@@ -98,14 +121,16 @@ export default function ChatsMoreButtonMenu() {
                         />
                     </ListItemIcon>
                     <ListItemText
+                        primary={isRTL ? 'مجموعة جديدة' : 'New Group'}
                         primaryTypographyProps={{
                             sx: (theme) => ({
                                 color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                                 fontWeight: 500,
                                 fontSize: "15px",
+                                textAlign: isRTL ? 'right' : 'left',
                             }),
                         }}
-                    >New Group</ListItemText>
+                    />
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -115,10 +140,17 @@ export default function ChatsMoreButtonMenu() {
                         },
                         borderRadius: 2,
                         paddingY: 1,
-                        paddingX: 1
+                        paddingX: 1,
+                        direction: isRTL ? 'rtl' : 'ltr',
                     })}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon
+                        sx={{
+                            minWidth: 40,
+                            marginRight: isRTL ? 0 : '16px',
+                            marginLeft: isRTL ? '16px' : 0,
+                        }}
+                    >
                         <StarBorderOutlined
                             fontSize="small"
                             sx={(theme) => ({
@@ -127,14 +159,16 @@ export default function ChatsMoreButtonMenu() {
                         />
                     </ListItemIcon>
                     <ListItemText
+                        primary={isRTL ? 'الرسائل المميزة' : 'Starred messages'}
                         primaryTypographyProps={{
                             sx: (theme) => ({
                                 color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                                 fontWeight: 500,
                                 fontSize: "15px",
+                                textAlign: isRTL ? 'right' : 'left',
                             }),
                         }}
-                    >Starred messages</ListItemText>
+                    />
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -144,10 +178,17 @@ export default function ChatsMoreButtonMenu() {
                         },
                         borderRadius: 2,
                         paddingY: 1,
-                        paddingX: 1
+                        paddingX: 1,
+                        direction: isRTL ? 'rtl' : 'ltr',
                     })}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon
+                        sx={{
+                            minWidth: 40,
+                            marginRight: isRTL ? 0 : '16px',
+                            marginLeft: isRTL ? '16px' : 0,
+                        }}
+                    >
                         <CheckBoxOutlined
                             fontSize="small"
                             sx={(theme) => ({
@@ -156,14 +197,16 @@ export default function ChatsMoreButtonMenu() {
                         />
                     </ListItemIcon>
                     <ListItemText
+                        primary={isRTL ? 'تحديد المحادثات' : 'Select chats'}
                         primaryTypographyProps={{
                             sx: (theme) => ({
                                 color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                                 fontWeight: 500,
                                 fontSize: "15px",
+                                textAlign: isRTL ? 'right' : 'left',
                             }),
                         }}
-                    >Select chats</ListItemText>
+                    />
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -173,10 +216,17 @@ export default function ChatsMoreButtonMenu() {
                         },
                         borderRadius: 2,
                         paddingY: 1,
-                        paddingX: 1
+                        paddingX: 1,
+                        direction: isRTL ? 'rtl' : 'ltr',
                     })}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon
+                        sx={{
+                            minWidth: 40,
+                            marginRight: isRTL ? 0 : '16px',
+                            marginLeft: isRTL ? '16px' : 0,
+                        }}
+                    >
                         <ChatOutlined
                             fontSize="small"
                             sx={(theme) => ({
@@ -185,14 +235,16 @@ export default function ChatsMoreButtonMenu() {
                         />
                     </ListItemIcon>
                     <ListItemText
+                        primary={isRTL ? 'تحديد الكل كمقروء' : 'Mark all as read'}
                         primaryTypographyProps={{
                             sx: (theme) => ({
                                 color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                                 fontWeight: 500,
                                 fontSize: "15px",
+                                textAlign: isRTL ? 'right' : 'left',
                             }),
                         }}
-                    >Mark all as read</ListItemText>
+                    />
                 </MenuItem>
                 <Divider />
                 <MenuItem
@@ -203,10 +255,17 @@ export default function ChatsMoreButtonMenu() {
                         },
                         borderRadius: 2,
                         paddingY: 1,
-                        paddingX: 1
+                        paddingX: 1,
+                        direction: isRTL ? 'rtl' : 'ltr',
                     })}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon
+                        sx={{
+                            minWidth: 40,
+                            marginRight: isRTL ? 0 : '16px',
+                            marginLeft: isRTL ? '16px' : 0,
+                        }}
+                    >
                         <LogoutOutlined
                             fontSize="small"
                             sx={(theme) => ({
@@ -215,14 +274,16 @@ export default function ChatsMoreButtonMenu() {
                         />
                     </ListItemIcon>
                     <ListItemText
+                        primary={isRTL ? 'تسجيل الخروج' : 'Log out'}
                         primaryTypographyProps={{
                             sx: (theme) => ({
                                 color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                                 fontWeight: 500,
                                 fontSize: "15px",
+                                textAlign: isRTL ? 'right' : 'left',
                             }),
                         }}
-                    >Log out</ListItemText>
+                    />
                 </MenuItem>
             </Menu>
         </div>
