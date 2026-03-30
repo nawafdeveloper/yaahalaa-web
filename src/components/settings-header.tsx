@@ -1,7 +1,8 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
-import { ArrowBackOutlined } from '@mui/icons-material';
+import { ArrowBackOutlined, ArrowForwardOutlined } from '@mui/icons-material';
 import { IconButton, Tooltip } from '@mui/material';
 import React from 'react'
 
@@ -10,11 +11,14 @@ type Props = {
 }
 
 export default function SettingsHeader({ title }: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const { setActiveSettingsSection } = useSettingsStore();
     return (
         <div className="flex flex-row items-center gap-x-3 w-full">
             <Tooltip
-                title="Back"
+                title={isRTL ? "عودة" : "Back"}
                 placement="bottom"
                 slotProps={{
                     tooltip: {
@@ -38,7 +42,7 @@ export default function SettingsHeader({ title }: Props) {
                         display: { xs: "none", sm: "flex" }
                     })}
                 >
-                    <ArrowBackOutlined fontSize="inherit" />
+                    {isRTL ? <ArrowForwardOutlined fontSize="inherit" /> : <ArrowBackOutlined fontSize="inherit" />}
                 </IconButton>
             </Tooltip>
             <p className='font-semibold'>{title}</p>

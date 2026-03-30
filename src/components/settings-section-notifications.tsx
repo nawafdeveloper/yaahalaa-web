@@ -3,8 +3,12 @@
 import { Stack } from '@mui/material';
 import React from 'react'
 import SettingsHeader from './settings-header';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 export default function SettingsSectionNotifications() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     return (
         <Stack
             spacing={4}
@@ -14,7 +18,7 @@ export default function SettingsSectionNotifications() {
                 width: '100%',
             }}
         >
-            <SettingsHeader title='Notifications'/>
+            <SettingsHeader title={isRTL ? 'الإشعارات' : 'Notifications'} />
         </Stack>
     )
 }

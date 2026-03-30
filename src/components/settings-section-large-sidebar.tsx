@@ -51,9 +51,9 @@ export default function SettingsSectionSideBar() {
                 {isSubSettings && (
                     <motion.div
                         key={activeSettingsSection}
-                        initial={{ x: '-100%', opacity: 1 }}
+                        initial={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
                         animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: '-100%', opacity: 1 }}
+                        exit={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
                         transition={{ duration: 0.15, ease: customEasing }}
                         className="absolute inset-0 bg-white dark:bg-[#161717] z-20"
                     >

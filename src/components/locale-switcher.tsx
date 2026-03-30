@@ -17,7 +17,7 @@ import { ChevronRight } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, useEffect } from 'react';
 import { Locale } from '../../proxy';
-import { getLocaleDisplayName } from '@/lib/locale-client';
+import { getLocaleDisplayName, getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { setLocale } from '@/lib/locale';
 
 interface LocaleSwitcherProps {
@@ -25,13 +25,15 @@ interface LocaleSwitcherProps {
 }
 
 export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const router = useRouter();
     const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
     const [isPending, startTransition] = useTransition();
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [pendingLocale, setPendingLocale] = useState<Locale | null>(null);
 
-    // Sync selectedLocale with currentLocale prop when it changes
     useEffect(() => {
         setSelectedLocale(currentLocale);
     }, [currentLocale]);
@@ -55,7 +57,6 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
         startTransition(async () => {
             try {
                 await setLocale(pendingLocale);
-                // Force a full page reload to ensure everything updates
                 window.location.reload();
             } catch (error) {
                 console.error('Failed to change locale:', error);
@@ -88,16 +89,29 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                         '&.Mui-focused': {
                             color: '#25D366',
                         },
+                        left: isRTL ? 'unset' : 0,
+                        right: isRTL ? 0 : 'unset',
+                        transformOrigin: isRTL ? 'top right' : 'top left',
+                        '&.MuiInputLabel-outlined': {
+                            transform: isRTL
+                                ? 'translate(-14px, 16px) scale(1)'
+                                : 'translate(14px, 16px) scale(1)',
+                        },
+                        '&.MuiInputLabel-outlined.MuiInputLabel-shrink': {
+                            transform: isRTL
+                                ? 'translate(-14px, -9px) scale(0.75)'
+                                : 'translate(14px, -9px) scale(0.75)',
+                        },
                     }}
                 >
-                    Language
+                    {isRTL ? 'اللغة' : 'Language'}
                 </InputLabel>
                 <Select
                     labelId="locale-select-label"
                     id="locale-select"
                     value={selectedLocale}
                     onChange={handleLocaleChange}
-                    label="Language"
+                    label={isRTL ? 'اللغة' : 'Language'}
                     IconComponent={ChevronRight}
                     disabled={isPending}
                     sx={{
@@ -107,8 +121,13 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                         opacity: isPending ? 0.7 : 1,
                         '& .MuiSelect-select': {
                             padding: '14px 16px',
+                            paddingRight: isRTL ? '14px' : '32px',
+                            paddingLeft: isRTL ? '32px' : '14px',
                             color: (theme) =>
                                 theme.palette.mode === "dark" ? "#FFFFFF" : "#000000",
+                        },
+                        '& .MuiOutlinedInput-notchedOutline legend': {
+                            textAlign: isRTL ? 'right' : 'left',
                         },
                         '& .MuiOutlinedInput-notchedOutline': {
                             borderColor: (theme) =>
@@ -123,8 +142,10 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                             borderWidth: '2px',
                         },
                         '& .MuiSelect-icon': {
-                            transform: 'rotate(0deg)',
+                            transform: isRTL ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s',
+                            right: isRTL ? 'unset' : '7px',
+                            left: isRTL ? '7px' : 'unset',
                             color: (theme) =>
                                 theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                         },
@@ -138,7 +159,6 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                                 maxHeight: 48 * 4.5 + 8,
                                 borderRadius: '12px',
                                 marginTop: '8px',
-                                marginLeft: '8px',
                                 marginRight: '8px',
                                 boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
                                 border: '1px solid',
@@ -209,9 +229,10 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                         fontSize: '18px',
                         color: (theme) =>
                             theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                        textAlign: isRTL ? 'right' : 'left',
                     }}
                 >
-                    Change Language?
+                    {isRTL ? 'تغيير اللغة؟' : 'Change Language?'}
                 </DialogTitle>
                 <DialogContent sx={{ paddingTop: '4px' }}>
                     <Typography
@@ -220,12 +241,20 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                             color: (theme) =>
                                 theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
                             fontSize: '14px',
+                            textAlign: isRTL ? 'right' : 'left',
                         }}
                     >
-                        Switch to {pendingLocale ? getLocaleDisplayName(pendingLocale) : 'this language'}?
+                        {isRTL
+                            ? `هل تريد التبديل إلى ${pendingLocale ? getLocaleDisplayName(pendingLocale) : 'هذه اللغة'}؟`
+                            : `Switch to ${pendingLocale ? getLocaleDisplayName(pendingLocale) : 'this language'}?`
+                        }
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ padding: '12px 16px 16px 16px', gap: '8px' }}>
+                <DialogActions sx={{
+                    padding: '12px 16px 16px 16px',
+                    gap: '8px',
+                    ...(isRTL && { flexDirection: 'row-reverse' }),
+                }}>
                     <Button
                         onClick={handleCancelChange}
                         variant="outlined"
@@ -239,7 +268,7 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                             padding: '8px 16px'
                         }}
                     >
-                        Cancel
+                        {isRTL ? 'إلغاء' : 'Cancel'}
                     </Button>
                     <Button
                         onClick={handleConfirmChange}
@@ -263,7 +292,7 @@ export default function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
                             },
                         }}
                     >
-                        Change
+                        {isRTL ? 'تغيير' : 'Change'}
                     </Button>
                 </DialogActions>
             </Dialog>

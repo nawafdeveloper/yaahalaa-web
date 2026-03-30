@@ -1,10 +1,14 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { InfoOutline, SearchOutlined } from '@mui/icons-material';
 import { IconButton, Box, Fade, Paper, Popper, Typography } from '@mui/material';
 import React, { useState } from 'react';
 
 export default function CreateChatMoreInfoButton() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
     const [open, setOpen] = useState(false);
 
@@ -46,7 +50,19 @@ export default function CreateChatMoreInfoButton() {
                             })}
                         >
                             <Typography sx={{ fontSize: 14 }}>
-                                You can create new chat or new group. To create a new chat, <SearchOutlined fontSize="inherit" /> please enter the number of recipient.
+                                {isRTL ? (
+                                    <>
+                                        يمكنك إنشاء محادثة جديدة أو مجموعة جديدة. لإنشاء محادثة جديدة،
+                                        <SearchOutlined fontSize="inherit" sx={{ display: 'inline', verticalAlign: 'middle' }} />
+                                        يرجى إدخال رقم المستلم.
+                                    </>
+                                ) : (
+                                    <>
+                                        You can create new chat or new group. To create a new chat,
+                                        <SearchOutlined fontSize="inherit" sx={{ display: 'inline', verticalAlign: 'middle' }} />
+                                        please enter the number of recipient.
+                                    </>
+                                )}
                             </Typography>
                         </Paper>
                     </Fade>

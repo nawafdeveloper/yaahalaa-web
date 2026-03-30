@@ -9,19 +9,18 @@ import { AttachFileOutlined, DoneAll, Group, ImageOutlined, KeyboardVoiceOutline
 import Badge from '@mui/material/Badge';
 import ChatItemMoreButtonMenu from './chat-item-more-button-menu';
 import { ChatItemType } from '@/types/chats.type';
-import { formatChatDate } from '@/lib/format-chat-date';
 import ListItemButton from '@mui/material/ListItemButton';
-import { useTheme } from '@mui/material/styles';
+import { formatRelativeDate } from '@/lib/date-formatter';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 type Props = {
     chat_item: ChatItemType;
 }
 
 export default function ChatItem({ chat_item }: Props) {
-    const theme = useTheme();
-    const isRTL = theme.direction === 'rtl';
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
 
-    // The secondary action content
     const secondaryActionContent = (
         <div
             style={{
@@ -36,7 +35,7 @@ export default function ChatItem({ chat_item }: Props) {
                     : "dark:text-[#A5A5A5] text-[#636261]"
                     }`}
             >
-                {formatChatDate(chat_item.updated_at)}
+                {formatRelativeDate(chat_item.updated_at)}
             </span>
             <div
                 className="badge-slot"
@@ -78,7 +77,7 @@ export default function ChatItem({ chat_item }: Props) {
                 boxShadow: "0px 4px 20px rgba(0,0,0,0)",
                 textTransform: "inherit",
                 color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
-                direction: theme.direction,
+                direction: isRTL ? 'rtl' : 'ltr',
 
                 "&:hover": {
                     boxShadow: "0px 4px 20px rgba(0,0,0,0)",
@@ -105,8 +104,7 @@ export default function ChatItem({ chat_item }: Props) {
                 sx={{
                     paddingY: 1,
                     paddingX: 2,
-                    direction: theme.direction,
-                    // Remove secondaryAction from here
+                    direction: isRTL ? 'rtl' : 'ltr',
                 }}
             >
                 <ListItemAvatar
@@ -140,7 +138,7 @@ export default function ChatItem({ chat_item }: Props) {
                             color: (theme) =>
                                 chat_item.is_unreaded_chat ? theme.palette.mode === "dark" ? "white" : "black" : theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                             textAlign: isRTL ? 'right' : 'left',
-                            direction: theme.direction,
+                            direction: isRTL ? 'rtl' : 'ltr',
                         },
                         overflow: "hidden",
                         whiteSpace: "nowrap",
@@ -194,12 +192,11 @@ export default function ChatItem({ chat_item }: Props) {
                                     : theme.palette.mode === "dark"
                                         ? "#A5A5A5"
                                         : "#636261",
-                            direction: theme.direction,
+                            direction: isRTL ? 'rtl' : 'ltr',
                             textAlign: isRTL ? 'right' : 'left',
                         },
                     }}
                 />
-                {/* Manually add the secondary action content here */}
                 <div
                     style={{
                         marginLeft: isRTL ? 0 : 'auto',

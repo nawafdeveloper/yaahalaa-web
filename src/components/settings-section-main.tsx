@@ -1,5 +1,6 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
 import { AccountCircleOutlined, CloseOutlined, Computer, HelpOutline, LockOutline, NotificationsOutlined, Person, SearchOutlined, VpnKeyOutlined } from '@mui/icons-material';
 import { Avatar, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, TextField } from '@mui/material';
@@ -14,6 +15,9 @@ const ChatIcon = () => (
 );
 
 export default function SettingsSectionMain() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [value, setValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
     const { navigateToSettings } = useSettingsStore();
@@ -26,50 +30,50 @@ export default function SettingsSectionMain() {
     const settingItems = [
         {
             id: '1',
-            primary: 'General',
-            secondary: 'Language and text sizes',
+            primary: isRTL ? 'عام' : 'General',
+            secondary: isRTL ? 'اللغة وأحجام النصوص' : 'Language and text sizes',
             icon: Computer,
             href: 'settings-general'
         },
         {
             id: '2',
-            primary: 'Profile',
-            secondary: 'Name, profile photo and number',
+            primary: isRTL ? 'الملف الشخصي' : 'Profile',
+            secondary: isRTL ? 'الاسم، الصورة الشخصية والرقم' : 'Name, profile photo and number',
             icon: AccountCircleOutlined,
             href: 'settings-profile'
         },
         {
             id: '3',
-            primary: 'Account',
-            secondary: 'Account security and information',
+            primary: isRTL ? 'الحساب' : 'Account',
+            secondary: isRTL ? 'أمان الحساب والمعلومات' : 'Account security and information',
             icon: VpnKeyOutlined,
             href: 'settings-account'
         },
         {
             id: '4',
-            primary: 'Privacy',
-            secondary: 'Block contacts dissappearing messages',
+            primary: isRTL ? 'الخصوصية' : 'Privacy',
+            secondary: isRTL ? 'حظر جهات الاتصال، الرسائل المختفية' : 'Block contacts, disappearing messages',
             icon: LockOutline,
             href: 'settings-privacy'
         },
         {
             id: '5',
-            primary: 'Chats',
-            secondary: 'Theme, wallpaper and chats setting',
+            primary: isRTL ? 'المحادثات' : 'Chats',
+            secondary: isRTL ? 'السمة، الخلفية وإعدادات المحادثات' : 'Theme, wallpaper and chats setting',
             icon: ChatIcon,
             href: 'settings-chats'
         },
         {
             id: '6',
-            primary: 'Notifications',
-            secondary: 'Message notifications',
+            primary: isRTL ? 'الإشعارات' : 'Notifications',
+            secondary: isRTL ? 'إشعارات الرسائل' : 'Message notifications',
             icon: NotificationsOutlined,
             href: 'settings-notifications'
         },
         {
             id: '7',
-            primary: 'Help & feedback',
-            secondary: 'Help center, contact us, privacy and policy',
+            primary: isRTL ? 'المساعدة' : 'Help & feedback',
+            secondary: isRTL ? 'مركز المساعدة، اتصل بنا، الخصوصية والسياسة' : 'Help center, contact us, privacy and policy',
             icon: HelpOutline,
             href: 'settings-help'
         }
@@ -89,7 +93,7 @@ export default function SettingsSectionMain() {
                 id="filled-search-bar"
                 variant="filled"
                 size="small"
-                placeholder="Search for settings"
+                placeholder={isRTL ? "إبحث في الإعدادات" : "Search for settings"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 inputRef={inputRef}

@@ -9,8 +9,12 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import { useRef, useState } from "react";
 import CreateChatHeaderLargeSidebar from "./create-chat-header-large-sidebar";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 export default function CreateChatSearchLargeSidebar() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [value, setValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
     const grouped = groupContactsByLetter(contacts);
@@ -28,7 +32,7 @@ export default function CreateChatSearchLargeSidebar() {
                 id="filled-search-bar"
                 variant="filled"
                 size="small"
-                placeholder="Search name or number"
+                placeholder={isRTL ? "إبحث عن إسم أو رقم" : "Search name or number"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 inputRef={inputRef}

@@ -9,9 +9,13 @@ import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import SettingsSectionSideBar from "./settings-section-large-sidebar";
 import ArchiveSectionLargeSidebar from "./archive-section-large-sidebar";
 import ProfileSectionLargeSidebar from "./profile-section-large-sidebar";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 export default function LargeSideBar() {
     const { activeSideBar } = useSidebarStore();
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
     return (
@@ -34,9 +38,9 @@ export default function LargeSideBar() {
                 {activeSideBar !== 'main-chat' && (
                     <motion.div
                         key={activeSideBar}
-                        initial={{ x: '-100%', opacity: 1 }}
+                        initial={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
                         animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: '-100%', opacity: 1 }}
+                        exit={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
                         transition={{ duration: 0.15, ease: customEasing }}
                         className="relative z-10 flex h-full w-full"
                         style={{

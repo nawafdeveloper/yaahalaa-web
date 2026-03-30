@@ -1,4 +1,3 @@
-// components/settings/settings-section-general.tsx
 "use client";
 
 import { ChevronRight } from '@mui/icons-material';
@@ -6,28 +5,20 @@ import { FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, Stack } f
 import React, { useState, useEffect } from 'react';
 import SettingsHeader from './settings-header';
 import LocaleSwitcher from './locale-switcher';
-import { getLocaleFromCookie } from '@/lib/locale-client';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { Locale } from '../../proxy';
-
-const fontSizes = [
-    { label: '80%', value: '80%' },
-    { label: '90%', value: '90%' },
-    { label: '100% (Default)', value: '100%' },
-    { label: '110%', value: '110%' },
-    { label: '125%', value: '125%' },
-    { label: '135%', value: '135%' },
-    { label: '150%', value: '150%' },
-];
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
 
 export default function SettingsSectionGeneral() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [selectedFontSize, setSelectedFontSize] = useState<string>('100%');
     const [currentLocale, setCurrentLocale] = useState<Locale>('en');
 
     useEffect(() => {
-        // Get current locale from cookie on client side
         const locale = getLocaleFromCookie();
         if (locale) {
             setCurrentLocale(locale);
@@ -36,9 +27,18 @@ export default function SettingsSectionGeneral() {
 
     const handleFontSizeChange = (event: SelectChangeEvent) => {
         setSelectedFontSize(event.target.value);
-        // Save to localStorage
         localStorage.setItem('fontSize', event.target.value);
     };
+
+    const fontSizes = [
+        { label: '80%', value: '80%' },
+        { label: '90%', value: '90%' },
+        { label: isRTL ? '100% (تلقائي)' : '100% (Default)', value: '100%' },
+        { label: '110%', value: '110%' },
+        { label: '125%', value: '125%' },
+        { label: '135%', value: '135%' },
+        { label: '150%', value: '150%' },
+    ];
 
     return (
         <Stack
@@ -49,14 +49,10 @@ export default function SettingsSectionGeneral() {
                 width: '100%',
             }}
         >
-            <SettingsHeader title='General' />
-            
-            {/* Language Selector */}
+            <SettingsHeader title={isRTL ? 'عام' : 'General'} />
             <LocaleSwitcher currentLocale={currentLocale} />
-
-            {/* Font Size Selector */}
             <FormControl sx={{ width: '100%' }}>
-                <InputLabel 
+                <InputLabel
                     id="font-size-select-label"
                     sx={{
                         color: (theme) =>
@@ -64,16 +60,29 @@ export default function SettingsSectionGeneral() {
                         '&.Mui-focused': {
                             color: '#25D366',
                         },
+                        left: isRTL ? 'unset' : 0,
+                        right: isRTL ? 0 : 'unset',
+                        transformOrigin: isRTL ? 'top right' : 'top left',
+                        '&.MuiInputLabel-outlined': {
+                            transform: isRTL
+                                ? 'translate(-14px, 16px) scale(1)'
+                                : 'translate(14px, 16px) scale(1)',
+                        },
+                        '&.MuiInputLabel-outlined.MuiInputLabel-shrink': {
+                            transform: isRTL
+                                ? 'translate(-14px, -9px) scale(0.75)'
+                                : 'translate(14px, -9px) scale(0.75)',
+                        },
                     }}
                 >
-                    Font Size
+                    {isRTL ? 'حجم النصوص' : 'Font Size'}
                 </InputLabel>
                 <Select
                     labelId="font-size-select-label"
                     id="font-size-select"
                     value={selectedFontSize}
                     onChange={handleFontSizeChange}
-                    label="Font Size"
+                    label={isRTL ? 'حجم النصوص' : 'Font Size'}
                     IconComponent={ChevronRight}
                     sx={{
                         borderRadius: '12px',
@@ -81,8 +90,13 @@ export default function SettingsSectionGeneral() {
                             theme.palette.mode === "dark" ? "#2A2A2A" : "#F5F5F5",
                         '& .MuiSelect-select': {
                             padding: '14px 16px',
+                            paddingRight: isRTL ? '14px' : '32px',
+                            paddingLeft: isRTL ? '32px' : '14px',
                             color: (theme) =>
                                 theme.palette.mode === "dark" ? "#FFFFFF" : "#000000",
+                        },
+                        '& .MuiOutlinedInput-notchedOutline legend': {
+                            textAlign: isRTL ? 'right' : 'left',
                         },
                         '& .MuiOutlinedInput-notchedOutline': {
                             borderColor: (theme) =>
@@ -97,8 +111,10 @@ export default function SettingsSectionGeneral() {
                             borderWidth: '2px',
                         },
                         '& .MuiSelect-icon': {
-                            transform: 'rotate(0deg)',
+                            transform: isRTL ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s',
+                            right: isRTL ? 'unset' : '7px',
+                            left: isRTL ? '7px' : 'unset',
                             color: (theme) =>
                                 theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
                         },
@@ -112,8 +128,6 @@ export default function SettingsSectionGeneral() {
                                 maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
                                 borderRadius: '12px',
                                 marginTop: '8px',
-                                marginLeft: '8px',
-                                marginRight: '8px',
                                 boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
                                 border: '1px solid',
                                 borderColor: (theme) =>
