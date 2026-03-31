@@ -1,10 +1,14 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { AddOutlined, CalendarMonth, CameraAlt, Collections, Description, Headphones, Person, Poll } from '@mui/icons-material';
 import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
 import React, { useState } from 'react'
 
 export default function ChatRoomInputAttachButton() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -89,7 +93,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Document
+                        {isRTL ? 'مستند' : 'Document'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -119,7 +123,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Photos & videos
+                        {isRTL ? 'فيديوهات و صور' : 'Photos & videos'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -149,7 +153,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Camera
+                        {isRTL ? 'الكاميرا' : 'Camera'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -179,7 +183,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Audio
+                        {isRTL ? 'صوتية' : 'Audio'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -209,7 +213,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Contact
+                        {isRTL ? 'جهة إتصال' : 'Contact'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -239,7 +243,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Poll
+                        {isRTL ? 'استطلاع رأي' : 'Poll'}
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
@@ -269,7 +273,7 @@ export default function ChatRoomInputAttachButton() {
                             }),
                         }}
                     >
-                        Event
+                        {isRTL ? 'حدث' : 'Event'}
                     </ListItemText>
                 </MenuItem>
             </Menu>

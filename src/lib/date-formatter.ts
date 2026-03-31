@@ -1,5 +1,3 @@
-import { Locale } from "../../proxy";
-
 interface Translations {
     justNow: string;
     minute: string;
@@ -14,7 +12,9 @@ interface Translations {
     localeCode: string;
 }
 
-const translations: Record<Locale, Translations> = {
+type Locale = "ar" | "en" | null;
+
+const translations: Record<Exclude<Locale, null>, Translations> = {
     en: {
         justNow: 'just now',
         minute: 'm',
@@ -47,7 +47,8 @@ export function formatRelativeDate(
     dateInput: Date | string | number,
     locale: Locale = 'en'
 ): string {
-    const t = translations[locale];
+    // Handle null locale by defaulting to 'en'
+    const t = translations[locale ?? 'en'];
     const now = new Date();
     const date = new Date(dateInput);
 

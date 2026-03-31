@@ -27,6 +27,7 @@ import useMediaPreviewStore from '@/store/media-preview-store';
 import { Avatar, Button } from '@mui/material';
 import PollComponent from './chat-poll-item';
 import { convertToPollWithVotes } from '@/utils/convert-to-poll-with-votes';
+import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
 
 type Props = {
     message: Message;
@@ -44,6 +45,7 @@ export default function ChatRoomMessageBubble({
     isFirstInGroup = true,
 }: Props) {
     const { openPreview } = useMediaPreviewStore();
+    const { open } = useDetailedSidebarStore();
 
     const [thumbnail, setThumbnail] = useState('');
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -133,7 +135,7 @@ export default function ChatRoomMessageBubble({
                     paddingBottom: isFirstInGroup ? undefined : '2px',
                 }}
             >
-                <div className={`flex flex-row items-center w-full md:max-w-7xl md:mx-auto ${!isSender ? 'gap-x-3' : ''}`}>
+                <div className={`flex flex-row items-center w-full md:max-w-7xl md:mx-auto ${!isSender ? 'gap-x-3' : ''} ${isSender && isSelectMode ? 'justify-end' : ''}`}>
                     {isSelectMode && (
                         <ListItemIcon>
                             <Checkbox
@@ -248,6 +250,7 @@ export default function ChatRoomMessageBubble({
                             {!isSender && (
                                 <Button
                                     variant="text"
+                                    onClick={open}
                                     size="small"
                                     className="pl-2 font-semibold! text-xs!"
                                     sx={(theme) => {

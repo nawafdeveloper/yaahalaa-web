@@ -7,8 +7,12 @@ import ChatRoomInputAttachButton from './chat-room-input-attach-button';
 import ChatRoomInputEmojiButton from './chat-room-input-emoji-button';
 import RecordTimer from './record-timer';
 import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 export default function ChatRoomInputForm() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [value, setValue] = useState("");
     const [micHover, setMicHover] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +65,7 @@ export default function ChatRoomInputForm() {
                                 "&:hover": { backgroundColor: "#25D366", color: "#161717" },
                             }}
                         >
-                            <Send />
+                            <Send className={`${isRTL ? 'rotate-180' : ''}`}/>
                         </IconButton>
                     </div>
                 </div>
@@ -71,7 +75,7 @@ export default function ChatRoomInputForm() {
                     id="filled-chat-input-bar"
                     variant="filled"
                     size="small"
-                    placeholder="Type a message"
+                    placeholder={isRTL ? "إبدأ المحادثة" : "Type a message"}
                     fullWidth
                     value={value}
                     onChange={(e) => setValue(e.target.value)}

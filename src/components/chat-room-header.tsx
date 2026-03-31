@@ -50,7 +50,8 @@ export default function ChatRoomHeader() {
                 <Typography
                     variant="body1"
                     sx={{
-                        fontWeight: "600"
+                        fontWeight: "600",
+                        direction: 'ltr'
                     }}
                 >
                     +966 55 994 4487

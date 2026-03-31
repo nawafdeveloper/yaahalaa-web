@@ -9,8 +9,12 @@ import { messages } from "@/mocks/messages";
 import ContextMenu from "@/context/menu";
 import { CheckBoxOutlined, DeleteForeverOutlined, DoDisturbOnOutlined, DoNotDisturbOutlined, HighlightOffOutlined, InfoOutlined, NotificationsOffOutlined, ThumbDownOutlined } from "@mui/icons-material";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 export default function ChatRoomContent() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -66,14 +70,14 @@ export default function ChatRoomContent() {
             <ContextMenu
                 containerRef={containerRef}
                 items={[
-                    { label: "Contact Info", onClick: () => { }, icon: <InfoOutlined fontSize="medium" /> },
-                    { label: "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
-                    { label: "Mute notifications", onClick: () => { }, icon: <NotificationsOffOutlined fontSize="medium" /> },
-                    { label: "Close chat", onClick: () => { }, icon: <HighlightOffOutlined fontSize="medium" /> },
-                    { label: "Report", onClick: () => { }, icon: <ThumbDownOutlined fontSize="medium" /> },
-                    { label: "Block", onClick: () => { }, icon: <DoNotDisturbOutlined fontSize="medium" /> },
-                    { label: "Clear chat", onClick: () => { }, icon: <DoDisturbOnOutlined fontSize="medium" /> },
-                    { label: "Delete chat", onClick: () => { }, icon: <DeleteForeverOutlined fontSize="medium" /> },
+                    { label: isRTL ? "معلومات جهة الإتصال" : "Contact Info", onClick: () => { }, icon: <InfoOutlined fontSize="medium" /> },
+                    { label: isRTL ? "تحديد الرسائل" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
+                    { label: isRTL ? "كتم الإشعارات" : "Mute notifications", onClick: () => { }, icon: <NotificationsOffOutlined fontSize="medium" /> },
+                    { label: isRTL ? "إغلاق المحادثة" : "Close chat", onClick: () => { }, icon: <HighlightOffOutlined fontSize="medium" /> },
+                    { label: isRTL ? "إبلاغ" : "Report", onClick: () => { }, icon: <ThumbDownOutlined fontSize="medium" /> },
+                    { label: isRTL ? "حظر" : "Block", onClick: () => { }, icon: <DoNotDisturbOutlined fontSize="medium" /> },
+                    { label: isRTL ? "حذف الرسائل" : "Clear chat", onClick: () => { }, icon: <DoDisturbOnOutlined fontSize="medium" /> },
+                    { label: isRTL ? "حذف المحادثة" : "Delete chat", onClick: () => { }, icon: <DeleteForeverOutlined fontSize="medium" /> },
                 ]}
             />
         </Box>

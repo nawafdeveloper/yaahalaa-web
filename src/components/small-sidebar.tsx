@@ -32,7 +32,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
         <div className={`md:flex md:relative z-50 hidden flex-col items-start justify-between md:h-screen md:max-h-screen md:min-h-screen overflow-y-hidden p-3 dark:bg-[#1d1f1f] bg-[#f7f5f3] ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300`}>
             <div className="flex flex-col gap-y-3">
                 <Tooltip
-                    title="Chats"
+                    title={isRTL ? "المحادثات" : "Chats"}
                     placement="right"
                     slotProps={{
                         tooltip: {
@@ -82,7 +82,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
                     </IconButton>
                 </Tooltip>
                 <Tooltip
-                    title="Archive"
+                    title={isRTL ? "الأرشيف" : "Archive"}
                     placement="right"
                     slotProps={{
                         tooltip: {
@@ -121,7 +121,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
             </div>
             <div className="flex flex-col gap-y-3">
                 <Tooltip
-                    title="Settings"
+                    title={isRTL ? "الإعدادات" : "Settings"}
                     placement="right"
                     slotProps={{
                         tooltip: {

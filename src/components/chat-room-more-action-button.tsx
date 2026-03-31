@@ -1,5 +1,6 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { ArchiveOutlined, BlockOutlined, DeleteForeverOutlined, FavoriteBorderOutlined, LogoutOutlined, MarkChatReadOutlined, MoreVertOutlined, NotificationsOffOutlined, PushPinOutlined, StarBorderOutlined } from '@mui/icons-material';
 import { Divider, Tooltip } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
@@ -14,6 +15,9 @@ interface Props {
 }
 
 export default function ChatRoomMoreActionButton({ chat_type }: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -29,7 +33,7 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
 
     return (
         <Tooltip
-            title="More"
+            title={isRTL ? "المزيد" : "More"}
             placement="bottom"
             slotProps={{
                 tooltip: {
@@ -106,7 +110,9 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     fontSize: "15px",
                                 }),
                             }}
-                        >Archive chat</ListItemText>
+                        >
+                            {isRTL ? "أرشفة المحادثة" : "Archive chat"}
+                        </ListItemText>
                     </MenuItem>
                     <MenuItem
                         onClick={handleClose}
@@ -135,7 +141,9 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     fontSize: "15px",
                                 }),
                             }}
-                        >Mute notifications</ListItemText>
+                        >
+                            {isRTL ? "كتم الإشعارات" : "Mute notifications"}
+                        </ListItemText>
                     </MenuItem>
                     <MenuItem
                         onClick={handleClose}
@@ -164,7 +172,9 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     fontSize: "15px",
                                 }),
                             }}
-                        >Pin chat</ListItemText>
+                        >
+                            {isRTL ? "تثبيت المحادثة" : "Pin chat"}
+                        </ListItemText>
                     </MenuItem>
                     <MenuItem
                         onClick={handleClose}
@@ -193,7 +203,9 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     fontSize: "15px",
                                 }),
                             }}
-                        >Mark as read</ListItemText>
+                        >
+                            {isRTL ? "تحديد كمقروءة" : "Mark as read"}
+                            </ListItemText>
                     </MenuItem>
                     <MenuItem
                         onClick={handleClose}
@@ -222,7 +234,9 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     fontSize: "15px",
                                 }),
                             }}
-                        >Add to favourites</ListItemText>
+                        >
+                            {isRTL ? "إضافة للمفضلة" : "Add to favourites"}
+                            </ListItemText>
                     </MenuItem>
                     <Divider />
                     {chat_type === 'group' ? (
@@ -254,7 +268,7 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                     }),
                                 }}
                             >
-                                Exit group
+                                {isRTL ? "الخروج من المجموعة" : "Exit group"}
                             </ListItemText>
                         </MenuItem>
                     ) : (
@@ -287,7 +301,7 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                         }),
                                     }}
                                 >
-                                    Block
+                                    {isRTL ? "حظر" : "Block"}
                                 </ListItemText>
                             </MenuItem>
                             <MenuItem
@@ -318,7 +332,7 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                                         }),
                                     }}
                                 >
-                                    Delete chat
+                                    {isRTL ? "حذف المحادثة" : "Delete chat"}
                                 </ListItemText>
                             </MenuItem>
                         </div>

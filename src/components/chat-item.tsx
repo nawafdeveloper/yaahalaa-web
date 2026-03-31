@@ -35,7 +35,7 @@ export default function ChatItem({ chat_item }: Props) {
                     : "dark:text-[#A5A5A5] text-[#636261]"
                     }`}
             >
-                {formatRelativeDate(chat_item.updated_at)}
+                {formatRelativeDate(chat_item.updated_at, locale)}
             </span>
             <div
                 className="badge-slot"

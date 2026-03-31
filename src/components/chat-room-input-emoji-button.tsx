@@ -1,5 +1,6 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { AccessTimeOutlined, CloseOutlined, DirectionsCarOutlined, DownhillSkiingOutlined, EmojiFoodBeverageOutlined, EmojiNatureOutlined, EmojiObjectsOutlined, EmojiSymbolsOutlined, FlagOutlined, InsertEmoticonOutlined, SearchOutlined, SportsBaseballOutlined } from "@mui/icons-material";
 import {
     Box,
@@ -33,6 +34,9 @@ interface Props {
 }
 
 export default function ChatRoomInputEmojiButton({ setMessageInput, messageInput }: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const [tab, setTab] = useState(0);
     const [value, setValue] = useState("");
@@ -160,7 +164,7 @@ export default function ChatRoomInputEmojiButton({ setMessageInput, messageInput
                                         variant="filled"
                                         fullWidth
                                         size="small"
-                                        placeholder="Search emoji"
+                                        placeholder={isRTL ? "إبحث عن رمز تعبيري" : "Search emoji"}
                                         value={value}
                                         onChange={(e) => setValue(e.target.value)}
                                         inputRef={inputRef}

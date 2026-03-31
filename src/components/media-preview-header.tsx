@@ -1,5 +1,6 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import useMediaPreviewStore from '@/store/media-preview-store';
 import { CloseOutlined, FileDownloadOutlined, KeyboardDoubleArrowRight, MoodOutlined, Person, PushPinOutlined, Shortcut, StarOutline, StartOutlined, ZoomIn, ZoomOut } from '@mui/icons-material'
 import { Avatar, Box, IconButton, Tooltip, Typography } from '@mui/material'
@@ -22,26 +23,29 @@ type ActionButton = {
 }
 
 export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom, minZoom }: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const { closePreview, mediaUrl, senderUserId, createdAt } = useMediaPreviewStore();
 
     const actionButtons: ActionButton[] = [
         {
             id: '1',
-            tooltip: 'Zoom out',
+            tooltip: isRTL ? 'تصغير' : 'Zoom out',
             icon: ZoomOut,
             onClick: onZoomOut,
             disabled: zoom <= minZoom,
         },
         {
             id: '2',
-            tooltip: 'Zoom in',
+            tooltip: isRTL ? 'تكبير' : 'Zoom in',
             icon: ZoomIn,
             onClick: onZoomIn,
             disabled: zoom >= maxZoom,
         },
         {
             id: '3',
-            tooltip: 'Go to message',
+            tooltip: isRTL ? 'الذهاب للمحادثة' : 'Go to message',
             icon:
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path fillRule="evenodd" clipRule="evenodd" d="M3.00208 9L0.942085 5.53C0.542171 4.86348 1.01478 4 1.79207 4H19.3355C20.8082 4 22.0021 5.19391 22.0021 6.66667V17.3333C22.0021 18.8061 20.8082 20 19.3355 20H5.66875C4.19599 20 3.00208 18.8061 3.00208 17.3333V9ZM5.00208 8.44603L3.53447 6H19.3355C19.7037 6 20.0021 6.29848 20.0021 6.66667V17.3333C20.0021 17.7015 19.7037 18 19.3355 18H5.66875C5.30056 18 5.00208 17.7015 5.00208 17.3333V8.44603Z" fill="currentColor" />
@@ -53,43 +57,43 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
         },
         {
             id: '4',
-            tooltip: 'Reply',
+            tooltip: isRTL ? 'رد' : 'Reply',
             icon: Shortcut,
             onClick: () => { },
         },
         {
             id: '5',
-            tooltip: 'Star',
+            tooltip: isRTL ? 'نجمة' : 'Star',
             icon: StarOutline,
             onClick: () => { },
         },
         {
             id: '6',
-            tooltip: 'Pin',
+            tooltip: isRTL ? 'تثبيت' : 'Pin',
             icon: PushPinOutlined,
             onClick: () => { },
         },
         {
             id: '7',
-            tooltip: 'React',
+            tooltip: isRTL ? 'تفاعل' : 'React',
             icon: MoodOutlined,
             onClick: () => { },
         },
         {
             id: '8',
-            tooltip: 'Forward',
+            tooltip: isRTL ? 'إعادة توجيه' : 'Forward',
             icon: KeyboardDoubleArrowRight,
             onClick: () => { },
         },
         {
             id: '9',
-            tooltip: 'Save as',
+            tooltip: isRTL ? 'حفظ كـ' : 'Save as',
             icon: FileDownloadOutlined,
             onClick: () => { },
         },
         {
             id: '10',
-            tooltip: 'Close',
+            tooltip: isRTL ? 'إغلاق' : 'Close',
             icon: CloseOutlined,
             onClick: () => closePreview(),
         },

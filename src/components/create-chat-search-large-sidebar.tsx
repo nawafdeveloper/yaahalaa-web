@@ -104,7 +104,7 @@ export default function CreateChatSearchLargeSidebar() {
                                     <GroupAdd sx={{ width: "30px", height: "30px" }} />
                                 </Avatar>
                             </ListItemAvatar>
-                            <ListItemText primary="New group" />
+                            <ListItemText primary={isRTL ? "مجموعة جديدة" : "New group"} />
                         </ListItem>
                     </ListItemButton>
 
@@ -136,7 +136,7 @@ export default function CreateChatSearchLargeSidebar() {
                                     <PersonAdd sx={{ width: "30px", height: "30px" }} />
                                 </Avatar>
                             </ListItemAvatar>
-                            <ListItemText primary="New contact" />
+                            <ListItemText primary={isRTL ? "جهة إتصال" : "New contact"} />
                         </ListItem>
                     </ListItemButton>
                 </List>
