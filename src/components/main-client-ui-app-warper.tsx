@@ -69,7 +69,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                                 x: isDetailedSidebarOpen ? 0 : (isRTL ? '-100%' : '100%'),
                             }}
                             transition={{ duration: 0.2, ease: customEasing }}
-                            className="relative z-10 flex h-full shrink-0 overflow-hidden w-full max-w-[18rem] sm:max-w-[20rem] xl:max-w-100"
+                            className="relative z-10 flex h-full shrink-0 overflow-hidden w-full max-w-[18rem] sm:max-w-[20rem] xl:max-w-115"
                             style={{
                                 pointerEvents: isDetailedSidebarOpen ? 'auto' : 'none',
                             }}

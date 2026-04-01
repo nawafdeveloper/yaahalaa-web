@@ -44,7 +44,7 @@ export default function SettingsSectionPrivacy() {
         ar: {
             title: 'الخصوصية',
             subtitle: 'من يمكنه مشاهدة معلوماتي الشخصية',
-            secondSubtitle: '',
+            secondSubtitle: 'إخفاء الرسائل المرسلة',
             thirdSubtitle: 'متقدم',
             lastSeen: 'آخر ظهور و عبر الإنترنت',
             profilePicture: 'الصورة الشخصية',
