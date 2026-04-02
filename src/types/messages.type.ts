@@ -43,6 +43,14 @@ export type Location = {
     name?: string;
 };
 
+export type ReplyMessage = {
+    original_message_id: string;
+    original_sender_user_id: string;
+    original_message_text: string | null;
+    original_attached_media: 'photo' | 'video' | 'voice' | 'file' | 'contact' | 'location' | null;
+    original_attached_media_url: string | null;
+};
+
 export type Message = {
     message_id: string;
     sender_user_id: string;
@@ -50,7 +58,7 @@ export type Message = {
     attached_media: 'photo' | 'video' | 'voice' | 'file' | 'contact' | 'location' | null;
     event: Event | null;
     poll: Poll | null;
-    reply_message: Message | null;
+    reply_message: ReplyMessage | null;
     location: Location | null;
     media_url: string | null;
     video_thumbnail: string | null;

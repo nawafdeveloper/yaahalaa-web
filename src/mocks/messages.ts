@@ -37,7 +37,13 @@ export const messages: Message[] = [
         attached_media: "photo",
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_001",
+            original_sender_user_id: "user_123",
+            original_message_text: "Hey everyone! How's it going?",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: "https://postcdn.haraj.com.sa/userfiles30/2025-12-18/900x1600_59058F21-B4A1-464B-9EA5-E3B7A91B14E8.jpg-700.webp",
         video_thumbnail: null,
@@ -126,7 +132,13 @@ export const messages: Message[] = [
         attached_media: "video",
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_002",
+            original_sender_user_id: "user_456",
+            original_message_text: null,
+            original_attached_media: "photo",
+            original_attached_media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+        },
         location: null,
         media_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
         video_thumbnail: "https://images.unsplash.com/photo-1585366119957-e9730b6d0f60",
@@ -180,7 +192,13 @@ export const messages: Message[] = [
         attached_media: "file",
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_006",
+            original_sender_user_id: "user_890",
+            original_message_text: "Has anyone seen the latest report?",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         video_thumbnail: null,
@@ -205,7 +223,13 @@ export const messages: Message[] = [
         attached_media: null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_005",
+            original_sender_user_id: "user_567",
+            original_message_text: "This made my day 😂",
+            original_attached_media: "video",
+            original_attached_media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -259,7 +283,13 @@ export const messages: Message[] = [
         attached_media: null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_008",
+            original_sender_user_id: "user_456",
+            original_message_text: "Thanks for the help yesterday!",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -322,7 +352,13 @@ export const messages: Message[] = [
             event_location: "Grand Ballroom, Downtown Hotel"
         },
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_003",
+            original_sender_user_id: "user_789",
+            original_message_text: "Don't forget about our meeting next week!",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -381,7 +417,13 @@ export const messages: Message[] = [
         attached_media: "photo",
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_011",
+            original_sender_user_id: "user_567",
+            original_message_text: "Here's the contact for our new vendor",
+            original_attached_media: "contact",
+            original_attached_media_url: null
+        },
         location: null,
         media_url: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
         video_thumbnail: null,
@@ -410,7 +452,13 @@ export const messages: Message[] = [
         attached_media: null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_012",
+            original_sender_user_id: "user_890",
+            original_message_text: "Save the date for our holiday party!",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -460,7 +508,13 @@ export const messages: Message[] = [
         attached_media: null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_014",
+            original_sender_user_id: "user_456",
+            original_message_text: "Great team photo from today!",
+            original_attached_media: "photo",
+            original_attached_media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -514,7 +568,13 @@ export const messages: Message[] = [
         attached_media: null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_016",
+            original_sender_user_id: "user_234",
+            original_message_text: "Tutorial on the new feature",
+            original_attached_media: "video",
+            original_attached_media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,
@@ -548,7 +608,13 @@ export const messages: Message[] = [
             event_location: "Virtual - Zoom Link in Calendar"
         },
         poll: null,
-        reply_message: null,
+        reply_message: {
+            original_message_id: "msg_017",
+            original_sender_user_id: "user_567",
+            original_message_text: "Just finished the migration. Everything is running smoothly!",
+            original_attached_media: null,
+            original_attached_media_url: null
+        },
         location: null,
         media_url: null,
         video_thumbnail: null,

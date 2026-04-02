@@ -2,7 +2,7 @@
 
 import { generateVideoThumbnailFromUrl } from '@/lib/generate-thumbnail';
 import { Message } from '@/types/messages.type';
-import { CheckCircle, Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, VideocamRounded } from '@mui/icons-material';
+import { Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, VideocamRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -107,13 +107,34 @@ export default function ChatRoomMessageBubble({
 
     const TAIL_WIDTH = 8;
 
-    const getHue = (userId: string): number => {
+    const getHue = (userId: string | undefined): number => {
+        if (!userId) {
+            return 0;
+        }
         let hash = 0;
         for (let i = 0; i < userId.length; i++) {
             hash = ((hash << 5) - hash) + userId.charCodeAt(i);
             hash |= 0;
         }
         return Math.abs(hash) % 360;
+    };
+
+    const getReplyLabel = () => {
+        const reply = message.reply_message;
+        if (!reply) return null;
+        if (reply.original_message_text) return reply.original_message_text;
+        if (reply.original_attached_media) {
+            const map: Record<string, string> = {
+                photo: "Photo",
+                video: "Video",
+                voice: "Voice message",
+                file: "Document",
+                contact: "Contact",
+                location: "Location",
+            };
+            return map[reply.original_attached_media] || "Attachment";
+        }
+        return "Message";
     };
 
     return (
@@ -133,6 +154,7 @@ export default function ChatRoomMessageBubble({
                     }),
                     paddingTop: isFirstInGroup ? undefined : '2px',
                     paddingBottom: isFirstInGroup ? undefined : '2px',
+                    marginBottom: message.message_raction?.reaction_emoji ? 2 : 0
                 }}
             >
                 <div className={`flex flex-row items-center w-full md:max-w-7xl md:mx-auto ${!isSender ? 'gap-x-3' : ''} ${isSender && isSelectMode ? 'justify-end' : ''}`}>
@@ -166,8 +188,8 @@ export default function ChatRoomMessageBubble({
                                                 return {
                                                     width: 34,
                                                     height: 34,
-                                                    backgroundColor: `hsl(${hue}, 70%, 20%)`, // dark background
-                                                    color: `hsl(${hue}, 80%, 65%)`,          // bright icon
+                                                    backgroundColor: `hsl(${hue}, 40%, 15%)`,
+                                                    color: `hsl(${hue}, 80%, 65%)`,
                                                     fontSize: 16,
                                                 };
                                             } else {
@@ -280,6 +302,54 @@ export default function ChatRoomMessageBubble({
                                     <ShortcutOutlined fontSize='inherit' />
                                     <p className='italic'>Forwarded</p>
                                 </span>
+                            )}
+                            {message.reply_message && (
+                                <Box
+                                    sx={(theme) => {
+                                        const hue = getHue(message.reply_message?.original_sender_user_id);
+                                        const accent = `hsl(${hue}, 80%, ${theme.palette.mode === 'dark' ? '60%' : '35%'})`;
+                                        return {
+                                            mt: 0.5,
+                                            mb: 0.75,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderLeft: `4px solid ${accent}`,
+                                            borderRadius: 1.5,
+                                            backgroundColor: theme.palette.mode === 'dark'
+                                                ? "rgba(255,255,255,0.04)"
+                                                : "rgba(0,0,0,0.04)",
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 0.2,
+                                        };
+                                    }}
+                                >
+                                    <Typography
+                                        variant="caption"
+                                        sx={(theme) => {
+                                            const hue = getHue(message.reply_message?.original_sender_user_id);
+                                            return {
+                                                fontWeight: 600,
+                                                color: `hsl(${hue}, 80%, ${theme.palette.mode === 'dark' ? '60%' : '35%'})`,
+                                            };
+                                        }}
+                                    >
+                                        {message.reply_message.original_sender_user_id}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            display: '-webkit-box',
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                            WebkitLineClamp: 2,
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
+                                        {getReplyLabel()}
+                                    </Typography>
+                                </Box>
                             )}
                             {message.open_graph_data && (
                                 <Link target="_blank" rel="noopener noreferrer" href={message.open_graph_data.og_url || '/'} className='flex cursor-pointer justify-start items-start flex-col gap-x-3 p-2 rounded-lg bg-[#f7f5f3] dark:bg-[#1a1b1b] mb-1 text-sm'>
@@ -436,6 +506,29 @@ export default function ChatRoomMessageBubble({
                                     </Box>
                                 </Box>
                             </CardContent>
+                            {message.message_raction?.reaction_emoji && (
+                                <Box
+                                    sx={(theme) => ({
+                                        position: 'absolute',
+                                        bottom: -20,
+                                        right: isSender ? 12 : 'auto',
+                                        left: isSender ? 'auto' : 12,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        px: 0.8,
+                                        py: 0.8,
+                                        borderRadius: 999,
+                                        fontSize: 14,
+                                        lineHeight: 1,
+                                        boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+                                        backgroundColor: theme.palette.mode === 'dark' ? "#212323" : "#FFFFFF",
+                                        border: theme.palette.mode === 'dark' ? "1.5px solid rgba(26,27,27,1)" : "1.5px solid #f5f5f5",
+                                    })}
+                                >
+                                    <span>{message.message_raction.reaction_emoji}</span>
+                                </Box>
+                            )}
                         </Card>
                         {isSender && (
                             isFirstInGroup ? (

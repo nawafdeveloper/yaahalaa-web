@@ -2,12 +2,14 @@
 
 import { DeleteOutlined, Mic, MicNoneOutlined, Pause, PlayArrow, Send } from '@mui/icons-material';
 import { IconButton, InputAdornment, TextField } from '@mui/material';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import ChatRoomInputAttachButton from './chat-room-input-attach-button';
 import ChatRoomInputEmojiButton from './chat-room-input-emoji-button';
 import RecordTimer from './record-timer';
 import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { useE2EE } from '@/hooks/use-e2e-encryption';
+import { encryptMessage, generateKeyPair } from '@/lib/crypto';
 
 export default function ChatRoomInputForm() {
     const locale = getLocaleFromCookie();
@@ -16,6 +18,32 @@ export default function ChatRoomInputForm() {
     const [value, setValue] = useState("");
     const [micHover, setMicHover] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const currentPhone = 'demo_sender_001';
+    const recipientPhone = 'demo_recipient_001';
+    const { isReady } = useE2EE(currentPhone);
+
+    const handleSend = useCallback(async () => {
+        const trimmed = value.trim();
+        if (!trimmed || !isReady) return;
+
+        let recipientPub = localStorage.getItem(`pub_${recipientPhone}`);
+        let recipientPriv = localStorage.getItem(`priv_${recipientPhone}`);
+        if (!recipientPub || !recipientPriv) {
+            const kp = await generateKeyPair();
+            recipientPub = kp.publicKey;
+            recipientPriv = kp.privateKey;
+            localStorage.setItem(`pub_${recipientPhone}`, recipientPub);
+            localStorage.setItem(`priv_${recipientPhone}`, recipientPriv);
+        }
+
+        const senderPriv = localStorage.getItem(`priv_${currentPhone}`);
+        if (!senderPriv || !recipientPub) return;
+
+        const { ciphertext, nonce } = await encryptMessage(trimmed, recipientPub, senderPriv);
+        console.log('[E2EE] Encrypted message (input form):', { ciphertext, nonce });
+        setValue("");
+    }, [currentPhone, isReady, recipientPhone, value]);
 
     const recorderControls = useVoiceVisualizer();
     const {
@@ -114,18 +142,32 @@ export default function ChatRoomInputForm() {
                         ),
                         endAdornment: (
                             <InputAdornment position="end">
-                                <IconButton
-                                    onClick={() => startRecording()}
-                                    size="medium"
-                                    onMouseEnter={() => setMicHover(true)}
-                                    onMouseLeave={() => setMicHover(false)}
-                                    sx={{
-                                        transition: "background-color 0.2s ease",
-                                        "&:hover": { backgroundColor: "#25D366", color: "#161717" },
-                                    }}
-                                >
-                                    {micHover ? <Mic /> : <MicNoneOutlined />}
-                                </IconButton>
+                                {value.trim().length > 0 ? (
+                                    <IconButton
+                                        onClick={handleSend}
+                                        size="medium"
+                                        sx={{
+                                            backgroundColor: "#25D366",
+                                            color: "#161717",
+                                            "&:hover": { backgroundColor: "#25D366", color: "#161717" },
+                                        }}
+                                    >
+                                        <Send className={`${isRTL ? 'rotate-180' : ''}`} />
+                                    </IconButton>
+                                ) : (
+                                    <IconButton
+                                        onClick={() => startRecording()}
+                                        size="medium"
+                                        onMouseEnter={() => setMicHover(true)}
+                                        onMouseLeave={() => setMicHover(false)}
+                                        sx={{
+                                            transition: "background-color 0.2s ease",
+                                            "&:hover": { backgroundColor: "#25D366", color: "#161717" },
+                                        }}
+                                    >
+                                        {micHover ? <Mic /> : <MicNoneOutlined />}
+                                    </IconButton>
+                                )}
                             </InputAdornment>
                         ),
                     }}
