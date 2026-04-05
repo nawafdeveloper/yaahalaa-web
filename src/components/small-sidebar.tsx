@@ -19,7 +19,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
-    const handleSetActiveNav = (nav: 'chats' | 'settings' | 'profile' | 'archive', side: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-profile' | 'main-archive') => {
+    const handleSetActiveNav = (nav: 'chats' | 'settings' | 'profile' | 'archive', side: 'main-chat' | 'search-chat' | 'create-chat' | 'main-setting' | 'main-archive') => {
         setActiveNav(nav);
         setActiveSideBar(side);
     };

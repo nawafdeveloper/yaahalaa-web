@@ -16,6 +16,7 @@ const notoSansArabic = Noto_Sans_Arabic({
 export const metadata: Metadata = {
   title: "YaaHala",
   description: "YaaHala | Secure and Reliable Free Private Messaging",
+  manifest: "/manifest.webmanifest",
 };
 
 export default async function RootLayout({

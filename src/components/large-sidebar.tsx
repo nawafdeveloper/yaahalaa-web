@@ -8,7 +8,6 @@ import CreateChatSectionLargeSideBar from "./create-chat-section-large-sidebar";
 import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import SettingsSectionSideBar from "./settings-section-large-sidebar";
 import ArchiveSectionLargeSidebar from "./archive-section-large-sidebar";
-import ProfileSectionLargeSidebar from "./profile-section-large-sidebar";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 export default function LargeSideBar() {
@@ -29,9 +28,6 @@ export default function LargeSideBar() {
                 )}
                 {activeSideBar === 'main-archive' && (
                     <ArchiveSectionLargeSidebar />
-                )}
-                {activeSideBar === 'main-profile' && (
-                    <ProfileSectionLargeSidebar />
                 )}
             </div>
             <AnimatePresence mode="popLayout">

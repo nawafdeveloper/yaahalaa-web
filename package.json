@@ -35,6 +35,7 @@
 		"tweetnacl": "^1.0.3",
 		"unicode-emoji-json": "^0.8.0",
 		"wavesurfer.js": "^7.12.1",
+		"web-push": "^3.6.7",
 		"zustand": "^5.0.12"
 	},
 	"devDependencies": {
@@ -44,6 +45,7 @@
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"@types/react-lazy-load-image-component": "^1.6.5",
+		"@types/web-push": "^3.6.4",
 		"eslint": "^9",
 		"eslint-config-next": "15.4.6",
 		"tailwindcss": "^4",

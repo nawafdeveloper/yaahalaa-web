@@ -3,11 +3,86 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { NotificationsOffOutlined } from '@mui/icons-material';
 import Alert from '@mui/material/Alert';
-import Link from '@mui/material/Link';
+import { subscribeUser, syncExistingSubscription, unsubscribeUser } from '@/app/actions'
+import { useState, useEffect } from 'react'
+
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i)
+    return outputArray
+}
 
 export default function NotificationServicesPermissionAlert() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+
+    const [isSupported, setIsSupported] = useState(false)
+    const [subscription, setSubscription] = useState<PushSubscription | null>(null)
+    const [isSyncing, setIsSyncing] = useState(true)
+
+    useEffect(() => {
+        let isMounted = true
+
+        async function loadSubscription() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                if (isMounted) {
+                    setIsSupported(false)
+                    setIsSyncing(false)
+                }
+                return
+            }
+
+            setIsSupported(true)
+
+            const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+            const existingSubscription = await reg.pushManager.getSubscription()
+
+            if (!isMounted) {
+                return
+            }
+
+            setSubscription(existingSubscription)
+
+            if (existingSubscription) {
+                await syncExistingSubscription(JSON.parse(JSON.stringify(existingSubscription)))
+            }
+
+            if (isMounted) {
+                setIsSyncing(false)
+            }
+        }
+
+        loadSubscription().catch(() => {
+            if (isMounted) {
+                setIsSyncing(false)
+            }
+        })
+
+        return () => {
+            isMounted = false
+        }
+    }, [])
+
+    async function subscribe() {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(
+                process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
+            ),
+        })
+        setSubscription(sub)
+        await subscribeUser(JSON.parse(JSON.stringify(sub)))
+    }
+
+    async function unsubscribe() {
+        await subscription?.unsubscribe()
+        await unsubscribeUser(subscription!.endpoint)
+        setSubscription(null)
+    }
 
     return (
         <Alert
@@ -17,6 +92,8 @@ export default function NotificationServicesPermissionAlert() {
             icon={<NotificationsOffOutlined fontSize="large" sx={{ color: "#25D366" }} />}
             sx={(theme) => ({
                 borderRadius: 3,
+                display: subscription ? 'none' : 'flex',
+                visibility: !isSupported || isSyncing ? 'hidden' : 'visible',
                 backgroundColor:
                     theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
                 color: theme.palette.mode === "dark" ? "white" : "black",
@@ -40,20 +117,12 @@ export default function NotificationServicesPermissionAlert() {
             })}
         >
             {isRTL ? 'إشعارات الرسائل غير مفعلة.' : 'Message notifications are off.'}{"  "}
-            <Link
-                href="#"
-                underline="hover"
-                sx={(theme) => ({
-                    fontWeight: 600,
-                    color: "#25D366",
-                    cursor: "pointer",
-                    "&:hover": {
-                        color: "#25D366",
-                    },
-                })}
+            <button
+                onClick={subscribe}
+                className='font-semibold text-[#25D366] cursor-pointer hover:text-[#25D366] hover:underline'
             >
                 {isRTL ? 'تفعيل' : 'Turn on'}
-            </Link>
+            </button>
         </Alert>
     )
 }

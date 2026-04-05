@@ -5,7 +5,6 @@ type ActiveSidebarType =
     | 'search-chat'
     | 'create-chat'
     | 'main-setting'
-    | 'main-profile'
     | 'main-archive';
 
 interface SidebarState {
