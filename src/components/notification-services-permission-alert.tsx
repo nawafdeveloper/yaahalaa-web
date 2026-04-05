@@ -3,7 +3,7 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { NotificationsOffOutlined } from '@mui/icons-material';
 import Alert from '@mui/material/Alert';
-import { subscribeUser, syncExistingSubscription, unsubscribeUser } from '@/app/actions'
+import { getPushClientConfig, subscribeUser, syncExistingSubscription, unsubscribeUser } from '@/app/actions'
 import { useState, useEffect } from 'react'
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -22,6 +22,7 @@ export default function NotificationServicesPermissionAlert() {
     const [isSupported, setIsSupported] = useState(false)
     const [subscription, setSubscription] = useState<PushSubscription | null>(null)
     const [isSyncing, setIsSyncing] = useState(true)
+    const [publicKey, setPublicKey] = useState('')
 
     useEffect(() => {
         let isMounted = true
@@ -36,6 +37,12 @@ export default function NotificationServicesPermissionAlert() {
             }
 
             setIsSupported(true)
+
+            const clientConfig = await getPushClientConfig()
+            if (!clientConfig.publicKey) {
+                throw new Error('Missing public VAPID key.')
+            }
+            setPublicKey(clientConfig.publicKey)
 
             const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
             const existingSubscription = await reg.pushManager.getSubscription()
@@ -70,9 +77,7 @@ export default function NotificationServicesPermissionAlert() {
         const reg = await navigator.serviceWorker.ready
         const sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(
-                process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
-            ),
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
         })
         setSubscription(sub)
         await subscribeUser(JSON.parse(JSON.stringify(sub)))
@@ -119,6 +124,7 @@ export default function NotificationServicesPermissionAlert() {
             {isRTL ? 'إشعارات الرسائل غير مفعلة.' : 'Message notifications are off.'}{"  "}
             <button
                 onClick={subscribe}
+                disabled={!publicKey}
                 className='font-semibold text-[#25D366] cursor-pointer hover:text-[#25D366] hover:underline'
             >
                 {isRTL ? 'تفعيل' : 'Turn on'}

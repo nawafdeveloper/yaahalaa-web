@@ -6,12 +6,29 @@ import {
     removeSubscription,
     saveSubscription,
 } from '@/lib/push-subscriptions-store'
+import { getPushRuntimeConfig } from '@/lib/push-runtime-config'
 
-webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT!,
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
-)
+async function configureWebPush() {
+    const { publicKey, privateKey, subject } = await getPushRuntimeConfig()
+
+    if (!publicKey || !privateKey || !subject) {
+        throw new Error(
+            'Missing push runtime configuration. Configure NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT.',
+        )
+    }
+
+    webpush.setVapidDetails(subject, publicKey, privateKey)
+    return { publicKey }
+}
+
+export async function getPushClientConfig() {
+    const { publicKey } = await getPushRuntimeConfig()
+
+    return {
+        success: Boolean(publicKey),
+        publicKey,
+    }
+}
 
 export async function subscribeUser(sub: webpush.PushSubscription) {
     const subscriptions = saveSubscription(sub)
@@ -51,6 +68,8 @@ export async function sendNotification(payload: {
     url?: string
     badgeCount?: number
 }) {
+    await configureWebPush()
+
     const subscriptions = listSubscriptions()
 
     if (subscriptions.length === 0) {

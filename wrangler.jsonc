@@ -15,6 +15,17 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	"build": {
+		"command": "npx opennextjs-cloudflare build",
+		"watch_dir": [
+			"src",
+			"public",
+			"open-next.config.ts",
+			"package.json",
+			"package-lock.json",
+			"wrangler.jsonc"
+		]
+	},
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"
@@ -34,6 +45,10 @@
 	],
 	"observability": {
 		"enabled": true
+	},
+	"vars": {
+		"NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BLJfj2nDQGWuAQPK5dKC5BZfslECCVxwRSMVj_NVpAyZv0yjEykPvu3y3xcMW4bNTZXFwXaFLsCVKVkDp79NOP8",
+		"VAPID_SUBJECT": "mailto:you@yourdomain.com"
 	}
 	/**
 	 * Smart Placement
@@ -50,7 +65,9 @@
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
+	// Set private values as Wrangler secrets instead of committing them here.
+	// Example:
+	//   wrangler secret put VAPID_PRIVATE_KEY
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
