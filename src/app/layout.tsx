@@ -6,6 +6,7 @@ import MainClientUIAuthWrapper from "@/components/main-client-ui-auth-warper";
 import MainClientUIAppWrapper from "@/components/main-client-ui-app-warper";
 import { getLocale } from "@/lib/locale";
 import { isRTL } from '@/lib/locale-utils';
+import { auth } from "@/lib/auth";
 
 const notoSansArabic = Noto_Sans_Arabic({
   weight: ["300", "400", "500", "700"],
@@ -24,11 +25,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
   const locale = await getLocale()
   const headersList = await headers();
   const country = headersList.get("X-CF-Country");
-
-  const session = true;
 
   if (!session) {
     return (

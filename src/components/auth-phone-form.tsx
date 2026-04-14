@@ -1,7 +1,8 @@
 "use client";
 
 import { countries } from '@/lib/countries-code';
-import { ExpandMoreOutlined, LockOutline } from '@mui/icons-material';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { ExpandMoreOutlined, Info, LockOutline } from '@mui/icons-material';
 import CloseOutlined from '@mui/icons-material/CloseOutlined';
 import Autocomplete from '@mui/material/Autocomplete';
 import Button from '@mui/material/Button';
@@ -11,17 +12,34 @@ import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import TextField from '@mui/material/TextField';
 import Image from 'next/image';
-import React, { useRef, useState } from 'react'
+import React, { useRef } from 'react'
 
 type Props = {
     country: string | null;
-    currentStep: 'phoneForm' | 'otpForm' | 'app';
-    setCurrentStep: (step: 'phoneForm' | 'otpForm' | 'app') => void;
+    phone: string;
+    setPhone: (value: string) => void;
+    dialCode: string;
+    setDialCode: (value: string) => void;
+    sendOtp: () => void;
+    loading: boolean;
+    isError: boolean;
+    errorMsg: string;
 }
 
-export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: Props) {
-    const [phone, setPhone] = useState('');
-    const [dialCode, setDialCode] = useState('');
+export default function AuthPhoneForm({
+    country,
+    phone,
+    setPhone,
+    dialCode,
+    setDialCode,
+    sendOtp,
+    loading,
+    isError,
+    errorMsg
+}: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleClear = () => {
@@ -43,8 +61,8 @@ export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: 
                         className="w-auto h-7 object-contain"
                     />
                     <span className='flex flex-col gap-y-1'>
-                        <h1 className='text-4xl text-center'>Enter phone number</h1>
-                        <p className='text-lg text-center text-gray-500'>Select a country and enter your phone number.</p>
+                        <h1 className='text-4xl text-center'>{isRTL ? 'أدخل رقم هاتفك' : 'Enter phone number'}</h1>
+                        <p className='text-lg text-center text-gray-500'>{isRTL ? 'قم بإختيار مفتاح الدولة الخاصة بك و ادخل رقم الهاتف' : 'Select a country and enter your phone number.'}</p>
                     </span>
                     <div className='w-full flex flex-col gap-y-2'>
                         <Autocomplete
@@ -59,6 +77,7 @@ export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: 
                             defaultValue={defaultCountry}
                             sx={{
                                 width: '100%',
+                                direction: 'ltr',
                                 verticalAlign: "middle",
                                 "& .MuiFilledInput-root": {
                                     borderRadius: 8,
@@ -119,11 +138,12 @@ export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: 
                             size="small"
                             value={phone}
                             onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, ""); // remove non-digits
-                                setPhone(value.slice(0, 9)); // limit to 9 digits
+                                const value = e.target.value.replace(/\D/g, "");
+                                setPhone(value.slice(0, 9));
                             }}
                             inputRef={inputRef}
                             sx={{
+                                direction: 'ltr',
                                 "& .MuiFilledInput-root": {
                                     borderRadius: 8,
                                     paddingY: "3px",
@@ -158,10 +178,17 @@ export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: 
                         />
                     </div>
                 </div>
+                {isError && (
+                    <span className='flex flex-row items-center gap-x-2 mt-1 mb-5 text-sm text-gray-500'>
+                        <Info fontSize='small' />
+                        <p>{errorMsg}</p>
+                    </span>
+                )}
                 <div className='flex flex-col gap-y-2 w-full justify-center items-center'>
                     <Button
-                        onClick={() => setCurrentStep('otpForm')}
+                        onClick={sendOtp}
                         variant="outlined"
+                        disabled={!phone}
                         sx={{
                             borderRadius: 99,
                             paddingY: "10px",
@@ -172,14 +199,36 @@ export default function AuthPhoneForm({ country, currentStep, setCurrentStep }: 
                             "&:hover": {
                                 backgroundColor: "#1E9A4D",
                             },
+                            "&.Mui-disabled": {
+                                backgroundColor: "#25D36660",
+                                color: "#1C1E2180",
+                                border: "none",
+                            },
                         }}
                         fullWidth
                     >
-                        Next
+                        {loading ? (
+                            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <g>
+                                    <rect x="11" y="1" width="2" height="5" opacity=".14" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(30 12 12)" opacity=".29" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(60 12 12)" opacity=".43" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(90 12 12)" opacity=".57" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(120 12 12)" opacity=".71" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(150 12 12)" opacity=".86" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(180 12 12)" />
+                                    <animateTransform attributeName="transform" type="rotate" calcMode="discrete" dur="0.75s" values="0 12 12;30 12 12;60 12 12;90 12 12;120 12 12;150 12 12;180 12 12;210 12 12;240 12 12;270 12 12;300 12 12;330 12 12;360 12 12" repeatCount="indefinite" />
+                                </g>
+                            </svg>
+                        ) : (
+                            <>
+                                {isRTL ? 'التالي' : 'Next'}
+                            </>
+                        )}
                     </Button>
                     <span className='flex flex-row items-center gap-x-1 text-sm text-gray-500'>
                         <LockOutline fontSize="inherit" />
-                        <p>Your personal messages are end-to-end encrypted.</p>
+                        <p>{isRTL ? 'رسائلك الشخصية مشفرة بالتشفير من طرف إلى طرف.' : 'Your personal messages are end-to-end encrypted.'}</p>
                     </span>
                 </div>
             </div>

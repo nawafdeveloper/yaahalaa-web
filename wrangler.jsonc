@@ -47,8 +47,9 @@
 		"enabled": true
 	},
 	"vars": {
-		"NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BLJfj2nDQGWuAQPK5dKC5BZfslECCVxwRSMVj_NVpAyZv0yjEykPvu3y3xcMW4bNTZXFwXaFLsCVKVkDp79NOP8",
-		"VAPID_SUBJECT": "mailto:you@yourdomain.com"
+		"NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BBySik1L2HjZ1jqlda31Zlu8svGfFRTIgqTRAu9s8Ykx88pRajG7wItCdx2LAebftnnExcyp80tEh2oWB9RGyyQ",
+		"VAPID_SUBJECT": "mailto:you@yourdomain.com",
+		"BETTER_AUTH_URL": "http://localhost:3000"
 	}
 	/**
 	 * Smart Placement

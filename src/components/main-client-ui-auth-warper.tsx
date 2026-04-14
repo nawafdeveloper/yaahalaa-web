@@ -5,8 +5,12 @@ import GlobalLoading from './global-loading';
 import { motion } from "framer-motion";
 import { MuiSystemThemeProvider } from '@/context/theme';
 import AuthFlowSection from './auth-flow-section';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 export default function MainClientUIAuthWrapper({ country }: { country: string | null }) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
@@ -30,7 +34,10 @@ export default function MainClientUIAuthWrapper({ country }: { country: string |
         >
             <MuiSystemThemeProvider>
                 <main className="w-full h-screen overflow-hidden">
-                    <AuthFlowSection country={country} />
+                    <AuthFlowSection
+                        country={country}
+                        isRTL={isRTL}
+                    />
                 </main>
             </MuiSystemThemeProvider>
         </motion.div>

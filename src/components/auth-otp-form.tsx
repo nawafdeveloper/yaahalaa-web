@@ -1,18 +1,31 @@
 "use client";
 
-import React, { useState } from 'react'
+import React from 'react'
 import Image from 'next/image';
 import { MuiOtpInput } from 'mui-one-time-password-input';
 import Button from '@mui/material/Button';
-import { AdminPanelSettingsOutlined } from '@mui/icons-material';
+import { AdminPanelSettingsOutlined, Info } from '@mui/icons-material';
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 type Props = {
-    currentStep: 'phoneForm' | 'otpForm' | 'app';
-    setCurrentStep: (step: 'phoneForm' | 'otpForm' | 'app') => void;
+    otp: string;
+    setOtp: (value: string) => void;
+    verifyOtp: () => void;
+    loading: boolean;
+    isError: boolean;
+    errorMsg: string;
 }
 
-export default function AuthOtpForm({ currentStep, setCurrentStep }: Props) {
-    const [otp, setOtp] = useState('');
+export default function AuthOtpForm({
+    otp,
+    setOtp,
+    verifyOtp,
+    loading,
+    isError,
+    errorMsg
+}: Props) {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
 
     const handleChange = (newValue: string) => {
         setOtp(newValue)
@@ -30,8 +43,8 @@ export default function AuthOtpForm({ currentStep, setCurrentStep }: Props) {
                         className="w-auto h-7 object-contain"
                     />
                     <span className='flex flex-col gap-y-1'>
-                        <h1 className='text-4xl text-center'>Enter code</h1>
-                        <p className='text-lg text-center text-gray-500'>We send you an OTP through SMS.</p>
+                        <h1 className='text-4xl text-center'>{isRTL ? 'أدخل رمز التحقق' : 'Enter code'}</h1>
+                        <p className='text-lg text-center text-gray-500'>{isRTL ? 'قمنا بإرسال رمز تحقق إلى هاتفك SMS' : 'We send you an OTP through SMS.'}</p>
                     </span>
                     <MuiOtpInput
                         value={otp}
@@ -64,9 +77,16 @@ export default function AuthOtpForm({ currentStep, setCurrentStep }: Props) {
                         })}
                     />
                 </div>
+                {isError && (
+                    <span className='flex flex-row items-center gap-x-2 mt-1 mb-5 text-sm text-neutral-500'>
+                        <Info fontSize='small' />
+                        <p>{errorMsg}</p>
+                    </span>
+                )}
                 <div className='flex flex-col gap-y-2 w-full justify-center items-center'>
                     <Button
-                        onClick={() => setCurrentStep('app')}
+                        onClick={verifyOtp}
+                        disabled={!otp}
                         variant="outlined"
                         sx={{
                             borderRadius: 99,
@@ -78,14 +98,36 @@ export default function AuthOtpForm({ currentStep, setCurrentStep }: Props) {
                             "&:hover": {
                                 backgroundColor: "#1E9A4D",
                             },
+                            "&.Mui-disabled": {
+                                backgroundColor: "#25D36660",
+                                color: "#1C1E2180",
+                                border: "none",
+                            },
                         }}
                         fullWidth
                     >
-                        Next
+                        {loading ? (
+                            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <g>
+                                    <rect x="11" y="1" width="2" height="5" opacity=".14" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(30 12 12)" opacity=".29" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(60 12 12)" opacity=".43" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(90 12 12)" opacity=".57" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(120 12 12)" opacity=".71" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(150 12 12)" opacity=".86" />
+                                    <rect x="11" y="1" width="2" height="5" transform="rotate(180 12 12)" />
+                                    <animateTransform attributeName="transform" type="rotate" calcMode="discrete" dur="0.75s" values="0 12 12;30 12 12;60 12 12;90 12 12;120 12 12;150 12 12;180 12 12;210 12 12;240 12 12;270 12 12;300 12 12;330 12 12;360 12 12" repeatCount="indefinite" />
+                                </g>
+                            </svg>
+                        ) : (
+                            <>
+                                {isRTL ? 'التحقق' : 'Verify'}
+                            </>
+                        )}
                     </Button>
                     <span className='flex flex-row items-start gap-x-1 text-sm text-gray-500'>
                         <AdminPanelSettingsOutlined fontSize="inherit" className='mt-0.5' />
-                        <p>Your information is protected in accordance with our Privacy Policy.</p>
+                        <p>{isRTL ? 'معلوماتك محمية وفقًا لسياسة الخصوصية الخاصة بنا.' : 'Your information is protected in accordance with our Privacy Policy.'}</p>
                     </span>
                 </div>
             </div>
