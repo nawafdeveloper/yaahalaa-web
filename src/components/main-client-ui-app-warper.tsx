@@ -12,6 +12,9 @@ import { useSidebarStore } from '@/store/use-active-sidebar-store';
 import DetailedLargeSidebar from './detailed-large-sidebar';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
+import { useLogout } from '@/hooks/use-logout';
+import { Snackbar } from '@mui/material';
+import { Info } from '@mui/icons-material';
 
 export default function MainClientUIAppWrapper({ children }: { children: React.ReactNode }) {
     const { isOpen } = useMediaPreviewStore();
@@ -19,6 +22,13 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
     const { isOpen: isDetailedSidebarOpen } = useDetailedSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const {
+        loading: logoutLoading,
+        isError,
+        setIsError,
+        errorMsg,
+        logout
+    } = useLogout(isRTL);
 
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
@@ -33,7 +43,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
         return () => cancelAnimationFrame(raf);
     }, []);
 
-    if (!isLoaded) return <GlobalLoading />;
+    if (!isLoaded || logoutLoading) return <GlobalLoading />;
 
     return (
         <>
@@ -57,7 +67,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                             activeNav={activeNav}
                             setActiveNav={setActiveNav}
                         />
-                        <LargeSideBar />
+                        <LargeSideBar logout={logout} />
                         <div className="flex flex-1 w-full">
                             {children}
                         </div>
@@ -79,6 +89,25 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                     </main>
                 </MuiSystemThemeProvider>
             </motion.div>
+            <Snackbar
+                open={isError}
+                autoHideDuration={6000}
+                onClose={() => setIsError(false)}
+                message={errorMsg}
+                ContentProps={{
+                    sx: (theme) => ({
+                        borderRadius: '99px',
+                        bgcolor: theme.palette.mode === 'dark' ? '#ffffff' : '#000000',
+                        color: theme.palette.mode === 'dark' ? '#000000' : '#ffffff',
+                        fontWeight: 500,
+                        paddingRight: '24px',
+                        boxShadow: 'none'
+                    }),
+                }}
+                action={
+                    <Info />
+                }
+            />
         </>
     );
 }

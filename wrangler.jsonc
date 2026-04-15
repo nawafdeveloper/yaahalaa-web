@@ -43,6 +43,13 @@
 			"service": "halabakk-web"
 		}
 	],
+	"r2_buckets": [
+		{
+			"binding": "PROFILE_IMAGES_BUCKET",
+			"bucket_name": "yaahalaa-profile-images",
+			"preview_bucket_name": "yaahalaa-profile-images"
+		}
+	],
 	"observability": {
 		"enabled": true
 	},
@@ -69,6 +76,7 @@
 	// Set private values as Wrangler secrets instead of committing them here.
 	// Example:
 	//   wrangler secret put VAPID_PRIVATE_KEY
+	//   wrangler secret put PROFILE_IMAGE_MASTER_KEY
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/

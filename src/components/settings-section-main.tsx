@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from '@/lib/auth-client';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
 import { AccountCircleOutlined, CloseOutlined, Computer, HelpOutline, LockOutline, NotificationsOutlined, Person, SearchOutlined, VpnKeyOutlined } from '@mui/icons-material';
@@ -15,6 +16,7 @@ const ChatIcon = () => (
 );
 
 export default function SettingsSectionMain() {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -145,7 +147,7 @@ export default function SettingsSectionMain() {
                         color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                         border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                     })}
-                    src={""}
+                    src={session?.user.image || ''}
                 >
                     <Person className='size-16!' />
                 </Avatar>

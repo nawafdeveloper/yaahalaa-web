@@ -8,7 +8,11 @@ import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useTheme } from '@mui/material/styles';
 
-export default function ChatsHeaderLargeSideBar() {
+type Props = {
+    logout: () => void;
+};
+
+export default function ChatsHeaderLargeSideBar({ logout }: Props) {
     const { setActiveSideBar } = useSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
@@ -51,8 +55,8 @@ export default function ChatsHeaderLargeSideBar() {
                             display: { xs: "none", sm: "flex" },
                             transform: isRTL ? 'scaleX(-1)' : 'scaleX(1)',
                             color: theme.palette.mode === "dark"
-                                        ? "#FFFFFF"
-                                        : "#000000",
+                                ? "#FFFFFF"
+                                : "#000000",
                         })}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -61,7 +65,7 @@ export default function ChatsHeaderLargeSideBar() {
                         </svg>
                     </IconButton>
                 </Tooltip>
-                <ChatsMoreButtonMenu />
+                <ChatsMoreButtonMenu logout={logout}/>
             </div>
         </div>
     )

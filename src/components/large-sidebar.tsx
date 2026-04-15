@@ -10,7 +10,11 @@ import SettingsSectionSideBar from "./settings-section-large-sidebar";
 import ArchiveSectionLargeSidebar from "./archive-section-large-sidebar";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
-export default function LargeSideBar() {
+type Props = {
+    logout: () => void;
+};
+
+export default function LargeSideBar({ logout }: Props) {
     const { activeSideBar } = useSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
@@ -21,7 +25,7 @@ export default function LargeSideBar() {
         <div className="md:flex hidden flex-col w-full xxl:max-w-lg xl:max-w-[430] sm:max-w-xs max-w-xs h-full bg-white dark:bg-[#161717] relative overflow-hidden">
             <div className="absolute w-full z-10">
                 {activeSideBar === 'main-chat' && (
-                    <ChatsSectionLargeSideBar data={mockChats} />
+                    <ChatsSectionLargeSideBar data={mockChats} logout={logout}/>
                 )}
                 {activeSideBar === 'main-setting' && (
                     <SettingsSectionSideBar />

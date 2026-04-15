@@ -99,6 +99,16 @@ export const userAdditionalFields = {
         input: true,
         defaultValue: false,
     },
+    yhlaPublic: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPushToken: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    }
 } satisfies UserAdditionalFields;
 
 export const authSharedOptions = {

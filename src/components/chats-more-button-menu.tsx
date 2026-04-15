@@ -11,7 +11,11 @@ import Tooltip from '@mui/material/Tooltip';
 import React from 'react';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
-export default function ChatsMoreButtonMenu() {
+type Props = {
+    logout: () => void;
+};
+
+export default function ChatsMoreButtonMenu({ logout }: Props) {
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const locale = getLocaleFromCookie();
@@ -248,7 +252,7 @@ export default function ChatsMoreButtonMenu() {
                 </MenuItem>
                 <Divider />
                 <MenuItem
-                    onClick={handleClose}
+                    onClick={() => { logout(); handleClose(); }}
                     sx={(theme) => ({
                         "&:hover": {
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",

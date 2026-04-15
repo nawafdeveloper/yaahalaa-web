@@ -3,6 +3,8 @@ declare namespace Cloudflare {
 		VAPID_PRIVATE_KEY: string
 		BETTER_AUTH_SECRET: string
 		DATABASE_URL: string
+		PROFILE_IMAGE_MASTER_KEY: string
+		PROFILE_IMAGES_BUCKET: R2Bucket
 	}
 }
 
@@ -13,5 +15,6 @@ declare namespace NodeJS {
 		VAPID_PRIVATE_KEY?: string
 		BETTER_AUTH_SECRET?: string
 		DATABASE_URL?: string
+		PROFILE_IMAGE_MASTER_KEY?: string
 	}
 }

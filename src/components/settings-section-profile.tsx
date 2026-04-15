@@ -1,45 +1,58 @@
 "use client";
 
-import { Avatar, Button, IconButton, ListItem, ListItemIcon, ListItemText, Stack, TextField } from '@mui/material';
-import React, { useState, useRef, useEffect } from 'react';
-import SettingsHeader from './settings-header';
-import { CheckOutlined, ContentCopy, EditOutlined, Person, Phone, PhotoCameraOutlined } from '@mui/icons-material';
-import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { CheckOutlined, ContentCopy, EditOutlined, Person, Phone, PhotoCameraOutlined } from "@mui/icons-material";
+import { Avatar, IconButton, ListItem, ListItemIcon, ListItemText, Stack, TextField } from "@mui/material";
+import { useUpdateUser } from "@/hooks/use-update-user";
+import { authClient } from "@/lib/auth-client";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import SettingsHeader from "./settings-header";
 
 export default function SettingsSectionProfile() {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
-
-    const [isEditing, setIsEditing] = useState(false);
-    const [fullName, setFullName] = useState('Nawaf Qahtani');
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        if (isEditing && inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, [isEditing]);
-
-    const handleEditClick = () => {
-        setIsEditing(true);
-    };
-
-    const handleCheckClick = () => {
-        setIsEditing(false);
-        console.log('Saved name:', fullName);
-    };
+    const {
+        fileInputRef,
+        handleOpenProfileImagePicker,
+        handleSaveProfile,
+        handleSelectProfileImage,
+        handleStartEditing,
+        isEditing,
+        isError,
+        errorMsg,
+        loading,
+        nameInputRef,
+        nameState,
+        profileImageSrc,
+        setNameState,
+    } = useUpdateUser({
+        name: session?.user.name ?? "",
+        image: session?.user.image,
+        isRTL,
+    });
 
     return (
         <Stack
             spacing={4}
-            alignItems={'center'}
-            className='px-5 pt-5'
+            alignItems={"center"}
+            className="px-5 pt-5"
             sx={{
-                width: '100%',
+                width: "100%",
             }}
         >
-            <SettingsHeader title={isRTL ? 'الملف الشخصي' : 'Profile'} />
-            <button className='cursor-pointer relative'>
+            <SettingsHeader title={isRTL ? "الملف الشخصي" : "Profile"} />
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                hidden
+                onChange={handleSelectProfileImage}
+            />
+            <button
+                className="cursor-pointer relative"
+                onClick={handleOpenProfileImagePicker}
+                type="button"
+            >
                 <Avatar
                     sx={(theme) => ({
                         width: 120,
@@ -48,71 +61,72 @@ export default function SettingsSectionProfile() {
                         color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                         border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                     })}
-                    src={""}
+                    src={profileImageSrc}
                 >
-                    <Person className='size-16!' />
+                    <Person className="size-16!" />
                 </Avatar>
-                <span className='absolute left-1/2 -translate-x-1/2 gap-x-2 flex flex-row items-center -bottom-3 dark:bg-background bg-white border dark:border-neutral-700 border-neutral-300 px-5 py-2.5 rounded-full dark:text-[#25D366] text-[#15603E]'>
-                    <PhotoCameraOutlined className='size-5!' />
-                    <p className='text-sm'>{isRTL ? 'تعديل' : 'Edit'}</p>
+                <span className="absolute left-1/2 -translate-x-1/2 gap-x-2 flex flex-row items-center -bottom-3 dark:bg-background bg-white border dark:border-neutral-700 border-neutral-300 px-5 py-2.5 rounded-full dark:text-[#25D366] text-[#15603E]">
+                    <PhotoCameraOutlined className="size-5!" />
+                    <p className="text-sm">{isRTL ? "تعديل" : "Edit"}</p>
                 </span>
             </button>
             <TextField
                 id="user-full-name"
                 label={isRTL ? "الإسم الكامل" : "Full name"}
                 variant="standard"
-                disabled={!isEditing}
-                inputRef={inputRef}
+                disabled={!isEditing || loading}
+                error={isError}
+                helperText={isError ? errorMsg : " "}
+                inputRef={nameInputRef}
                 sx={(theme) => ({
-                    width: '100%',
-                    '& .MuiInput-underline:after': {
-                        borderBottomColor: theme.palette.mode === 'dark' ? '#25D366' : '#15603E'
+                    width: "100%",
+                    "& .MuiInput-underline:after": {
+                        borderBottomColor: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
                     },
-                    '& .MuiInputLabel-root.Mui-focused': {
-                        color: theme.palette.mode === 'dark' ? '#25D366' : '#15603E'
+                    "& .MuiInputLabel-root.Mui-focused": {
+                        color: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
                     },
-                    '& .MuiInputBase-input.Mui-disabled': {
-                        WebkitTextFillColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.8)',
+                    "& .MuiInputBase-input.Mui-disabled": {
+                        WebkitTextFillColor:
+                            theme.palette.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.8)",
                     },
-                    '& .MuiInputLabel-root': {
-                        left: isRTL ? 'unset' : 0,
-                        right: isRTL ? 0 : 'unset',
-                        transformOrigin: isRTL ? 'top right' : 'top left',
-                        '&.MuiInputLabel-standard': {
-                            transform: isRTL
-                                ? 'translate(0px, 20px) scale(1)'
-                                : 'translate(0px, 20px) scale(1)',
+                    "& .MuiInputLabel-root": {
+                        left: isRTL ? "unset" : 0,
+                        right: isRTL ? 0 : "unset",
+                        transformOrigin: isRTL ? "top right" : "top left",
+                        "&.MuiInputLabel-standard": {
+                            transform: "translate(0px, 20px) scale(1)",
                         },
-                        '&.MuiInputLabel-standard.MuiInputLabel-shrink': {
-                            transform: isRTL
-                                ? 'translate(0px, -1.5px) scale(0.75)'
-                                : 'translate(0px, -1.5px) scale(0.75)',
+                        "&.MuiInputLabel-standard.MuiInputLabel-shrink": {
+                            transform: "translate(0px, -1.5px) scale(0.75)",
                         },
                     },
-                    '& .MuiInputBase-input': {
-                        textAlign: isRTL ? 'right' : 'left',
+                    "& .MuiInputBase-input": {
+                        textAlign: isRTL ? "right" : "left",
                     },
-                    '& .MuiInputAdornment-root': {
-                        marginLeft: isRTL ? 0 : 'unset',
-                        marginRight: isRTL ? 'unset' : 0,
+                    "& .MuiInputAdornment-root": {
+                        marginLeft: isRTL ? 0 : "unset",
+                        marginRight: isRTL ? "unset" : 0,
                     },
                 })}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                value={nameState}
+                onChange={(event) => setNameState(event.target.value)}
                 InputProps={{
                     endAdornment: (
                         <>
                             {!isEditing ? (
                                 <IconButton
                                     size="small"
-                                    onClick={handleEditClick}
+                                    onClick={handleStartEditing}
+                                    disabled={loading}
                                 >
                                     <EditOutlined />
                                 </IconButton>
                             ) : (
                                 <IconButton
                                     size="small"
-                                    onClick={handleCheckClick}
+                                    onClick={handleSaveProfile}
+                                    disabled={loading}
                                 >
                                     <CheckOutlined />
                                 </IconButton>
@@ -123,10 +137,10 @@ export default function SettingsSectionProfile() {
             />
             <ListItem
                 sx={{
-                    direction: 'ltr'
+                    direction: "ltr",
                 }}
                 secondaryAction={
-                    <IconButton edge="end" aria-label="delete">
+                    <IconButton edge="end" aria-label="copy phone number">
                         <ContentCopy />
                     </IconButton>
                 }
@@ -135,9 +149,9 @@ export default function SettingsSectionProfile() {
                     <Phone />
                 </ListItemIcon>
                 <ListItemText
-                    primary="+966 55 994 4487"
+                    primary={session?.user.phoneNumber || ""}
                 />
             </ListItem>
         </Stack>
-    )
+    );
 }

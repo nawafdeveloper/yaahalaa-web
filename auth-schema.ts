@@ -56,6 +56,8 @@ export const user = pgTable("user", {
   disableGroupsNotifications: boolean("disable_groups_notifications")
     .default(false)
     .notNull(),
+  yhlaPublic: text("yhla_public").default("").notNull(),
+  yhlaPushToken: text("yhla_push_token").default("").notNull(),
 });
 
 export const session = pgTable(

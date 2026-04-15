@@ -7,8 +7,10 @@ import React, { useState } from 'react';
 import SettingsHeader from './settings-header';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
+import { authClient } from '@/lib/auth-client';
 
 export default function SettingsSectionPrivacy() {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 

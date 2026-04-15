@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { generateKeyPair, encryptMessage, decryptMessage } from '@/lib/crypto';
+import { encryptMessage, decryptMessage } from '@/lib/crypto';
+import { ensureStoredE2EEKeyPair } from '@/lib/e2ee-key-pair';
 
 interface PublicKeyResponse {
     publicKey: string;
@@ -26,30 +27,18 @@ export function useE2EE(currentPhone: string) {
         let mounted = true;
 
         async function init() {
-            const storedPub = localStorage.getItem(`pub_${currentPhone}`);
-            const storedPriv = localStorage.getItem(`priv_${currentPhone}`);
-
-            if (storedPub && storedPriv) {
-                setPublicKey(storedPub);
-                setPrivateKeyRaw(storedPriv);
-                sessionStorage.setItem(`priv_${currentPhone}`, storedPriv);
-                if (mounted) setIsReady(true);
-                return;
-            }
-
-            const { publicKey: pub, privateKey: priv } = await generateKeyPair();
-            localStorage.setItem(`pub_${currentPhone}`, pub);
-            localStorage.setItem(`priv_${currentPhone}`, priv);
-            sessionStorage.setItem(`priv_${currentPhone}`, priv);
+            const { publicKey: pub, privateKey: priv, wasCreated } = await ensureStoredE2EEKeyPair(currentPhone);
             setPublicKey(pub);
             setPrivateKeyRaw(priv);
             if (mounted) setIsReady(true);
 
-            await fetch(`/api/users/${encodeURIComponent(currentPhone)}/public-key`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ publicKey: pub }),
-            });
+            if (wasCreated) {
+                await fetch(`/api/users/${encodeURIComponent(currentPhone)}/public-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ publicKey: pub }),
+                });
+            }
         }
 
         init();

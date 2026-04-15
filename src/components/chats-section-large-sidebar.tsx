@@ -12,9 +12,10 @@ import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 interface Props {
     data: ChatItemType[];
+    logout: () => void;
 }
 
-export default function ChatsSectionLargeSideBar({ data }: Props) {
+export default function ChatsSectionLargeSideBar({ data, logout }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -23,7 +24,7 @@ export default function ChatsSectionLargeSideBar({ data }: Props) {
     return (
         <div className={`flex flex-col space-y-4 h-screen max-h-screen min-h-screen w-full ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300`}>
             <div className='px-5 pt-5 flex flex-col space-y-4'>
-                <ChatsHeaderLargeSideBar />
+                <ChatsHeaderLargeSideBar logout={logout}/>
                 <ChatsSearchHeaderLargeSidebar
                     activeChatTab={activeChatTab}
                     setActiveChatTab={setActiveChatTab}
