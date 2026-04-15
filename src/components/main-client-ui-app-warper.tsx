@@ -8,7 +8,6 @@ import SmallSideBar from './small-sidebar';
 import LargeSideBar from './large-sidebar';
 import useMediaPreviewStore from '@/store/media-preview-store';
 import MediaPreviewWarper from './media-preview-warper';
-import { useSidebarStore } from '@/store/use-active-sidebar-store';
 import DetailedLargeSidebar from './detailed-large-sidebar';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
@@ -18,7 +17,6 @@ import { Info } from '@mui/icons-material';
 
 export default function MainClientUIAppWrapper({ children }: { children: React.ReactNode }) {
     const { isOpen } = useMediaPreviewStore();
-    const { activeSideBar, setActiveSideBar } = useSidebarStore();
     const { isOpen: isDetailedSidebarOpen } = useDetailedSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
@@ -34,7 +32,6 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
 
     const [isLoaded, setIsLoaded] = useState(false);
     const [activeNav, setActiveNav] = useState<'chats' | 'settings' | 'profile' | 'archive'>('chats');
-    const [activeContentPage, setActiveContentPage] = useState<'empty-state' | 'messages-state'>('empty-state');
 
     useEffect(() => {
         const raf = requestAnimationFrame(() => {

@@ -12,11 +12,18 @@ import SettingsSectionChats from './settings-section-chats';
 import SettingsSectionNotifications from './settings-section-notifications';
 import SettingsSectionHelp from './settings-section-help';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import SettingsSubsectionLastSeen from './settings-subsection-last-seen';
+import SettingsSubsectionProfileSeen from './settings-subsection-profile-seen';
+import SettingsSubsectionAboutSeen from './settings-subsection-about-seen';
+import SettingsSubsectionStatusSeen from './settings-subsection-status-seen';
+import SettingsSubsectionDisappearingMessages from './settings-subsection-disappearing-messages';
+import SettingsSubsectionBlockedContacts from './settings-subsection-blocked-contacts';
+import SettingsSubsectionLockApp from './settings-subsection-lock-app';
 
 export default function SettingsSectionSideBar() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
-    const { activeSettingsSection } = useSettingsStore();
+    const { activeSettingsSection, activeSettingsSubsection } = useSettingsStore();
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
     const isSubSettings = activeSettingsSection !== 'settings-main';
@@ -42,6 +49,25 @@ export default function SettingsSectionSideBar() {
         }
     };
 
+    const getSettingsSubsectionComponent = () => {
+        switch (activeSettingsSubsection) {
+            case 'last-seen':
+                return <SettingsSubsectionLastSeen />
+            case 'profile-seen':
+                return <SettingsSubsectionProfileSeen />
+            case 'about-seen':
+                return <SettingsSubsectionAboutSeen />
+            case 'status-seen':
+                return <SettingsSubsectionStatusSeen />
+            case 'messages-disappear':
+                return <SettingsSubsectionDisappearingMessages />
+            case 'blocked-contacts':
+                return <SettingsSubsectionBlockedContacts />
+            case 'close-app':
+                return <SettingsSubsectionLockApp />
+        }
+    };
+
     return (
         <div className={`relative flex flex-col h-screen max-h-screen min-h-screen w-full ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300 overflow-y-auto`}>
             <div className="absolute inset-0">
@@ -58,6 +84,20 @@ export default function SettingsSectionSideBar() {
                         className="absolute inset-0 bg-white dark:bg-[#161717] z-20"
                     >
                         {getSubSettingsComponent()}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+                {activeSettingsSubsection !== null && (
+                    <motion.div
+                        key={activeSettingsSubsection}
+                        initial={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
+                        transition={{ duration: 0.15, ease: customEasing }}
+                        className="absolute inset-0 bg-white dark:bg-[#161717] z-30"
+                    >
+                        {getSettingsSubsectionComponent()}
                     </motion.div>
                 )}
             </AnimatePresence>

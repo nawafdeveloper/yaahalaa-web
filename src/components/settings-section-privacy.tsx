@@ -18,7 +18,7 @@ export default function SettingsSectionPrivacy() {
     const [blockUnknownContact, setBlockUnknownContact] = useState(false);
     const [disableLinkPreview, setDisableLinkPreview] = useState(false);
 
-    const { navigateToSettings } = useSettingsStore();
+    const { navigateToSettings, navigateToSettingsSubsection } = useSettingsStore();
 
     const translations = {
         en: {
@@ -74,31 +74,31 @@ export default function SettingsSectionPrivacy() {
             id: '1',
             primary: t.lastSeen,
             secondary: t.lastSeenSecondary,
-            href: 'settings-privacy-last-seen'
+            href: 'last-seen'
         },
         {
             id: '2',
             primary: t.profilePicture,
             secondary: t.profilePictureSecondary,
-            href: 'settings-privacy-profile-picture'
+            href: 'profile-seen'
         },
         {
             id: '3',
             primary: t.about,
             secondary: t.aboutSecondary,
-            href: 'settings-privacy-about'
+            href: 'about-seen'
         },
         {
             id: '4',
             primary: t.status,
             secondary: t.statusSecondary,
-            href: 'settings-privacy-status'
+            href: 'status-seen'
         },
         {
             id: '5',
             primary: t.defaultTimer,
             secondary: t.defaultTimerSecondary,
-            href: 'settings-privacy-message-timer'
+            href: 'messages-disappear'
         },
         {
             id: '6',
@@ -110,17 +110,15 @@ export default function SettingsSectionPrivacy() {
             id: '7',
             primary: t.blockedContacts,
             secondary: t.blockedContactsSecondary,
-            href: 'settings-privacy-blocked-contacts'
+            href: 'blocked-contacts'
         },
         {
             id: '8',
             primary: t.appLock,
             secondary: t.appLockSecondary,
-            href: 'settings-privacy-app-lock'
+            href: 'close-app'
         },
     ];
-
-    const ChevronIcon = isRTL ? ChevronLeftIcon : ChevronRightIcon;
 
     return (
         <Stack
@@ -152,7 +150,7 @@ export default function SettingsSectionPrivacy() {
                 {subItemList.slice(0, 4).map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
+                        onClick={() => navigateToSettingsSubsection(item.href)}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 0,
@@ -285,7 +283,7 @@ export default function SettingsSectionPrivacy() {
                 {subItemList.slice(4, 5).map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
+                        onClick={() => navigateToSettingsSubsection(item.href)}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 0,
@@ -355,7 +353,7 @@ export default function SettingsSectionPrivacy() {
                 {subItemList.slice(6, 8).map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
+                        onClick={() => navigateToSettingsSubsection(item.href)}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 0,
