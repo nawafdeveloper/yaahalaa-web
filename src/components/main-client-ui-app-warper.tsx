@@ -91,6 +91,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                 autoHideDuration={6000}
                 onClose={() => setIsError(false)}
                 message={errorMsg}
+                anchorOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'bottom' }}
                 ContentProps={{
                     sx: (theme) => ({
                         borderRadius: '99px',

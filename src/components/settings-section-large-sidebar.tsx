@@ -69,7 +69,7 @@ export default function SettingsSectionSideBar() {
     };
 
     return (
-        <div className={`relative flex flex-col h-screen max-h-screen min-h-screen w-full ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300 overflow-y-auto`}>
+        <div className={`relative flex flex-col h-screen max-h-screen min-h-screen w-full ${isRTL ? 'border-l' : 'border-r'} dark:border-neutral-700 border-neutral-300 ${activeSettingsSubsection === null ? 'overflow-y-auto' : ''}`}>
             <div className="absolute inset-0">
                 <SettingsSectionMain />
             </div>

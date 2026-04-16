@@ -56,7 +56,6 @@
 	"vars": {
 		"NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BBySik1L2HjZ1jqlda31Zlu8svGfFRTIgqTRAu9s8Ykx88pRajG7wItCdx2LAebftnnExcyp80tEh2oWB9RGyyQ",
 		"VAPID_SUBJECT": "mailto:you@yourdomain.com",
-		"BETTER_AUTH_URL": "http://localhost:3000"
 	}
 	/**
 	 * Smart Placement

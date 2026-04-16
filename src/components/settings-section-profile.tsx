@@ -169,6 +169,7 @@ export default function SettingsSectionProfile() {
                 open={isCopied}
                 autoHideDuration={6000}
                 onClose={() => setIsCopied(false)}
+                anchorOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'bottom' }}
                 message={isRTL ? 'تم نسخ رقم الهاتف إلى الحافظة.' : 'Phone number copied to clipboard.'}
                 ContentProps={{
                     sx: (theme) => ({

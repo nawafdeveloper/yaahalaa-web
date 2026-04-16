@@ -10,7 +10,7 @@ import { Add } from '@mui/icons-material';
 import { ChatItemType } from '@/mocks/fake-types';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
-interface Props {
+type Props = {
     data: ChatItemType[];
     logout: () => void;
 }
