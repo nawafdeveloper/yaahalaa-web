@@ -1,5 +1,5 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, DoNotDisturbOnOutlined, FavoriteBorderOutlined, LockOutline, NotificationsOutlined, Person, SearchOutlined, SecurityOutlined, SlowMotionVideoOutlined, StarOutline, ThumbDownOutlined } from '@mui/icons-material';
+import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, DoNotDisturbOnOutlined, FavoriteBorderOutlined, NotificationsOutlined, Person, SearchOutlined, SecurityOutlined, SlowMotionVideoOutlined, StarOutline, ThumbDownOutlined } from '@mui/icons-material';
 import { Avatar, Box, Divider, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Switch, TextField, Typography } from '@mui/material';
 import React, { useRef, useState } from 'react'
 
@@ -62,13 +62,6 @@ export default function DetailedLargeSidebarContent({
             icon: SecurityOutlined,
             href: 'detailed-privacy'
         },
-        {
-            id: '4',
-            primary: isRTL ? 'التشفير' : 'Encryption',
-            secondary: isRTL ? 'الرسائل مشفرة من طرف إلى طرف. اضغط للتحقق.' : 'Messages are end-to-end encrypted. Click to verify.',
-            icon: LockOutline,
-            href: 'detailed-encryption'
-        },
     ];
 
     const secondListItems = [
@@ -98,14 +91,14 @@ export default function DetailedLargeSidebarContent({
             primary: isRTL ? `إبلاغ ${contactName}` : `Report ${contactName}`,
             icon: ThumbDownOutlined,
             distructive: true,
-            href: 'detailed-encryption'
+            href: 'detailed-report'
         },
         {
             id: '5',
             primary: isRTL ? 'حذف المحادثة' : 'Delete chat',
             icon: DeleteOutlineOutlined,
             distructive: true,
-            href: 'detailed-encryption'
+            href: 'detailed-delete-chat'
         },
     ];
 

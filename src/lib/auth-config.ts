@@ -1,5 +1,6 @@
 import type { DBFieldAttribute } from "better-auth/db";
 import { phoneNumber } from "better-auth/plugins";
+import { expo } from "@better-auth/expo";
 
 type UserAdditionalFields = Record<string, DBFieldAttribute>;
 
@@ -99,15 +100,45 @@ export const userAdditionalFields = {
         input: true,
         defaultValue: false,
     },
-    yhlaPublic: {
-        type: "string",
-        input: true,
-        defaultValue: ""
-    },
     yhlaPushToken: {
         type: "string",
         input: true,
         defaultValue: ""
+    },
+    yhlaPublicKey: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaEncryptedPrivateKey: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPrivateKeyIv: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinSalt: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinVerificationTag: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinVerificationIv: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    isNewUser: {
+        type: "boolean",
+        input: true,
+        defaultValue: true
     }
 } satisfies UserAdditionalFields;
 
@@ -122,8 +153,12 @@ export const authSharedOptions = {
                 getTempName: () => "",
             },
         }),
+        expo()
     ],
     user: {
         additionalFields: userAdditionalFields,
+    },
+    advanced: {
+        disableCSRFCheck: true,
     },
 };

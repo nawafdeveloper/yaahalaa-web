@@ -13,7 +13,7 @@ export default function GlobalLoading() {
         <div className="flex flex-col h-screen max-h-screen min-h-screen w-full relative bg-white dark:bg-[#161717]">
             <div className="flex flex-col flex-1 h-full w-full justify-center items-center gap-y-6">
                 <Image
-                    src={'/HalaBaak-logo.svg'}
+                    src={'/halabaak-logo.svg'}
                     alt="YaaHalaa Corp.©"
                     width={500}
                     height={500}

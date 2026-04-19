@@ -1,38 +1,44 @@
 "use client";
 
-import React from 'react'
-import Image from 'next/image';
-import { MuiOtpInput } from 'mui-one-time-password-input';
-import Button from '@mui/material/Button';
-import { AdminPanelSettingsOutlined, Info } from '@mui/icons-material';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { AdminPanelSettingsOutlined, Info } from '@mui/icons-material';
+import { Button, Typography } from '@mui/material';
+import { MuiOtpInput } from 'mui-one-time-password-input';
+import Image from 'next/image';
+import React, { useState } from 'react';
+import { useCrypto } from '@/hooks/use-crypto';
 
-type Props = {
-    otp: string;
-    setOtp: (value: string) => void;
-    verifyOtp: () => void;
-    loading: boolean;
-    isError: boolean;
-    errorMsg: string;
-}
-
-export default function AuthOtpForm({
-    otp,
-    setOtp,
-    verifyOtp,
-    loading,
-    isError,
-    errorMsg
-}: Props) {
+export default function PinCode() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const { unlock, state } = useCrypto();
+
+    const [pin, setPin] = useState('');
+    const [isError, setIsError] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const verifyPin = async () => {
+        setIsError(false);
+        setErrorMsg('');
+
+        const success = await unlock(pin);
+
+        if (success) {
+            window.location.reload();
+        } else {
+            setIsError(true);
+            setErrorMsg(isRTL ? 'الرقم السري غير صحيح' : 'Incorrect passcode');
+        }
+    };
 
     const handleChange = (newValue: string) => {
-        setOtp(newValue)
-    }
+        setPin(newValue);
+        setIsError(false);
+        setErrorMsg('');
+    };
 
     return (
-        <div className='flex flex-col items-center justify-center w-full h-full p-4'>
+        <div className='flex flex-col items-center justify-center w-full h-screen p-4'>
             <div className='flex flex-col h-full max-h-1/2 justify-between w-full md:max-w-sm md:mx-auto'>
                 <div className='flex flex-col items-center justify-center gap-y-4 md:gap-y-8 w-full'>
                     <Image
@@ -43,16 +49,16 @@ export default function AuthOtpForm({
                         className="w-auto h-7 object-contain"
                     />
                     <span className='flex flex-col gap-y-1'>
-                        <h1 className='text-4xl text-center'>{isRTL ? 'أدخل رمز التحقق' : 'Enter code'}</h1>
-                        <p className='text-lg text-center text-gray-500'>{isRTL ? 'قمنا بإرسال رمز تحقق إلى هاتفك SMS' : 'We send you an OTP through SMS.'}</p>
+                        <h1 className='text-4xl text-center'>{isRTL ? 'أدخل رقمك السري' : 'Enter Passcode'}</h1>
+                        <p className='text-lg text-center text-gray-500'>{isRTL ? 'الرقم السري الخاص بحسابك' : 'Passcode for your account'}</p>
                     </span>
                     <MuiOtpInput
-                        value={otp}
+                        value={pin}
                         onChange={handleChange}
                         length={6}
                         autoFocus
                         TextFieldsProps={{
-                            type: "tel",
+                            type: "password",
                         }}
                         sx={(theme) => ({
                             "& .MuiOtpInput-TextField": {
@@ -76,17 +82,17 @@ export default function AuthOtpForm({
                             },
                         })}
                     />
+                    {isError && (
+                        <span className='flex flex-row items-start gap-x-2 mt-1 mb-5 text-sm text-neutral-500'>
+                            <Info fontSize='small' />
+                            <p>{errorMsg}</p>
+                        </span>
+                    )}
                 </div>
-                {isError && (
-                    <span className='flex flex-row items-center gap-x-2 mt-1 mb-5 text-sm text-neutral-500'>
-                        <Info fontSize='small' />
-                        <p>{errorMsg}</p>
-                    </span>
-                )}
                 <div className='flex flex-col gap-y-2 w-full justify-center items-center'>
                     <Button
-                        onClick={verifyOtp}
-                        disabled={otp.length < 6}
+                        onClick={verifyPin}
+                        disabled={pin.length < 6 || state.status === "loading"}
                         variant="outlined"
                         sx={{
                             borderRadius: 99,
@@ -106,7 +112,7 @@ export default function AuthOtpForm({
                         }}
                         fullWidth
                     >
-                        {loading ? (
+                        {state.status === "loading" ? (
                             <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <g>
                                     <rect x="11" y="1" width="2" height="5" opacity=".14" />
@@ -120,9 +126,9 @@ export default function AuthOtpForm({
                                 </g>
                             </svg>
                         ) : (
-                            <>
+                            <Typography>
                                 {isRTL ? 'التحقق' : 'Verify'}
-                            </>
+                            </Typography>
                         )}
                     </Button>
                     <span className='flex flex-row items-start gap-x-1 text-sm text-gray-500'>

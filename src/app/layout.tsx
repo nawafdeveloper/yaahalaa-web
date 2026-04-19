@@ -7,6 +7,8 @@ import MainClientUIAppWrapper from "@/components/main-client-ui-app-warper";
 import { getLocale } from "@/lib/locale";
 import { isRTL } from '@/lib/locale-utils';
 import { auth } from "@/lib/auth";
+import NewPinCode from "@/components/new-pin-code";
+import PinCodeWrapper from "@/components/pin-code-wrapper";
 
 const notoSansArabic = Noto_Sans_Arabic({
   weight: ["300", "400", "500", "700"],
@@ -42,9 +44,20 @@ export default async function RootLayout({
     );
   }
 
+  if (session.user.isNewUser) {
+    return (
+      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
+        <body className={`${notoSansArabic.variable} antialiased`}>
+          <NewPinCode />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
       <body className={`${notoSansArabic.variable} antialiased`}>
+        <PinCodeWrapper />
         <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
       </body>
     </html>

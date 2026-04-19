@@ -1,17 +1,29 @@
 "use client";
 
 import { authClient } from "@/lib/auth-client";
-import {
-    encryptProfileImageFile,
-    isSupportedProfileImageType,
-    PROFILE_IMAGE_MAX_SIZE_BYTES,
-} from "@/lib/profile-image-crypto";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { uploadEncryptedProfileImage } from "@/lib/profile-image-upload";
+
+const PROFILE_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const PROFILE_IMAGE_ACCEPTED_MIME_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+] as const;
+
+function isSupportedProfileImageType(mimeType: string): boolean {
+    return PROFILE_IMAGE_ACCEPTED_MIME_TYPES.includes(
+        mimeType as (typeof PROFILE_IMAGE_ACCEPTED_MIME_TYPES)[number],
+    );
+}
 
 type UseUpdateUserOptions = {
     name: string;
     image?: string | null;
     isRTL: boolean;
+    userId?: string;
 };
 
 function getGenericErrorMessage(isRTL: boolean): string {
@@ -24,6 +36,7 @@ export const useUpdateUser = ({
     name,
     image,
     isRTL,
+    userId,
 }: UseUpdateUserOptions) => {
     const [committedName, setCommittedName] = useState(name);
     const [committedImage, setCommittedImage] = useState(image ?? "");
@@ -145,33 +158,8 @@ export const useUpdateUser = ({
             let nextImage = committedImage;
 
             if (selectedProfileImage) {
-                const encryptedUpload = await encryptProfileImageFile(selectedProfileImage);
-                const formData = new FormData();
-
-                formData.append(
-                    "file",
-                    encryptedUpload.encryptedFile,
-                    `${selectedProfileImage.name}.bin`,
-                );
-                formData.append("key", encryptedUpload.key);
-                formData.append("iv", encryptedUpload.iv);
-                formData.append("mimeType", selectedProfileImage.type);
-                formData.append("version", encryptedUpload.version);
-                formData.append("originalSize", String(selectedProfileImage.size));
-
-                const uploadResponse = await fetch("/api/profile-image", {
-                    method: "POST",
-                    body: formData,
-                });
-
-                const uploadResult = await uploadResponse.json() as {
-                    error?: string;
-                    imageUrl?: string;
-                };
-
-                if (!uploadResponse.ok || !uploadResult.imageUrl) {
-                    throw new Error(uploadResult.error || getGenericErrorMessage(isRTL));
-                }
+                // Encrypt and upload the profile image
+                const uploadResult = await uploadEncryptedProfileImage(selectedProfileImage);
 
                 nextImage = uploadResult.imageUrl;
             }

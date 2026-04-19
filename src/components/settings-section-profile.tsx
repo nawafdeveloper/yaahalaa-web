@@ -3,6 +3,7 @@
 import { CheckCircle, CheckOutlined, ContentCopy, EditOutlined, Person, Phone, PhotoCameraOutlined } from "@mui/icons-material";
 import { Avatar, IconButton, ListItem, ListItemIcon, ListItemText, Snackbar, Stack, TextField } from "@mui/material";
 import { useUpdateUser } from "@/hooks/use-update-user";
+import { useDecryptedProfileImage } from "@/hooks/use-decrypted-profile-image";
 import { authClient } from "@/lib/auth-client";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import SettingsHeader from "./settings-header";
@@ -24,13 +25,17 @@ export default function SettingsSectionProfile() {
         loading,
         nameInputRef,
         nameState,
-        profileImageSrc,
+        profileImageSrc: originalProfileImageSrc,
         setNameState,
     } = useUpdateUser({
         name: session?.user.name ?? "",
         image: session?.user.image,
         isRTL,
+        userId: session?.user.id,
     });
+
+    // Decrypt profile image if it's an encrypted URL
+    const { decryptedUrl: decryptedProfileImageSrc, loading: decrypting } = useDecryptedProfileImage(originalProfileImageSrc);
 
     const [isCopied, setIsCopied] = useState(false);
 
@@ -73,7 +78,7 @@ export default function SettingsSectionProfile() {
                             color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                             border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                         })}
-                        src={profileImageSrc}
+                        src={decryptedProfileImageSrc || undefined}
                     >
                         <Person className="size-16!" />
                     </Avatar>

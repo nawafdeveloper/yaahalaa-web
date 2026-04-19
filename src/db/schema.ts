@@ -56,8 +56,18 @@ export const user = pgTable("user", {
     disableGroupsNotifications: boolean("disable_groups_notifications")
         .default(false)
         .notNull(),
-    yhlaPublic: text("yhla_public").default("").notNull(),
     yhlaPushToken: text("yhla_push_token").default("").notNull(),
+    yhlaPublicKey: text("yhla_public_key").default("").notNull(),
+    yhlaEncryptedPrivateKey: text("yhla_encrypted_private_key")
+        .default("")
+        .notNull(),
+    yhlaPrivateKeyIv: text("yhla_private_key_iv").default("").notNull(),
+    yhlaPinSalt: text("yhla_pin_salt").default("").notNull(),
+    yhlaPinVerificationTag: text("yhla_pin_verification_tag")
+        .default("")
+        .notNull(),
+    yhlaPinVerificationIv: text("yhla_pin_verification_iv").default("").notNull(),
+    isNewUser: boolean("is_new_user").default(true).notNull(),
 });
 
 export const session = pgTable(
@@ -119,6 +129,21 @@ export const verification = pgTable(
     (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const message = pgTable(
+    "message",
+    {
+        id: text("id").primaryKey(),
+        senderPhone: text("sender_phone").notNull(),
+        recipientPhone: text("recipient_phone").notNull(),
+        content: text("content").notNull(),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => [
+        index("message_senderPhone_idx").on(table.senderPhone),
+        index("message_recipientPhone_idx").on(table.recipientPhone),
+    ],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
     sessions: many(session),
     accounts: many(account),
@@ -138,9 +163,44 @@ export const accountRelations = relations(account, ({ one }) => ({
     }),
 }));
 
+
+export const messageRelations = relations(message, ({ one }) => ({
+    sender: one(user, {
+        fields: [message.senderPhone],
+        references: [user.phoneNumber],
+        relationName: "sender",
+    }),
+    recipient: one(user, {
+        fields: [message.recipientPhone],
+        references: [user.phoneNumber],
+        relationName: "recipient",
+    }),
+}));
+
+export const encryptedMedia = pgTable(
+    "encrypted_media",
+    {
+        id: text("id").primaryKey(),
+        ownerId: text("owner_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        objectKey: text("object_key").notNull().unique(),
+        aesKey: text("aes_key").notNull(), // Base64 encoded AES-256 key
+        iv: text("iv").notNull(), // Base64 encoded IV
+        mimeType: text("mime_type").notNull(),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => [
+        index("encrypted_media_ownerId_idx").on(table.ownerId),
+        index("encrypted_media_objectKey_idx").on(table.objectKey),
+    ]
+);
+
 export const schema = {
     user,
     session,
     account,
     verification,
+    message,
+    encryptedMedia,
 };

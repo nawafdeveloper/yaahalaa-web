@@ -100,15 +100,45 @@ export const userAdditionalFields = {
         input: true,
         defaultValue: false,
     },
-    yhlaPublic: {
-        type: "string",
-        input: true,
-        defaultValue: ""
-    },
     yhlaPushToken: {
         type: "string",
         input: true,
         defaultValue: ""
+    },
+    yhlaPublicKey: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaEncryptedPrivateKey: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPrivateKeyIv: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinSalt: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinVerificationTag: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    yhlaPinVerificationIv: {
+        type: "string",
+        input: true,
+        defaultValue: ""
+    },
+    isNewUser: {
+        type: "boolean",
+        input: true,
+        defaultValue: true
     }
 } satisfies UserAdditionalFields;
 

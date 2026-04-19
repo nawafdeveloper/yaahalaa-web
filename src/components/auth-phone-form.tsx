@@ -2,7 +2,7 @@
 
 import { countries } from '@/lib/countries-code';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { ExpandMoreOutlined, Info, LockOutline } from '@mui/icons-material';
+import { ExpandMoreOutlined, Info } from '@mui/icons-material';
 import CloseOutlined from '@mui/icons-material/CloseOutlined';
 import Autocomplete from '@mui/material/Autocomplete';
 import Button from '@mui/material/Button';
@@ -226,10 +226,6 @@ export default function AuthPhoneForm({
                             </>
                         )}
                     </Button>
-                    <span className='flex flex-row items-center gap-x-1 text-sm text-gray-500'>
-                        <LockOutline fontSize="inherit" />
-                        <p>{isRTL ? 'رسائلك الشخصية مشفرة بالتشفير من طرف إلى طرف.' : 'Your personal messages are end-to-end encrypted.'}</p>
-                    </span>
                 </div>
             </div>
         </div>

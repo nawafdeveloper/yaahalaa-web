@@ -1,17 +1,21 @@
 import { auth } from "@/lib/auth";
-import {
-    decryptProfileImageBuffer,
-    isSupportedProfileImageType,
-    PROFILE_IMAGE_MAX_SIZE_BYTES,
-    PROFILE_IMAGE_VERSION,
-    unwrapProfileImageKey,
-    wrapProfileImageKey,
-} from "@/lib/profile-image-crypto";
 import { getProfileImageRuntimeConfig } from "@/lib/profile-image-runtime-config";
 import {
     buildProfileImageObjectKey,
     buildProfileImageUrl,
 } from "@/lib/profile-image-url";
+import db from "@/db";
+import { encryptedMedia } from "@/db/schema";
+import { nanoid } from "nanoid";
+
+const PROFILE_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const PROFILE_IMAGE_ACCEPTED_MIME_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+];
 
 function jsonError(message: string, status: number): Response {
     return Response.json(
@@ -20,16 +24,12 @@ function jsonError(message: string, status: number): Response {
     );
 }
 
-function requireStringField(
-    value: FormDataEntryValue | null,
-    fieldName: string,
-): string {
-    if (typeof value !== "string" || !value.trim()) {
-        throw new Error(`Missing required field: ${fieldName}`);
-    }
-
-    return value;
-}
+// ---------------------------------------------------------------------------
+// POST  /api/profile-image
+// Receives an encrypted profile image file and stores it in R2.
+// The client should encrypt the image with a random AES-256-GCM key before sending.
+// The AES key is stored in the database for authorized access.
+// ---------------------------------------------------------------------------
 
 export async function POST(request: Request): Promise<Response> {
     const session = await auth.api.getSession({
@@ -40,138 +40,69 @@ export async function POST(request: Request): Promise<Response> {
         return jsonError("Unauthorized", 401);
     }
 
-    const { bucket, masterKey } = await getProfileImageRuntimeConfig();
+    const { bucket } = await getProfileImageRuntimeConfig();
 
     if (!bucket) {
         return jsonError("Profile image storage bucket is not configured.", 500);
     }
 
-    if (!masterKey) {
-        return jsonError("Profile image encryption secret is not configured.", 500);
-    }
-
     try {
         const formData = await request.formData();
         const file = formData.get("file");
-        const key = requireStringField(formData.get("key"), "key");
-        const iv = requireStringField(formData.get("iv"), "iv");
-        const mimeType = requireStringField(formData.get("mimeType"), "mimeType");
-        const version = requireStringField(formData.get("version"), "version");
-        const originalSizeValue = requireStringField(formData.get("originalSize"), "originalSize");
-        const originalSize = Number(originalSizeValue);
+        const aesKey = formData.get("aesKey") as string;
+        const iv = formData.get("iv") as string;
 
         if (!(file instanceof File)) {
-            return jsonError("Missing encrypted profile image file.", 400);
+            return jsonError("Missing profile image file.", 400);
         }
 
-        if (!Number.isFinite(originalSize) || originalSize <= 0) {
-            return jsonError("Invalid original image size.", 400);
+        if (!aesKey || !iv) {
+            return jsonError("Missing encryption parameters (aesKey or iv).", 400);
         }
 
-        if (originalSize > PROFILE_IMAGE_MAX_SIZE_BYTES) {
-            return jsonError("Profile image exceeds the 5 MB limit.", 400);
+        if (file.size > PROFILE_IMAGE_MAX_SIZE_BYTES) {
+            return jsonError("Profile image exceeds 5 MB limit.", 400);
         }
 
-        if (!isSupportedProfileImageType(mimeType)) {
+        if (!PROFILE_IMAGE_ACCEPTED_MIME_TYPES.includes(file.type)) {
             return jsonError("Unsupported profile image type.", 400);
         }
 
-        if (version !== PROFILE_IMAGE_VERSION) {
-            return jsonError("Unsupported profile image encryption version.", 400);
-        }
-
-        const objectKey = buildProfileImageObjectKey(session.user.id);
-        const { wrappedKey, wrappedKeyIv } = await wrapProfileImageKey(key, masterKey);
+        const objectKey = await buildProfileImageObjectKey(session.user.id);
 
         await bucket.put(objectKey, await file.arrayBuffer(), {
             httpMetadata: {
-                contentType: "application/octet-stream",
+                contentType: file.type,
             },
             customMetadata: {
-                encryptedKey: wrappedKey,
-                encryptedKeyIv: wrappedKeyIv,
-                fileIv: iv,
-                mimeType,
-                version,
+                mimeType: file.type,
                 ownerId: session.user.id,
-                originalSize: String(originalSize),
+                originalSize: String(file.size),
+                encrypted: "true",
             },
         });
 
+        // Store AES key in database
+        const mediaId = nanoid();
+        await db.insert(encryptedMedia).values({
+            id: mediaId,
+            ownerId: session.user.id,
+            objectKey,
+            aesKey,
+            iv,
+            mimeType: file.type,
+        });
+
         return Response.json({
-            imageUrl: buildProfileImageUrl(session.user.id, objectKey),
+            imageUrl: buildProfileImageUrl(objectKey),
+            mediaId,
         });
     } catch (error) {
         const message =
             error instanceof Error
                 ? error.message
-                : "Failed to upload encrypted profile image.";
+                : "Failed to upload profile image.";
 
         return jsonError(message, 500);
     }
-}
-
-export async function GET(request: Request): Promise<Response> {
-    const session = await auth.api.getSession({
-        headers: new Headers(request.headers),
-    });
-
-    if (!session) {
-        return new Response("Unauthorized", { status: 401 });
-    }
-
-    const { bucket, masterKey } = await getProfileImageRuntimeConfig();
-
-    if (!bucket || !masterKey) {
-        return new Response("Profile image storage is not configured.", { status: 500 });
-    }
-
-    const url = new URL(request.url);
-    const userId = url.searchParams.get("userId");
-    const objectKey = url.searchParams.get("objectKey");
-
-    if (!userId || !objectKey) {
-        return new Response("Missing required query parameters.", { status: 400 });
-    }
-
-    if (!objectKey.startsWith(`profiles/${userId}/`)) {
-        return new Response("Invalid profile image object key.", { status: 400 });
-    }
-
-    const object = await bucket.get(objectKey);
-
-    if (!object) {
-        return new Response("Profile image not found.", { status: 404 });
-    }
-
-    const metadata = object.customMetadata;
-    const encryptedKey = metadata?.encryptedKey;
-    const encryptedKeyIv = metadata?.encryptedKeyIv;
-    const fileIv = metadata?.fileIv;
-    const mimeType = metadata?.mimeType;
-    const version = metadata?.version;
-
-    if (!encryptedKey || !encryptedKeyIv || !fileIv || !mimeType || !version) {
-        return new Response("Profile image metadata is incomplete.", { status: 500 });
-    }
-
-    if (version !== PROFILE_IMAGE_VERSION) {
-        return new Response("Unsupported profile image encryption version.", { status: 500 });
-    }
-
-    const decryptedKey = await unwrapProfileImageKey(encryptedKey, encryptedKeyIv, masterKey);
-    const decryptedImage = await decryptProfileImageBuffer(
-        await object.arrayBuffer(),
-        decryptedKey,
-        fileIv,
-    );
-
-    return new Response(decryptedImage, {
-        status: 200,
-        headers: {
-            "Content-Type": mimeType,
-            "Cache-Control": "private, max-age=60",
-            ETag: object.httpEtag,
-        },
-    });
 }

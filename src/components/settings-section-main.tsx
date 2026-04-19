@@ -4,8 +4,9 @@ import { authClient } from '@/lib/auth-client';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
 import { AccountCircleOutlined, CloseOutlined, Computer, HelpOutline, LockOutline, NotificationsOutlined, Person, SearchOutlined, VpnKeyOutlined } from '@mui/icons-material';
-import { Avatar, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, TextField } from '@mui/material';
-import React, { useRef, useState } from 'react'
+import { Avatar, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, TextField, Typography } from '@mui/material';
+import React, { useRef, useState } from 'react';
+import DecryptedProfileImage from "@/components/decrypted-profile-image";
 
 const ChatIcon = () => (
     <svg className="text-gray-600 dark:text-gray-300" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -139,7 +140,9 @@ export default function SettingsSectionMain() {
                 }}
             />
             <button className='cursor-pointer' onClick={() => navigateToSettings('settings-profile')}>
-                <Avatar
+                <DecryptedProfileImage
+                    imageUrl={session?.user.image ?? ''}
+                    fallback={<Person className='size-16!' />}
                     sx={(theme) => ({
                         width: 120,
                         height: 120,
@@ -147,10 +150,7 @@ export default function SettingsSectionMain() {
                         color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                         border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                     })}
-                    src={session?.user.image || ''}
-                >
-                    <Person className='size-16!' />
-                </Avatar>
+                />
             </button>
             <Stack
                 sx={{

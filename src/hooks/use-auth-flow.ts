@@ -1,7 +1,6 @@
 "use client";
 
 import { authClient } from "@/lib/auth-client";
-import { ensureStoredE2EEKeyPair } from "@/lib/e2ee-key-pair";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -72,18 +71,6 @@ export const useAuthFlow = (isRTL: boolean) => {
             if (error) {
                 setIsError(true);
                 setErrorMsg(error.message || isRTL ? 'حدث خطأ ما, يرجى إعادة المحاولة.' : 'Something went wrong, please try again.');
-                return;
-            }
-
-            const { publicKey } = await ensureStoredE2EEKeyPair(phone);
-
-            const { error: updateUserError } = await authClient.updateUser({
-                yhlaPublic: publicKey,
-            });
-
-            if (updateUserError) {
-                setIsError(true);
-                setErrorMsg(updateUserError.message || isRTL ? 'حدث خطأ ما, يرجى إعادة المحاولة.' : 'Something went wrong, please try again.');
                 return;
             }
 

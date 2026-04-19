@@ -1,20 +1,40 @@
 export const PROFILE_IMAGE_API_PATH = "/api/profile-image";
 
-export function buildProfileImageObjectKey(userId: string): string {
-    return `profiles/${userId}/${crypto.randomUUID()}.bin`;
+// ---------------------------------------------------------------------------
+// URL construction
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a hashed object key using user ID and timestamp.
+ * Format: `p/<hashed_id>/<timestamp>.enc`
+ */
+export async function buildProfileImageObjectKey(userId: string): Promise<string> {
+    const timestamp = Date.now();
+    const hashInput = `${userId}-${timestamp}-${crypto.randomUUID()}`;
+    const hashBuffer = new TextEncoder().encode(hashInput);
+    const hashArray = new Uint8Array(await crypto.subtle.digest("SHA-256", hashBuffer));
+    const hashHex = Array.from(hashArray, (b) => b.toString(16).padStart(2, "0")).join("");
+    const shortHash = hashHex.substring(0, 16);
+    return `p/${shortHash}/${timestamp}.enc`;
 }
 
-export function buildProfileImageUrl(userId: string, objectKey: string): string {
-    const params = new URLSearchParams({
-        userId,
-        objectKey,
-    });
-
-    return `${PROFILE_IMAGE_API_PATH}?${params.toString()}`;
+/**
+ * Build the profile image URL.
+ * Format: `/api/profile-image/<objectKey>`
+ */
+export function buildProfileImageUrl(objectKey: string): string {
+    return `${PROFILE_IMAGE_API_PATH}/${objectKey}`;
 }
 
+// ---------------------------------------------------------------------------
+// URL parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a managed profile image URL and extract the objectKey.
+ * Returns `null` if the URL is not a managed profile image URL.
+ */
 export function parseManagedProfileImageUrl(imageUrl?: string | null): {
-    userId: string;
     objectKey: string;
 } | null {
     if (!imageUrl) {
@@ -24,19 +44,17 @@ export function parseManagedProfileImageUrl(imageUrl?: string | null): {
     try {
         const parsed = new URL(imageUrl, "http://localhost");
 
-        if (parsed.pathname !== PROFILE_IMAGE_API_PATH) {
+        if (!parsed.pathname.startsWith(PROFILE_IMAGE_API_PATH)) {
             return null;
         }
 
-        const userId = parsed.searchParams.get("userId");
-        const objectKey = parsed.searchParams.get("objectKey");
+        const objectKey = parsed.pathname.replace(`${PROFILE_IMAGE_API_PATH}/`, "");
 
-        if (!userId || !objectKey) {
+        if (!objectKey) {
             return null;
         }
 
         return {
-            userId,
             objectKey,
         };
     } catch {

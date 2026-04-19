@@ -22,7 +22,7 @@ export default function LargeSideBar({ logout }: Props) {
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
     return (
-        <div className="md:flex hidden flex-col w-full xxl:max-w-lg xl:max-w-[430] sm:max-w-xs max-w-xs h-full bg-white dark:bg-[#161717] relative overflow-hidden">
+        <div className="md:flex hidden flex-col w-full xl:max-w-117.5 sm:max-w-xs max-w-xs h-full bg-white dark:bg-[#161717] relative overflow-hidden">
             <div className="absolute w-full z-10">
                 {activeSideBar === 'main-chat' && (
                     <ChatsSectionLargeSideBar data={mockChats} logout={logout}/>

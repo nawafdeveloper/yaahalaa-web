@@ -40,7 +40,6 @@ export default function SettingsSubsectionAboutSeen() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Sync with session when it loads
     useEffect(() => {
         if (session?.user?.whoCanSeeAbout) {
             setSelectedValue(session.user.whoCanSeeAbout);
@@ -63,7 +62,6 @@ export default function SettingsSubsectionAboutSeen() {
         } catch (err) {
             setSelectedValue(previousValue);
             setError(err instanceof Error ? err.message : 'Failed to update about seen setting');
-            console.error('Update failed:', err);
         } finally {
             setLoading(false);
         }

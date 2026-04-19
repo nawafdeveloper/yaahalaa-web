@@ -14,6 +14,7 @@
 		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
 	},
 	"dependencies": {
+		"@better-auth/expo": "^1.6.5",
 		"@emotion/react": "^11.14.0",
 		"@emotion/styled": "^11.14.1",
 		"@mui/icons-material": "^7.3.6",
@@ -22,10 +23,9 @@
 		"@neondatabase/serverless": "^1.0.2",
 		"@opennextjs/cloudflare": "^1.14.4",
 		"@opentelemetry/api": "^1.9.1",
-		"@stablelib/base64": "^2.0.1",
 		"@videojs/react": "^10.0.0-beta.11",
 		"@vidstack/react": "^1.12.13",
-		"better-auth": "^1.6.2",
+		"better-auth": "^1.6.5",
 		"dotenv": "^17.4.2",
 		"drizzle-orm": "^0.45.2",
 		"framer-motion": "^12.23.26",
@@ -38,7 +38,6 @@
 		"react-lazy-load-image-component": "^1.6.3",
 		"react-player": "^3.4.0",
 		"react-voice-visualizer": "^2.0.8",
-		"tweetnacl": "^1.0.3",
 		"unicode-emoji-json": "^0.8.0",
 		"wavesurfer.js": "^7.12.1",
 		"web-push": "^3.6.7",

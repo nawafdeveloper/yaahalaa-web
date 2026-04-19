@@ -56,8 +56,18 @@ export const user = pgTable("user", {
   disableGroupsNotifications: boolean("disable_groups_notifications")
     .default(false)
     .notNull(),
-  yhlaPublic: text("yhla_public").default("").notNull(),
   yhlaPushToken: text("yhla_push_token").default("").notNull(),
+  yhlaPublicKey: text("yhla_public_key").default("").notNull(),
+  yhlaEncryptedPrivateKey: text("yhla_encrypted_private_key")
+    .default("")
+    .notNull(),
+  yhlaPrivateKeyIv: text("yhla_private_key_iv").default("").notNull(),
+  yhlaPinSalt: text("yhla_pin_salt").default("").notNull(),
+  yhlaPinVerificationTag: text("yhla_pin_verification_tag")
+    .default("")
+    .notNull(),
+  yhlaPinVerificationIv: text("yhla_pin_verification_iv").default("").notNull(),
+  isNewUser: boolean("is_new_user").default(true).notNull(),
 });
 
 export const session = pgTable(

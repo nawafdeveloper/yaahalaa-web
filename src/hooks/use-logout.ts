@@ -2,6 +2,8 @@ import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
+
 export const useLogout = (isRTL: boolean) => {
     const router = useRouter();
 
@@ -24,8 +26,10 @@ export const useLogout = (isRTL: boolean) => {
                 return;
             }
             
+            localStorage.removeItem(SESSION_KEYS_STORAGE_KEY);
+            
             router.refresh();
-        } catch (error) {
+        } catch {
             setIsError(true);
             setErrorMsg(isRTL ? 'حدث خطأ ما, يرجى إعادة المحاولة.' : 'Something went wrong, please try again.')
         } finally {
