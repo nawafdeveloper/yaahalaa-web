@@ -48,7 +48,9 @@ export function parseManagedProfileImageUrl(imageUrl?: string | null): {
             return null;
         }
 
-        const objectKey = parsed.pathname.replace(`${PROFILE_IMAGE_API_PATH}/`, "");
+        const objectKey = decodeURIComponent(
+            parsed.pathname.replace(`${PROFILE_IMAGE_API_PATH}/`, "")
+        );
 
         if (!objectKey) {
             return null;

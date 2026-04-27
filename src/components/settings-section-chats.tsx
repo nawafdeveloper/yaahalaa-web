@@ -11,14 +11,14 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 export default function SettingsSectionChats() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
-    const { navigateToSettings } = useSettingsStore();
+    const { navigateToSettings, navigateToSettingsSubsection } = useSettingsStore();
 
     const firstList = [
         {
             id: '1',
             primary: isRTL ? 'الثيمات' : 'Theme',
             secondary: isRTL ? 'قم بتغيير لون الثيم للنظام' : 'Change your system theme color',
-            href: 'settings-chats-theme'
+            href: 'chat-theme'
         },
         {
             id: '2',
@@ -73,7 +73,7 @@ export default function SettingsSectionChats() {
                 {firstList.slice(0, 4).map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
+                        onClick={() => navigateToSettingsSubsection(item.href)}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 0,

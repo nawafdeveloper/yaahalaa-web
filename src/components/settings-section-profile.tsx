@@ -1,8 +1,8 @@
 "use client";
 
 import { CheckCircle, CheckOutlined, ContentCopy, EditOutlined, Person, Phone, PhotoCameraOutlined } from "@mui/icons-material";
-import { Avatar, IconButton, ListItem, ListItemIcon, ListItemText, Snackbar, Stack, TextField } from "@mui/material";
-import { useUpdateUser } from "@/hooks/use-update-user";
+import { Avatar, IconButton, ListItem, ListItemIcon, ListItemText, Snackbar, Stack, TextField, Typography } from "@mui/material";
+import { ABOUT_MAX_LENGTH, useUpdateUser } from "@/hooks/use-update-user";
 import { useDecryptedProfileImage } from "@/hooks/use-decrypted-profile-image";
 import { authClient } from "@/lib/auth-client";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
@@ -14,6 +14,7 @@ export default function SettingsSectionProfile() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const {
+        aboutState,
         fileInputRef,
         handleOpenProfileImagePicker,
         handleSaveProfile,
@@ -26,16 +27,18 @@ export default function SettingsSectionProfile() {
         nameInputRef,
         nameState,
         profileImageSrc: originalProfileImageSrc,
+        setAboutState,
         setNameState,
     } = useUpdateUser({
         name: session?.user.name ?? "",
         image: session?.user.image,
+        aboutCiphertext: session?.user.aboutCiphertext,
+        aboutEncryptedAesKey: session?.user.aboutEncryptedAesKey,
+        aboutIv: session?.user.aboutIv,
         isRTL,
-        userId: session?.user.id,
     });
 
-    // Decrypt profile image if it's an encrypted URL
-    const { decryptedUrl: decryptedProfileImageSrc, loading: decrypting } = useDecryptedProfileImage(originalProfileImageSrc);
+    const { decryptedUrl: decryptedProfileImageSrc } = useDecryptedProfileImage(originalProfileImageSrc);
 
     const [isCopied, setIsCopied] = useState(false);
 
@@ -47,6 +50,38 @@ export default function SettingsSectionProfile() {
         }, 3000);
     };
 
+    const profileFieldSx = (theme: { palette: { mode: string } }) => ({
+        width: "100%",
+        "& .MuiInput-underline:after": {
+            borderBottomColor: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
+        },
+        "& .MuiInputLabel-root.Mui-focused": {
+            color: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
+        },
+        "& .MuiInputBase-input.Mui-disabled": {
+            WebkitTextFillColor:
+                theme.palette.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.8)",
+        },
+        "& .MuiInputLabel-root": {
+            left: isRTL ? "unset" : 0,
+            right: isRTL ? 0 : "unset",
+            transformOrigin: isRTL ? "top right" : "top left",
+            "&.MuiInputLabel-standard": {
+                transform: "translate(0px, 20px) scale(1)",
+            },
+            "&.MuiInputLabel-standard.MuiInputLabel-shrink": {
+                transform: "translate(0px, -1.5px) scale(0.75)",
+            },
+        },
+        "& .MuiInputBase-input": {
+            textAlign: isRTL ? "right" : "left",
+        },
+        "& .MuiInputAdornment-root": {
+            marginLeft: isRTL ? 0 : "unset",
+            marginRight: isRTL ? "unset" : 0,
+        },
+    });
+
     return (
         <>
             <Stack
@@ -57,7 +92,7 @@ export default function SettingsSectionProfile() {
                     width: "100%",
                 }}
             >
-                <SettingsHeader title={isRTL ? "الملف الشخصي" : "Profile"} />
+                <SettingsHeader title={isRTL ? "ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ" : "Profile"} />
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -84,53 +119,65 @@ export default function SettingsSectionProfile() {
                     </Avatar>
                     <span className="absolute left-1/2 -translate-x-1/2 gap-x-2 flex flex-row items-center -bottom-3 dark:bg-background bg-white border dark:border-neutral-700 border-neutral-300 px-5 py-2.5 rounded-full dark:text-[#25D366] text-[#15603E]">
                         <PhotoCameraOutlined className="size-5!" />
-                        <p className="text-sm">{isRTL ? "تعديل" : "Edit"}</p>
+                        <p className="text-sm">{isRTL ? "طھط¹ط¯ظٹظ„" : "Edit"}</p>
                     </span>
                 </button>
                 <TextField
                     id="user-full-name"
-                    label={isRTL ? "الإسم الكامل" : "Full name"}
+                    label={isRTL ? "ط§ظ„ط¥ط³ظ… ط§ظ„ظƒط§ظ…ظ„" : "Full name"}
                     variant="standard"
                     disabled={!isEditing || loading}
                     error={isError}
                     helperText={isError ? errorMsg : " "}
                     inputRef={nameInputRef}
-                    sx={(theme) => ({
-                        width: "100%",
-                        "& .MuiInput-underline:after": {
-                            borderBottomColor: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
-                        },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                            color: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
-                        },
-                        "& .MuiInputBase-input.Mui-disabled": {
-                            WebkitTextFillColor:
-                                theme.palette.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.8)",
-                        },
-                        "& .MuiInputLabel-root": {
-                            left: isRTL ? "unset" : 0,
-                            right: isRTL ? 0 : "unset",
-                            transformOrigin: isRTL ? "top right" : "top left",
-                            "&.MuiInputLabel-standard": {
-                                transform: "translate(0px, 20px) scale(1)",
-                            },
-                            "&.MuiInputLabel-standard.MuiInputLabel-shrink": {
-                                transform: "translate(0px, -1.5px) scale(0.75)",
-                            },
-                        },
-                        "& .MuiInputBase-input": {
-                            textAlign: isRTL ? "right" : "left",
-                        },
-                        "& .MuiInputAdornment-root": {
-                            marginLeft: isRTL ? 0 : "unset",
-                            marginRight: isRTL ? "unset" : 0,
-                        },
-                    })}
+                    sx={profileFieldSx}
                     value={nameState}
                     onChange={(event) => setNameState(event.target.value)}
                     InputProps={{
+                        endAdornment: !isEditing ? (
+                            <IconButton
+                                size="small"
+                                onClick={handleStartEditing}
+                                disabled={loading}
+                            >
+                                <EditOutlined />
+                            </IconButton>
+                        ) : (
+                            <IconButton
+                                size="small"
+                                onClick={handleSaveProfile}
+                                disabled={loading}
+                            >
+                                <CheckOutlined />
+                            </IconButton>
+                        ),
+                    }}
+                />
+                <TextField
+                    id="user-about"
+                    label={isRTL ? "ظ†ط¨ط°ط©" : "About"}
+                    variant="standard"
+                    disabled={!isEditing || loading}
+                    sx={profileFieldSx}
+                    value={aboutState}
+                    onChange={(event) => setAboutState(event.target.value)}
+                    helperText={" "}
+                    inputProps={{
+                        maxLength: ABOUT_MAX_LENGTH,
+                    }}
+                    InputProps={{
                         endAdornment: (
-                            <>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        color: "text.secondary",
+                                        minWidth: 40,
+                                        textAlign: isRTL ? "left" : "right",
+                                    }}
+                                >
+                                    {aboutState.length}/{ABOUT_MAX_LENGTH}
+                                </Typography>
                                 {!isEditing ? (
                                     <IconButton
                                         size="small"
@@ -148,7 +195,7 @@ export default function SettingsSectionProfile() {
                                         <CheckOutlined />
                                     </IconButton>
                                 )}
-                            </>
+                            </Stack>
                         ),
                     }}
                 />
@@ -157,7 +204,7 @@ export default function SettingsSectionProfile() {
                         direction: "ltr",
                     }}
                     secondaryAction={
-                        <IconButton onClick={() => { if (session?.user.phoneNumber) handleCopy(session.user.phoneNumber) }} edge="end" aria-label="copy phone number">
+                        <IconButton onClick={() => { if (session?.user.phoneNumber) handleCopy(session.user.phoneNumber); }} edge="end" aria-label="copy phone number">
                             <ContentCopy />
                         </IconButton>
                     }
@@ -174,18 +221,18 @@ export default function SettingsSectionProfile() {
                 open={isCopied}
                 autoHideDuration={6000}
                 onClose={() => setIsCopied(false)}
-                anchorOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'bottom' }}
-                message={isRTL ? 'تم نسخ رقم الهاتف إلى الحافظة.' : 'Phone number copied to clipboard.'}
+                anchorOrigin={{ horizontal: isRTL ? "left" : "right", vertical: "bottom" }}
+                message={isRTL ? "طھظ… ظ†ط³ط® ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ ط¥ظ„ظ‰ ط§ظ„ط­ط§ظپط¸ط©." : "Phone number copied to clipboard."}
                 ContentProps={{
                     sx: (theme) => ({
-                        borderRadius: '99px',
-                        bgcolor: theme.palette.mode === 'dark' ? '#ffffff' : '#000000',
-                        color: theme.palette.mode === 'dark' ? '#000000' : '#ffffff',
+                        borderRadius: "99px",
+                        bgcolor: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
+                        color: theme.palette.mode === "dark" ? "#000000" : "#ffffff",
                         fontWeight: 500,
-                        boxShadow: 'none',
-                        flexDirection: isRTL ? 'row-reverse' : 'row',
-                        paddingRight: isRTL ? '16px' : '24px',
-                        paddingLeft: isRTL ? '24px' : '16px',
+                        boxShadow: "none",
+                        flexDirection: isRTL ? "row-reverse" : "row",
+                        paddingRight: isRTL ? "16px" : "24px",
+                        paddingLeft: isRTL ? "24px" : "16px",
                     }),
                 }}
                 action={

@@ -68,6 +68,9 @@ export const user = pgTable("user", {
         .notNull(),
     yhlaPinVerificationIv: text("yhla_pin_verification_iv").default("").notNull(),
     isNewUser: boolean("is_new_user").default(true).notNull(),
+    aboutCiphertext: text("about_ciphertext").default("").notNull(),
+    aboutEncryptedAesKey: text("about_encrypted_aes_key").default("").notNull(),
+    aboutIv: text("about_iv").default("").notNull(),
 });
 
 export const session = pgTable(

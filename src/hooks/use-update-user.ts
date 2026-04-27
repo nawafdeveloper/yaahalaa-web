@@ -1,10 +1,12 @@
 "use client";
 
 import { authClient } from "@/lib/auth-client";
-import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { uploadEncryptedProfileImage } from "@/lib/profile-image-upload";
+import { decryptText, encryptText } from "@/lib/text-encryption";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 const PROFILE_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+export const ABOUT_MAX_LENGTH = 99;
 const PROFILE_IMAGE_ACCEPTED_MIME_TYPES = [
     "image/jpeg",
     "image/png",
@@ -22,25 +24,31 @@ function isSupportedProfileImageType(mimeType: string): boolean {
 type UseUpdateUserOptions = {
     name: string;
     image?: string | null;
+    aboutCiphertext?: string | null;
+    aboutEncryptedAesKey?: string | null;
+    aboutIv?: string | null;
     isRTL: boolean;
-    userId?: string;
 };
 
 function getGenericErrorMessage(isRTL: boolean): string {
     return isRTL
-        ? "حدث خطأ ما، يرجى إعادة المحاولة."
+        ? "ط­ط¯ط« ط®ط·ط£ ظ…ط§طŒ ظٹط±ط¬ظ‰ ط¥ط¹ط§ط¯ط© ط§ظ„ظ…ط­ط§ظˆظ„ط©."
         : "Something went wrong, please try again.";
 }
 
 export const useUpdateUser = ({
     name,
     image,
+    aboutCiphertext,
+    aboutEncryptedAesKey,
+    aboutIv,
     isRTL,
-    userId,
 }: UseUpdateUserOptions) => {
     const [committedName, setCommittedName] = useState(name);
     const [committedImage, setCommittedImage] = useState(image ?? "");
+    const [committedAbout, setCommittedAbout] = useState("");
     const [nameState, setNameState] = useState(name);
+    const [aboutState, setAboutState] = useState("");
     const [isEditing, setIsEditing] = useState(false);
     const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null);
     const [profileImagePreviewUrl, setProfileImagePreviewUrl] = useState<string | null>(null);
@@ -63,8 +71,59 @@ export const useUpdateUser = ({
     useEffect(() => {
         if (!isEditing) {
             setNameState(committedName);
+            setAboutState(committedAbout);
         }
-    }, [committedName, isEditing]);
+    }, [committedAbout, committedName, isEditing]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        const loadAbout = async () => {
+            if (!aboutCiphertext || !aboutEncryptedAesKey || !aboutIv) {
+                if (!isActive) {
+                    return;
+                }
+
+                setCommittedAbout("");
+                if (!isEditing) {
+                    setAboutState("");
+                }
+                return;
+            }
+
+            try {
+                const decryptedAbout = await decryptText({
+                    ciphertext: aboutCiphertext,
+                    encryptedAesKey: aboutEncryptedAesKey,
+                    iv: aboutIv,
+                });
+
+                if (!isActive) {
+                    return;
+                }
+
+                setCommittedAbout(decryptedAbout);
+                if (!isEditing) {
+                    setAboutState(decryptedAbout);
+                }
+            } catch {
+                if (!isActive) {
+                    return;
+                }
+
+                setCommittedAbout("");
+                if (!isEditing) {
+                    setAboutState("");
+                }
+            }
+        };
+
+        void loadAbout();
+
+        return () => {
+            isActive = false;
+        };
+    }, [aboutCiphertext, aboutEncryptedAesKey, aboutIv, isEditing]);
 
     useEffect(() => {
         if (!selectedProfileImage) {
@@ -110,7 +169,7 @@ export const useUpdateUser = ({
             setIsError(true);
             setErrorMsg(
                 isRTL
-                    ? "نوع الصورة غير مدعوم."
+                    ? "ظ†ظˆط¹ ط§ظ„طµظˆط±ط© ط؛ظٹط± ظ…ط¯ط¹ظˆظ…."
                     : "Unsupported profile image type.",
             );
             return;
@@ -120,7 +179,7 @@ export const useUpdateUser = ({
             setIsError(true);
             setErrorMsg(
                 isRTL
-                    ? "الصورة تتجاوز الحد الأقصى 5 ميجابايت."
+                    ? "ط§ظ„طµظˆط±ط© طھطھط¬ط§ظˆط² ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ 5 ظ…ظٹط¬ط§ط¨ط§ظٹطھ."
                     : "Profile image exceeds the 5 MB limit.",
             );
             return;
@@ -134,18 +193,30 @@ export const useUpdateUser = ({
 
     const handleSaveProfile = async () => {
         const trimmedName = nameState.trim();
+        const trimmedAbout = aboutState.trim();
         const hasNameChanged = trimmedName.length > 0 && trimmedName !== committedName;
+        const hasAboutChanged = trimmedAbout !== committedAbout;
         const hasImageChanged = Boolean(selectedProfileImage);
 
         if (!trimmedName) {
             setIsError(true);
             setErrorMsg(
-                isRTL ? "يرجى إدخال الإسم الكامل." : "Please enter your full name.",
+                isRTL ? "ظٹط±ط¬ظ‰ ط¥ط¯ط®ط§ظ„ ط§ظ„ط¥ط³ظ… ط§ظ„ظƒط§ظ…ظ„." : "Please enter your full name.",
             );
             return;
         }
 
-        if (!hasNameChanged && !hasImageChanged) {
+        if (trimmedAbout.length > ABOUT_MAX_LENGTH) {
+            setIsError(true);
+            setErrorMsg(
+                isRTL
+                    ? "ظ†طµ ط§ظ„ظ†ط¨ط°ط© ظٹط¬ط¨ ط£ظ„ط§ ظٹطھط¬ط§ظˆط² 99 ط­ط±ظپط§."
+                    : "About must be 99 characters or less.",
+            );
+            return;
+        }
+
+        if (!hasNameChanged && !hasAboutChanged && !hasImageChanged) {
             setIsEditing(false);
             return;
         }
@@ -156,17 +227,37 @@ export const useUpdateUser = ({
             setErrorMsg("");
 
             let nextImage = committedImage;
+            let nextAbout = committedAbout;
+            let nextAboutCiphertext = aboutCiphertext ?? "";
+            let nextAboutEncryptedAesKey = aboutEncryptedAesKey ?? "";
+            let nextAboutIv = aboutIv ?? "";
 
             if (selectedProfileImage) {
-                // Encrypt and upload the profile image
                 const uploadResult = await uploadEncryptedProfileImage(selectedProfileImage);
-
                 nextImage = uploadResult.imageUrl;
+            }
+
+            if (hasAboutChanged) {
+                nextAbout = trimmedAbout;
+
+                if (trimmedAbout) {
+                    const encryptedAbout = await encryptText(trimmedAbout);
+                    nextAboutCiphertext = encryptedAbout.ciphertext;
+                    nextAboutEncryptedAesKey = encryptedAbout.encryptedAesKey;
+                    nextAboutIv = encryptedAbout.iv;
+                } else {
+                    nextAboutCiphertext = "";
+                    nextAboutEncryptedAesKey = "";
+                    nextAboutIv = "";
+                }
             }
 
             const payload: {
                 name?: string;
                 image?: string;
+                aboutCiphertext?: string;
+                aboutEncryptedAesKey?: string;
+                aboutIv?: string;
             } = {};
 
             if (hasNameChanged) {
@@ -175,6 +266,12 @@ export const useUpdateUser = ({
 
             if (hasImageChanged) {
                 payload.image = nextImage;
+            }
+
+            if (hasAboutChanged) {
+                payload.aboutCiphertext = nextAboutCiphertext;
+                payload.aboutEncryptedAesKey = nextAboutEncryptedAesKey;
+                payload.aboutIv = nextAboutIv;
             }
 
             const { error: updateUserError } = await authClient.updateUser(payload);
@@ -193,6 +290,10 @@ export const useUpdateUser = ({
                 setCommittedImage(nextImage);
             }
 
+            if (hasAboutChanged) {
+                setCommittedAbout(nextAbout);
+            }
+
             setSelectedProfileImage(null);
             setIsEditing(false);
         } catch (error) {
@@ -208,6 +309,7 @@ export const useUpdateUser = ({
     };
 
     return {
+        aboutState,
         fileInputRef,
         handleOpenProfileImagePicker,
         handleSaveProfile,
@@ -220,6 +322,7 @@ export const useUpdateUser = ({
         nameInputRef,
         nameState,
         profileImageSrc: profileImagePreviewUrl ?? committedImage,
+        setAboutState,
         setNameState,
     };
 };

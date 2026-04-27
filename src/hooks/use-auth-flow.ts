@@ -30,7 +30,7 @@ export const useAuthFlow = (isRTL: boolean) => {
             }
 
             const { error } = await authClient.phoneNumber.sendOtp({
-                phoneNumber: phone
+                phoneNumber: `${dialCode}${phone}`
             });
 
             if (error) {
@@ -62,7 +62,7 @@ export const useAuthFlow = (isRTL: boolean) => {
             }
 
             const { error } = await authClient.phoneNumber.verify({
-                phoneNumber: phone,
+                phoneNumber: `${dialCode}${phone}`,
                 code: otp,
                 disableSession: false,
                 updatePhoneNumber: false,

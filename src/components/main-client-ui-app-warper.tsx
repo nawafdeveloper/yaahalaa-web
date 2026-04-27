@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import GlobalLoading from './global-loading';
 import { motion } from "framer-motion";
-import { MuiSystemThemeProvider } from '@/context/theme';
 import SmallSideBar from './small-sidebar';
 import LargeSideBar from './large-sidebar';
 import useMediaPreviewStore from '@/store/media-preview-store';
@@ -44,11 +43,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
 
     return (
         <>
-            {isOpen && (
-                <MuiSystemThemeProvider>
-                    <MediaPreviewWarper />
-                </MuiSystemThemeProvider>
-            )}
+            {isOpen && <MediaPreviewWarper />}
             <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -58,33 +53,31 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                 }}
                 style={{ height: "100%" }}
             >
-                <MuiSystemThemeProvider>
-                    <main className="relative flex flex-row items-start h-screen overflow-y-hidden overflow-x-hidden">
-                        <SmallSideBar
-                            activeNav={activeNav}
-                            setActiveNav={setActiveNav}
-                        />
-                        <LargeSideBar logout={logout} />
-                        <div className="flex flex-1 w-full">
-                            {children}
-                        </div>
-                        <motion.div
-                            initial={false}
-                            animate={{
-                                width: isDetailedSidebarOpen ? '100%' : 0,
-                                opacity: 1,
-                                x: isDetailedSidebarOpen ? 0 : (isRTL ? '-100%' : '100%'),
-                            }}
-                            transition={{ duration: 0.2, ease: customEasing }}
-                            className="relative z-10 flex h-full shrink-0 overflow-hidden w-full max-w-[18rem] sm:max-w-[20rem] xl:max-w-115"
-                            style={{
-                                pointerEvents: isDetailedSidebarOpen ? 'auto' : 'none',
-                            }}
-                        >
-                            <DetailedLargeSidebar />
-                        </motion.div>
-                    </main>
-                </MuiSystemThemeProvider>
+                <main className="relative flex flex-row items-start h-screen overflow-y-hidden overflow-x-hidden">
+                    <SmallSideBar
+                        activeNav={activeNav}
+                        setActiveNav={setActiveNav}
+                    />
+                    <LargeSideBar logout={logout} />
+                    <div className="flex flex-1 w-full">
+                        {children}
+                    </div>
+                    <motion.div
+                        initial={false}
+                        animate={{
+                            width: isDetailedSidebarOpen ? '100%' : 0,
+                            opacity: 1,
+                            x: isDetailedSidebarOpen ? 0 : (isRTL ? '-100%' : '100%'),
+                        }}
+                        transition={{ duration: 0.2, ease: customEasing }}
+                        className="relative z-10 flex h-full shrink-0 overflow-hidden w-full max-w-[18rem] sm:max-w-[20rem] xl:max-w-115"
+                        style={{
+                            pointerEvents: isDetailedSidebarOpen ? 'auto' : 'none',
+                        }}
+                    >
+                        <DetailedLargeSidebar />
+                    </motion.div>
+                </main>
             </motion.div>
             <Snackbar
                 open={isError}

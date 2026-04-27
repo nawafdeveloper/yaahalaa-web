@@ -19,6 +19,7 @@ import SettingsSubsectionStatusSeen from './settings-subsection-status-seen';
 import SettingsSubsectionDisappearingMessages from './settings-subsection-disappearing-messages';
 import SettingsSubsectionBlockedContacts from './settings-subsection-blocked-contacts';
 import SettingsSubsectionLockApp from './settings-subsection-lock-app';
+import SettingsSubsectionTheme from './settings-subsection-theme';
 
 export default function SettingsSectionSideBar() {
     const locale = getLocaleFromCookie();
@@ -65,6 +66,8 @@ export default function SettingsSectionSideBar() {
                 return <SettingsSubsectionBlockedContacts />
             case 'close-app':
                 return <SettingsSubsectionLockApp />
+            case 'chat-theme':
+                return <SettingsSubsectionTheme />
         }
     };
 

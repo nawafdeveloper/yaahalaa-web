@@ -9,6 +9,7 @@ import { isRTL } from '@/lib/locale-utils';
 import { auth } from "@/lib/auth";
 import NewPinCode from "@/components/new-pin-code";
 import PinCodeWrapper from "@/components/pin-code-wrapper";
+import { MuiSystemThemeProvider } from "@/context/theme";
 
 const notoSansArabic = Noto_Sans_Arabic({
   weight: ["300", "400", "500", "700"],
@@ -36,9 +37,11 @@ export default async function RootLayout({
 
   if (!session) {
     return (
-      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
+      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'} suppressHydrationWarning>
         <body className={`${notoSansArabic.variable} antialiased`}>
-          <MainClientUIAuthWrapper country={country} />
+          <MuiSystemThemeProvider>
+            <MainClientUIAuthWrapper country={country} />
+          </MuiSystemThemeProvider>
         </body>
       </html>
     );
@@ -46,19 +49,23 @@ export default async function RootLayout({
 
   if (session.user.isNewUser) {
     return (
-      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
+      <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'} suppressHydrationWarning>
         <body className={`${notoSansArabic.variable} antialiased`}>
-          <NewPinCode />
+          <MuiSystemThemeProvider>
+            <NewPinCode />
+          </MuiSystemThemeProvider>
         </body>
       </html>
     );
   }
 
   return (
-    <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'}>
+    <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'} suppressHydrationWarning>
       <body className={`${notoSansArabic.variable} antialiased`}>
-        <PinCodeWrapper />
-        <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
+        <MuiSystemThemeProvider>
+          <PinCodeWrapper />
+          <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
+        </MuiSystemThemeProvider>
       </body>
     </html>
   );

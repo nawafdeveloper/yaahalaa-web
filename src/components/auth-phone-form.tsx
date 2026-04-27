@@ -12,7 +12,7 @@ import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import TextField from '@mui/material/TextField';
 import Image from 'next/image';
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 
 type Props = {
     country: string | null;
@@ -49,6 +49,10 @@ export default function AuthPhoneForm({
 
     const defaultCountry = countries.find(c => c.alpha2 === country) || countries.find(c => c.alpha2 === "SA");
 
+    useEffect(() => {
+        setDialCode(defaultCountry?.dialCode || '+966');
+    }, []);
+    
     return (
         <div className='flex flex-col items-center justify-center w-full h-full p-4'>
             <div className='flex flex-col h-full max-h-1/2 justify-between w-full md:max-w-sm md:mx-auto'>

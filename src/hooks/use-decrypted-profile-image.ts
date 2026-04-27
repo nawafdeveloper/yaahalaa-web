@@ -10,17 +10,20 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
     const [error, setError] = useState<Error | null>(null);
 
     useEffect(() => {
+        let isActive = true;
+        let objectUrl: string | null = null;
+
         if (!imageUrl) {
             setDecryptedUrl(null);
+            setLoading(false);
             setError(null);
             return;
         }
 
-        // Check if this is a managed profile image URL
         const parsed = parseManagedProfileImageUrl(imageUrl);
         if (!parsed) {
-            // Not a managed URL, use as-is
             setDecryptedUrl(imageUrl);
+            setLoading(false);
             setError(null);
             return;
         }
@@ -31,26 +34,33 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
                 setError(null);
 
                 const blob = await fetchAndDecryptProfileImage(parsed.objectKey);
-                const url = URL.createObjectURL(blob);
-                setDecryptedUrl(url);
+                if (!isActive) {
+                    return;
+                }
 
-                return () => {
-                    URL.revokeObjectURL(url);
-                };
+                objectUrl = URL.createObjectURL(blob);
+                setDecryptedUrl(objectUrl);
             } catch (err) {
+                if (!isActive) {
+                    return;
+                }
+
                 setError(err instanceof Error ? err : new Error("Failed to decrypt profile image"));
                 setDecryptedUrl(null);
             } finally {
-                setLoading(false);
+                if (isActive) {
+                    setLoading(false);
+                }
             }
         };
 
-        const cleanupPromise = fetchAndDecrypt();
+        void fetchAndDecrypt();
 
         return () => {
-            cleanupPromise.then((cleanup) => {
-                cleanup?.();
-            });
+            isActive = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
         };
     }, [imageUrl]);
 
