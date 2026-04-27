@@ -69,7 +69,7 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                     onClose={handleClose}
                     PaperProps={{
                         sx: (theme) => ({
-                            backgroundColor: theme.palette.mode === "dark" ? "rgba(2, 5, 5, 1)" : "#ffffff",
+                            backgroundColor: theme.palette.mode === "dark" ? "#222424" : "#ffffff",
                             borderRadius: 3,
                             boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                         }),

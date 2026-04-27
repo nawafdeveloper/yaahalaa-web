@@ -10,14 +10,47 @@ import ContextMenu from "@/context/menu";
 import { CheckBoxOutlined, DeleteForeverOutlined, DoDisturbOnOutlined, DoNotDisturbOutlined, HighlightOffOutlined, InfoOutlined, NotificationsOffOutlined, ThumbDownOutlined } from "@mui/icons-material";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { authClient } from "@/lib/auth-client";
 
 export default function ChatRoomContent() {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    const getWallpaper = (mode: 'dark' | 'light') => {
+        if (!session) {
+            return mode === 'dark' ? "url('/chat-background-dark.svg')" : "url('/chat-background-light.svg')"
+        }
+
+        switch (session.user.chatWallpaper) {
+            case "wallpaper-1":
+                return mode === 'dark' ? "url('/dark-wallpaper-1.svg')" : "url('/light-wallpaper-1.svg')";
+            case "wallpaper-2":
+                return mode === 'dark' ? "url('/dark-wallpaper-2.svg')" : "url('/light-wallpaper-2.svg')";
+            case "wallpaper-3":
+                return mode === 'dark' ? "url('/dark-wallpaper-3.svg')" : "url('/light-wallpaper-3.svg')";
+            case "wallpaper-4":
+                return mode === 'dark' ? "url('/dark-wallpaper-4.svg')" : "url('/light-wallpaper-4.svg')";
+            case "wallpaper-5":
+                return mode === 'dark' ? "url('/dark-wallpaper-5.svg')" : "url('/light-wallpaper-5.svg')";
+            case "wallpaper-6":
+                return mode === 'dark' ? "url('/dark-wallpaper-6.svg')" : "url('/light-wallpaper-6.svg')";
+            case "wallpaper-7":
+                return mode === 'dark' ? "url('/dark-wallpaper-7.svg')" : "url('/light-wallpaper-7.svg')";
+            case "wallpaper-8":
+                return mode === 'dark' ? "url('/dark-wallpaper-8.svg')" : "url('/light-wallpaper-8.svg')";
+            case "wallpaper-9":
+                return mode === 'dark' ? "url('/dark-wallpaper-9.svg')" : "url('/light-wallpaper-9.svg')";
+            case "wallpaper-10":
+                return mode === 'dark' ? "url('/dark-wallpaper-10.svg')" : "url('/light-wallpaper-10.svg')";
+            default:
+                return mode === 'dark' ? "url('/chat-background-dark.svg')" : "url('/chat-background-light.svg')"
+        };
+    };
 
     return (
         <Box
@@ -28,10 +61,7 @@ export default function ChatRoomContent() {
                 position: "relative",
                 display: "flex",
                 overflow: 'hidden',
-                backgroundImage:
-                    theme.palette.mode === "dark"
-                        ? "url('/chat-background-dark.svg')"
-                        : "url('/chat-background-light.svg')",
+                backgroundImage: getWallpaper(theme.palette.mode),
                 backgroundRepeat: "repeat",
                 backgroundSize: "110px",
                 backgroundColor:

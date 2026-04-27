@@ -1,13 +1,19 @@
 "use client";
 
-import { ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from '@mui/material';
-import React from 'react'
+import {
+    ListItem,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Stack,
+    Typography,
+    Switch,
+} from '@mui/material';
+import React, { useState } from 'react';
 import SettingsHeader from './settings-header';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { useSettingsStore } from '@/store/use-active-setting-store';
+import { authClient } from '@/lib/auth-client';
 import { GroupOutlined } from '@mui/icons-material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 
 const ChatIcon = () => (
     <svg className="text-gray-600 dark:text-gray-300" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -18,121 +24,138 @@ const ChatIcon = () => (
 );
 
 export default function SettingsSectionNotifications() {
+    const { data: session } = authClient.useSession();
+
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
-    const { navigateToSettings } = useSettingsStore();
+
+    const [messages, setMessages] = useState(
+        !session?.user?.disableMessagesNotifications
+    );
+    const [groups, setGroups] = useState(
+        !session?.user?.disableGroupsNotifications
+    );
+
+    const [loading, setLoading] = useState(false);
+
+    const updateSetting = async (
+        type: 'messages' | 'groups',
+        value: boolean
+    ) => {
+        if (loading) return;
+
+        setLoading(true);
+
+        const prev = type === 'messages' ? messages : groups;
+
+        if (type === 'messages') setMessages(value);
+        if (type === 'groups') setGroups(value);
+
+        try {
+            await authClient.updateUser({
+                disableMessagesNotifications:
+                    type === 'messages' ? !value : undefined,
+                disableGroupsNotifications:
+                    type === 'groups' ? !value : undefined,
+            });
+        } catch {
+            if (type === 'messages') setMessages(prev);
+            if (type === 'groups') setGroups(prev);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const itemsList = [
         {
             id: '1',
             primary: isRTL ? 'الرسائل' : 'Messages',
-            secondary: isRTL ? 'إشعارات الرسائل' : 'Messages notification',
+            secondary: isRTL ? 'إشعارات الرسائل' : 'Messages notifications',
             icon: ChatIcon,
-            href: 'settings-notifications-messages'
+            value: messages,
+            type: 'messages' as const,
         },
         {
             id: '2',
             primary: isRTL ? 'المجموعات' : 'Groups',
-            secondary: isRTL ? 'إشعارات المجموعات' : 'Groups notification',
+            secondary: isRTL ? 'إشعارات المجموعات' : 'Groups notifications',
             icon: GroupOutlined,
-            href: 'settings-notifications-groups'
-        }
+            value: groups,
+            type: 'groups' as const,
+        },
     ];
 
     return (
-        <Stack
-            spacing={4}
-            alignItems={'center'}
-            className='px-5 pt-5'
-            sx={{
-                width: '100%',
-            }}
-        >
+        <Stack spacing={4} className="px-5 pt-5" sx={{ width: '100%' }}>
             <SettingsHeader title={isRTL ? 'الإشعارات' : 'Notifications'} />
-            <Stack
-                spacing={1}
-                sx={{
-                    width: '100%',
-                }}
-            >
-                {itemsList.slice(0, 4).map((item) => (
+
+            <Stack spacing={1} sx={{ width: '100%' }}>
+                {itemsList.map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
-                        sx={(theme) => ({
-                            width: "100%",
+                        disableRipple
+                        sx={{
+                            width: '100%',
                             borderRadius: 0,
-                            padding: 0,
-                            backgroundColor: "transparent",
-                            boxShadow: "0px 0px 0px rgba(0,0,0,0)",
-                            textTransform: "inherit",
-                            color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
-                            borderBottom: `1px solid ${theme.palette.mode === "dark" ? "#2C2C2C" : "#E9E9E9"}`,
-                            "&:hover": {
-                                boxShadow: "0px 0px 0px rgba(0,0,0,0)",
-                                backgroundColor: "transparent",
-                            },
-                            "& .MuiListItemText-secondary": {
-                                maxWidth: "100%",
-                            },
-                        })}
+                            backgroundColor: 'transparent',
+                            borderBottom: '1px solid #2C2C2C',
+                        }}
                     >
                         <ListItem
                             sx={{
+                                width: '100%',
                                 padding: isRTL ? '8px 0 8px 16px' : '8px 16px 8px 0',
+                                display: 'flex',
                                 justifyContent: 'space-between',
+                                alignItems: 'center',
                             }}
                         >
                             <ListItemIcon>
-                                <item.icon className='size-6! text-gray-600 dark:text-gray-300' />
+                                <item.icon />
                             </ListItemIcon>
+
                             <ListItemText
                                 primary={item.primary}
+                                secondary={item.secondary}
                                 sx={{
-                                    display: "block",
                                     textAlign: isRTL ? 'right' : 'left',
                                 }}
-                                secondary={item.secondary}
-                                secondaryTypographyProps={{
-                                    sx: {
-                                        display: "block",
-                                        maxWidth: "100%",
-                                        textAlign: isRTL ? 'right' : 'left',
+                            />
+                            <Switch
+                                checked={item.value}
+                                disabled={loading}
+                                onChange={() =>
+                                    updateSetting(item.type, !item.value)
+                                }
+                                sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': {
+                                        color: '#25D366',
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(37, 211, 102, 0.08)',
+                                        },
+                                    },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track':
+                                    {
+                                        backgroundColor: '#25D366',
                                     },
                                 }}
                             />
-                            {isRTL ? (
-                                <ChevronLeftIcon
-                                    sx={{
-                                        color: (theme) =>
-                                            theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                        fontSize: 24,
-                                    }}
-                                />
-                            ) : (
-                                <ChevronRightIcon
-                                    sx={{
-                                        color: (theme) =>
-                                            theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                        fontSize: 24,
-                                    }}
-                                />
-                            )}
                         </ListItem>
                     </ListItemButton>
                 ))}
             </Stack>
+
             <Typography
-                variant='body2'
+                variant="body2"
                 sx={{
-                    color: (theme) =>
-                        theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                    width: '100%',
+                    color: '#A5A5A5',
                     textAlign: isRTL ? 'right' : 'left',
                 }}
             >
-                {isRTL ? 'للحصول على الإشعارات، تأكد من تشغيلها في إعدادات المتصفح والجهاز.' : 'To get notifications, make sure they are turned on in your browser and device settings.'}
+                {isRTL
+                    ? 'للحصول على الإشعارات، تأكد من تفعيلها في إعدادات الجهاز والمتصفح.'
+                    : 'To receive notifications, make sure they are enabled in your device and browser settings.'}
             </Typography>
         </Stack>
-    )
+    );
 }

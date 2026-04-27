@@ -1,51 +1,47 @@
 "use client";
 
+import { authClient } from '@/lib/auth-client';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { ListItem, ListItemButton, ListItemText, Radio, Stack, Typography } from '@mui/material';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react'
 import SettingsSubsectionHeader from './settings-subsection-header';
-import { authClient } from '@/lib/auth-client';
 
-export default function SettingsSubsectionStatusSeen() {
+type ItemList = {
+    key: string;
+    label: string;
+    value: string;
+}
+
+export default function SettingsSubsectionMediaQuality() {
     const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
     const translations = {
         en: {
-            title: 'Status seen',
-            subtitle: 'Who can see my status',
-            everyone: 'Everyone',
-            myContacts: 'My contacts',
-            nobody: 'Nobody'
+            title: 'Media upload',
+            subtitle: 'Chose your media upload quality',
+            high: 'High quality',
+            std: 'Standard quality'
         },
         ar: {
-            title: 'مشاهدة حالتي',
-            subtitle: 'من يمكنه مشاهدة حالتي',
-            everyone: 'الجميع',
-            myContacts: 'جهات إتصالي',
-            nobody: 'لا أحد'
+            title: 'رفع الوسائط',
+            subtitle: 'اختر جودة رفع الوسائط',
+            high: 'جودة عالية',
+            std: 'جودة عادية'
         }
     };
 
     const t = translations[locale === 'ar' ? 'ar' : 'en'];
 
-    const listSelection = [
-        { key: 'all', label: t.everyone, value: 'all' },
-        { key: 'contacts', label: t.myContacts, value: 'contacts' },
-        { key: 'nobody', label: t.nobody, value: 'nobody' }
+    const listSelection: ItemList[] = [
+        { key: 'high', label: t.high, value: 'high' },
+        { key: 'std', label: t.std, value: 'std' },
     ];
 
-    const [selectedValue, setSelectedValue] = useState(session?.user?.whoCanSeeStatus || 'all');
+    const [selectedValue, setSelectedValue] = useState(session?.user?.mediaUploadQuality || 'std');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Sync with session when it loads
-    useEffect(() => {
-        if (session?.user?.whoCanSeeStatus) {
-            setSelectedValue(session.user.whoCanSeeStatus);
-        }
-    }, [session]);
 
     const handleSelectionChange = async (newValue: string) => {
         if (loading) return;
@@ -58,11 +54,11 @@ export default function SettingsSubsectionStatusSeen() {
 
         try {
             await authClient.updateUser({
-                whoCanSeeStatus: newValue
+                mediaUploadQuality: newValue
             });
         } catch (err) {
             setSelectedValue(previousValue);
-            setError(err instanceof Error ? err.message : isRTL ? 'فشل في تحديث إعدادات عرض الحالة نشر حول' : 'Failed to update about seen setting');
+            setError(err instanceof Error ? err.message : isRTL ? 'فشل في تحديث جودة رفع الوسائط' : 'Failed to update media upload quality');
         } finally {
             setLoading(false);
         }
@@ -88,11 +84,6 @@ export default function SettingsSubsectionStatusSeen() {
             >
                 {t.subtitle}
             </Typography>
-            {error && (
-                <Typography color="error" variant="caption" sx={{ textAlign: 'center' }}>
-                    {error}
-                </Typography>
-            )}
             <Stack
                 spacing={1}
                 sx={{
@@ -182,5 +173,5 @@ export default function SettingsSubsectionStatusSeen() {
                 ))}
             </Stack>
         </Stack>
-    );
+    )
 }

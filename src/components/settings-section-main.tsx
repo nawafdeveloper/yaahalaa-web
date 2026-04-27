@@ -62,7 +62,7 @@ export default function SettingsSectionMain() {
         {
             id: '5',
             primary: isRTL ? 'المحادثات' : 'Chats',
-            secondary: isRTL ? 'السمة، الخلفية وإعدادات المحادثات' : 'Theme, wallpaper and chats setting',
+            secondary: isRTL ? 'المظهر, الخلفية وإعدادات المحادثات' : 'Theme, wallpaper and chats setting',
             icon: ChatIcon,
             href: 'settings-chats'
         },

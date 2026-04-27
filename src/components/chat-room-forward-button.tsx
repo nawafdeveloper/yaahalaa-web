@@ -1,12 +1,11 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import mockChats from "@/mocks/chat-items";
-import { Close, CloseOutlined, Group, Person, SearchOutlined, ShortcutRounded } from "@mui/icons-material";
+import { Close, CloseOutlined, Group, Person, SearchOutlined, Send, ShortcutRounded } from "@mui/icons-material";
 import {
     Avatar,
     Box,
-    Card,
-    CardHeader,
     Checkbox,
     IconButton,
     InputAdornment,
@@ -21,9 +20,13 @@ import {
     Typography,
     Zoom,
 } from "@mui/material";
+import { AnimatePresence, motion } from "framer-motion";
 import React, { useRef, useState } from "react";
 
 export default function ChatRoomForwardButton() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedChatsToForward, setSelectedChatsToForward] = useState<string[]>([]);
@@ -61,14 +64,15 @@ export default function ChatRoomForwardButton() {
                             marginY: 'auto',
                             height: '100%',
                             maxHeight: "calc(100vh - 200px)",
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            position: 'relative'
                         })}
                     >
                         <div className="flex flex-row items-center gap-x-3 p-2">
                             <IconButton onClick={() => setOpen(false)}>
                                 <Close />
                             </IconButton>
-                            <Typography>Forward message to</Typography>
+                            <Typography>{isRTL ? "إعادة التوجيه إلى" : "Forward message to"}</Typography>
                         </div>
                         <div className="px-5">
                             <TextField
@@ -76,7 +80,7 @@ export default function ChatRoomForwardButton() {
                                 id="filled-search-bar"
                                 variant="filled"
                                 size="small"
-                                placeholder="Search name or number"
+                                placeholder={isRTL ? "إبحث عن رقم أو جهة إتصال" : "Search name or number"}
                                 fullWidth
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -86,7 +90,7 @@ export default function ChatRoomForwardButton() {
                                         borderRadius: 8,
                                         "&.Mui-focused": {
                                             outline: "2px solid #25D366",
-                                            backgroundColor: theme.palette.mode === "dark" ? "rgba(28,30,33,0)" : "#ffffff",
+                                            backgroundColor: theme.palette.mode === "dark" ? "#2B2C2C" : "#ffffff",
                                         },
                                     },
                                     width: '100%',
@@ -129,7 +133,7 @@ export default function ChatRoomForwardButton() {
                                     fontSize: 14,
                                 }}
                             >
-                                Recent chats
+                                {isRTL ? "المحادثات الأخيرة" : "Recent chats"}
                             </Typography>
                         </div>
                         <List sx={{ bgcolor: 'transparent', overflowY: "scroll", height: "83%", paddingX: '20px' }}>
@@ -139,8 +143,18 @@ export default function ChatRoomForwardButton() {
                                     key={item.chat_id}
                                 >
                                     <ListItemButton
-                                        onClick={() => setSelectedChatsToForward(prev => [...prev, item.chat_id])}
+                                        onClick={() =>
+                                            setSelectedChatsToForward((prev) =>
+                                                prev.includes(item.chat_id)
+                                                    ? prev.filter((id) => id !== item.chat_id)
+                                                    : [...prev, item.chat_id]
+                                            )
+                                        }
                                         sx={(theme) => ({
+                                            display: 'flex',
+                                            flexDirection: isRTL ? 'row-reverse' : 'row',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
                                             borderRadius: 3,
                                             backgroundColor: "transparent",
                                             boxShadow: "0px 4px 20px rgba(0,0,0,0)",
@@ -209,6 +223,43 @@ export default function ChatRoomForwardButton() {
                                 </ListItem>
                             ))}
                         </List>
+                        <AnimatePresence>
+                            {selectedChatsToForward.length > 0 && (
+                                <motion.div
+                                    initial={{ y: 80, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    exit={{ y: 80, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="absolute z-10 bottom-0 left-0 right-0 dark:bg-[#2B2C2C] bg-[#F0F0F0] flex px-4 py-3 flex-row items-center justify-between"
+                                >
+                                    <span
+                                        style={{
+                                            display: 'block',
+                                            maxWidth: '70%',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                        }}
+                                    >
+                                        {selectedChatsToForward.join(', ')}
+                                    </span>
+
+                                    <IconButton
+                                        size="medium"
+                                        sx={{
+                                            backgroundColor: "#25D366",
+                                            color: "#161717",
+                                            "&:hover": {
+                                                backgroundColor: "#25D366",
+                                                color: "#161717",
+                                            },
+                                        }}
+                                    >
+                                        <Send className={`${isRTL ? "rotate-180" : ""}`} />
+                                    </IconButton>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </Box>
                 </Zoom>
             </Modal>

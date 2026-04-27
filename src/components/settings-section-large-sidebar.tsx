@@ -20,6 +20,9 @@ import SettingsSubsectionDisappearingMessages from './settings-subsection-disapp
 import SettingsSubsectionBlockedContacts from './settings-subsection-blocked-contacts';
 import SettingsSubsectionLockApp from './settings-subsection-lock-app';
 import SettingsSubsectionTheme from './settings-subsection-theme';
+import SettingsSubsectionWallpeper from './settings-subsection-wallpeper';
+import SettingsSubsectionMediaQuality from './settings-subsection-media-quality';
+import SettingsSubsectionMediaAutoDownload from './settings-subsection-media-auto-download';
 
 export default function SettingsSectionSideBar() {
     const locale = getLocaleFromCookie();
@@ -68,6 +71,12 @@ export default function SettingsSectionSideBar() {
                 return <SettingsSubsectionLockApp />
             case 'chat-theme':
                 return <SettingsSubsectionTheme />
+            case 'chat-wallpaper':
+                return <SettingsSubsectionWallpeper />
+            case 'media-quality-upload':
+                return <SettingsSubsectionMediaQuality />
+            case 'media-auto-download':
+                return <SettingsSubsectionMediaAutoDownload />
         }
     };
 

@@ -92,7 +92,7 @@ export default function SettingsSectionProfile() {
                     width: "100%",
                 }}
             >
-                <SettingsHeader title={isRTL ? "ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ" : "Profile"} />
+                <SettingsHeader title={isRTL ? "الملف الشخصي" : "Profile"} />
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -119,12 +119,12 @@ export default function SettingsSectionProfile() {
                     </Avatar>
                     <span className="absolute left-1/2 -translate-x-1/2 gap-x-2 flex flex-row items-center -bottom-3 dark:bg-background bg-white border dark:border-neutral-700 border-neutral-300 px-5 py-2.5 rounded-full dark:text-[#25D366] text-[#15603E]">
                         <PhotoCameraOutlined className="size-5!" />
-                        <p className="text-sm">{isRTL ? "طھط¹ط¯ظٹظ„" : "Edit"}</p>
+                        <p className="text-sm">{isRTL ? "تعديل" : "Edit"}</p>
                     </span>
                 </button>
                 <TextField
                     id="user-full-name"
-                    label={isRTL ? "ط§ظ„ط¥ط³ظ… ط§ظ„ظƒط§ظ…ظ„" : "Full name"}
+                    label={isRTL ? "الإسم كامل" : "Full name"}
                     variant="standard"
                     disabled={!isEditing || loading}
                     error={isError}
@@ -155,7 +155,7 @@ export default function SettingsSectionProfile() {
                 />
                 <TextField
                     id="user-about"
-                    label={isRTL ? "ظ†ط¨ط°ط©" : "About"}
+                    label={isRTL ? "نبذة" : "About"}
                     variant="standard"
                     disabled={!isEditing || loading}
                     sx={profileFieldSx}
@@ -222,7 +222,7 @@ export default function SettingsSectionProfile() {
                 autoHideDuration={6000}
                 onClose={() => setIsCopied(false)}
                 anchorOrigin={{ horizontal: isRTL ? "left" : "right", vertical: "bottom" }}
-                message={isRTL ? "طھظ… ظ†ط³ط® ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ ط¥ظ„ظ‰ ط§ظ„ط­ط§ظپط¸ط©." : "Phone number copied to clipboard."}
+                message={isRTL ? "تم نسخ رقم الهاتف إلى الحافظة" : "Phone number copied to clipboard."}
                 ContentProps={{
                     sx: (theme) => ({
                         borderRadius: "99px",

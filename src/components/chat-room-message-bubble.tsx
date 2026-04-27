@@ -238,8 +238,8 @@ export default function ChatRoomMessageBubble({
                                 overflow: 'visible',
                                 boxShadow: "0px 2px 0px rgba(0,0,0,0.09)",
                                 backgroundColor: isSender
-                                    ? theme.palette.mode === "dark" ? "#182A1F" : "#DCF8C6"
-                                    : theme.palette.mode === "dark" ? "rgba(22,24,24,1)" : "#FFFFFF",
+                                    ? theme.palette.mode === "dark" ? "#24352A" : "#DCF8C6"
+                                    : theme.palette.mode === "dark" ? "#222424" : "#FFFFFF",
                             })}
                             onMouseEnter={() => !isSelectMode && setIsBubbleEnter(true)}
                             onMouseLeave={() => setIsBubbleEnter(false)}

@@ -16,15 +16,15 @@ export default function SettingsSectionChats() {
     const firstList = [
         {
             id: '1',
-            primary: isRTL ? 'الثيمات' : 'Theme',
-            secondary: isRTL ? 'قم بتغيير لون الثيم للنظام' : 'Change your system theme color',
+            primary: isRTL ? 'المظهر' : 'Theme',
+            secondary: isRTL ? 'قم بتغيير لون المظهر للنظام' : 'Change your system theme color',
             href: 'chat-theme'
         },
         {
             id: '2',
             primary: isRTL ? 'الخلفيات' : 'Wallpaper',
             secondary: isRTL ? 'قم بتغيير خلفية غرفة المحادثة' : 'Change wallpaper of chat room',
-            href: 'settings-chats-wallpaper'
+            href: 'chat-wallpaper'
         },
     ];
 
@@ -33,13 +33,13 @@ export default function SettingsSectionChats() {
             id: '1',
             primary: isRTL ? 'جودة تحميل الوسائط' : 'Media upload quality',
             secondary: isRTL ? 'تعديل جودة تحميل الوسائط' : 'Adjust the quality of media upload',
-            href: 'settings-chats-media-upload-quality'
+            href: 'media-quality-upload'
         },
         {
             id: '2',
             primary: isRTL ? 'تنزيل الوسائط تلقائيا' : 'Media auto download',
             secondary: isRTL ? 'تعديل خيار تنزيل الوسائط التلقائي' : 'Adjust the media auto download',
-            href: 'settings-chats-media-auto-download'
+            href: 'media-auto-download'
         },
     ];
 
@@ -70,7 +70,7 @@ export default function SettingsSectionChats() {
                     width: '100%',
                 }}
             >
-                {firstList.slice(0, 4).map((item) => (
+                {firstList.map((item) => (
                     <ListItemButton
                         key={item.id}
                         onClick={() => navigateToSettingsSubsection(item.href)}
@@ -151,10 +151,10 @@ export default function SettingsSectionChats() {
                     width: '100%',
                 }}
             >
-                {secondList.slice(0, 4).map((item) => (
+                {secondList.map((item) => (
                     <ListItemButton
                         key={item.id}
-                        onClick={() => navigateToSettings(item.href)}
+                        onClick={() => navigateToSettingsSubsection(item.href)}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 0,
