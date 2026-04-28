@@ -9,17 +9,18 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "halabakk-web",
-	"main": ".open-next/worker.js",
+	"main": ".open-next/worker-with-do.ts",
 	"compatibility_date": "2025-12-01",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
 	"build": {
-		"command": "npx opennextjs-cloudflare build",
+		"command": "tsx scripts/build-cloudflare-worker.ts",
 		"watch_dir": [
 			"src",
 			"public",
+			"scripts/build-cloudflare-worker.ts",
 			"open-next.config.ts",
 			"package.json",
 			"package-lock.json",
@@ -41,6 +42,24 @@
 			// see https://opennext.js.org/cloudflare/caching
 			"binding": "WORKER_SELF_REFERENCE",
 			"service": "halabakk-web"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "USER_PRESENCE_DO",
+				"class_name": "UserPresenceDO"
+			},
+			{
+				"name": "CHAT_ROOM_DO",
+				"class_name": "ChatRoomDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["UserPresenceDO", "ChatRoomDO"]
 		}
 	],
 	"r2_buckets": [
