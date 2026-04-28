@@ -1,7 +1,6 @@
 "use client";
 
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
-import mockChats from "@/mocks/chat-items";
 import { Close, CloseOutlined, Group, Person, SearchOutlined, Send, ShortcutRounded } from "@mui/icons-material";
 import {
     Avatar,
@@ -22,10 +21,17 @@ import {
 } from "@mui/material";
 import { AnimatePresence, motion } from "framer-motion";
 import React, { useRef, useState } from "react";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { authClient } from "@/lib/auth-client";
+import { getChatDisplayName } from "@/lib/chat-utils";
 
 export default function ChatRoomForwardButton() {
+    const { data: session } = authClient.useSession();
+    const chats = useActiveChatStore((state) => state.chats);
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
 
     const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -137,7 +143,7 @@ export default function ChatRoomForwardButton() {
                             </Typography>
                         </div>
                         <List sx={{ bgcolor: 'transparent', overflowY: "scroll", height: "83%", paddingX: '20px' }}>
-                            {mockChats.map((item) => (
+                            {chats.map((item) => (
                                 <ListItem
                                     disablePadding
                                     key={item.chat_id}
@@ -198,7 +204,7 @@ export default function ChatRoomForwardButton() {
                                                 </Avatar>
                                             </ListItemAvatar>
                                             <ListItemText
-                                                primary={item.last_message_sender_nickname}
+                                                primary={getChatDisplayName(item, currentPhone)}
                                                 sx={{
                                                     "& .MuiListItemText-secondary": {
                                                         color: (theme) => theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",

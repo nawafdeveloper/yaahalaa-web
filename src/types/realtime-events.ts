@@ -1,3 +1,14 @@
+import type { Message } from "./messages.type";
+import type {
+    EncryptedContentEnvelope,
+    RecipientEncryptedAesKeyInput,
+} from "./crypto";
+
+type RealtimeMessage = Omit<Message, "created_at" | "updated_at"> & {
+    created_at: string;
+    updated_at: string;
+};
+
 export type ClientRealtimeEvent =
     | {
           type: "JOIN_CONVERSATION";
@@ -11,10 +22,21 @@ export type ClientRealtimeEvent =
           type: "SEND_MESSAGE";
           conversationId?: string;
           conversationType: "direct" | "group";
-          senderPhone: string;
+          senderUserId?: string;
+          senderNickname?: string;
+          recipientUserId?: string;
+          senderPhone?: string;
           recipientPhone?: string;
           participantIds?: string[];
-          content: string;
+          content?: string;
+          messageTextContent?: string | null;
+          attachedMedia?: Message["attached_media"];
+          mediaUrl?: string | null;
+          videoThumbnail?: string | null;
+          encryptedContent?: EncryptedContentEnvelope | null;
+          recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
+          encryptedChatPreview?: EncryptedContentEnvelope | null;
+          chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
       }
     | {
           type: "MARK_DELIVERED";
@@ -32,14 +54,22 @@ export type ServerRealtimeEvent =
           type: "NEW_MESSAGE";
           conversationId: string;
           conversationType: "direct" | "group";
-          message: unknown;
+          message: RealtimeMessage;
       }
     | {
           type: "CONVERSATION_UPDATED";
           conversationId: string;
           conversationType: "direct" | "group";
-          lastMessage: unknown;
+          lastMessage: RealtimeMessage;
           unreadCount: number;
+      }
+    | {
+          type: "CONVERSATION_PRESENCE";
+          conversationId: string;
+          status: "joined" | "left";
+          userId: string;
+          activeUsers: string[];
+          activeUsersCount: number;
       }
     | {
           type: "MARK_DELIVERED";

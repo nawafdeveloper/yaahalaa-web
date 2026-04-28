@@ -8,7 +8,7 @@ import SettingsSectionSideBar from "@/components/settings-section-large-sidebar"
 import WallpaperPreview from "@/components/wallpeper-preview";
 import { useLogout } from "@/hooks/use-logout";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
-import mockChats from "@/mocks/chat-items";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useSettingsStore } from "@/store/use-active-setting-store";
 import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import React from "react";
@@ -19,12 +19,13 @@ export default function AppPage() {
   const isRTL = locale ? isRTLClient(locale) : false;
   const { logout } = useLogout(isRTL);
   const { activeSettingsSubsection } = useSettingsStore();
+  const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
 
   return (
     <div className="w-full h-screen max-h-screen min-h-screen">
       <div className="flex md:hidden">
         {activeSideBar === 'main-chat' && (
-          <ChatsSectionLargeSideBar logout={logout} data={mockChats} />
+          <ChatsSectionLargeSideBar logout={logout} />
         )}
         {activeSideBar === 'main-setting' && (
           <SettingsSectionSideBar />
@@ -39,7 +40,7 @@ export default function AppPage() {
         ) : (
           <>
             {activeSideBar === 'main-chat' || activeSideBar === 'create-chat' ? (
-              <ChatRoomSection />
+              selectedChatId ? <ChatRoomSection /> : <EmptyStartChating />
             ) : (
               <EmptyStartChating />
             )}

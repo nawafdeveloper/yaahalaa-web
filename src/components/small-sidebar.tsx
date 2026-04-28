@@ -5,9 +5,9 @@ import Tooltip from '@mui/material/Tooltip';
 import { SettingsOutlined, Settings, Person, PersonOutlined, Archive, ArchiveOutlined } from "@mui/icons-material";
 import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
-import mockChats from "@/mocks/chat-items";
 import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
 
 interface Props {
     activeNav: 'chats' | 'settings' | 'profile' | 'archive';
@@ -16,6 +16,7 @@ interface Props {
 
 export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
     const { setActiveSideBar } = useSidebarStore();
+    const chats = useActiveChatStore((state) => state.chats);
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -24,7 +25,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
         setActiveSideBar(side);
     };
 
-    const totalUnread = mockChats
+    const totalUnread = chats
         .map((item) => item.unreaded_messages_length)
         .reduce((acc, curr) => acc + curr, 0);
 

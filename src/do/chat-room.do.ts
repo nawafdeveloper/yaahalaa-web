@@ -7,6 +7,16 @@ type BroadcastEvent = {
 
 type UserPayload = {
     userId?: string;
+    conversationId?: string;
+};
+
+type PresenceBroadcastEvent = {
+    type: "CONVERSATION_PRESENCE";
+    conversationId: string;
+    status: "joined" | "left";
+    userId: string;
+    activeUsers: string[];
+    activeUsersCount: number;
 };
 
 type DurableBindingsEnv = {
@@ -27,34 +37,38 @@ export class ChatRoomDO extends DurableObject<DurableBindingsEnv> {
             }
 
             case "/user-joined": {
-                const { userId } = (await request.json()) as UserPayload;
-                if (!userId) {
+                const { userId, conversationId } = (await request.json()) as UserPayload;
+                if (!userId || !conversationId) {
                     return Response.json(
-                        { error: "userId is required" },
+                        { error: "userId and conversationId are required" },
                         { status: 400 }
                     );
                 }
 
                 this.activeUsers.add(userId);
+                await this.broadcastPresenceChange("joined", userId, conversationId);
                 return Response.json({
                     ok: true,
                     activeUsers: this.activeUsers.size,
+                    activeUserIds: [...this.activeUsers],
                 });
             }
 
             case "/user-left": {
-                const { userId } = (await request.json()) as UserPayload;
-                if (!userId) {
+                const { userId, conversationId } = (await request.json()) as UserPayload;
+                if (!userId || !conversationId) {
                     return Response.json(
-                        { error: "userId is required" },
+                        { error: "userId and conversationId are required" },
                         { status: 400 }
                     );
                 }
 
                 this.activeUsers.delete(userId);
+                await this.broadcastPresenceChange("left", userId, conversationId);
                 return Response.json({
                     ok: true,
                     activeUsers: this.activeUsers.size,
+                    activeUserIds: [...this.activeUsers],
                 });
             }
 
@@ -79,5 +93,20 @@ export class ChatRoomDO extends DurableObject<DurableBindingsEnv> {
                 });
             })
         );
+    }
+
+    private async broadcastPresenceChange(
+        status: PresenceBroadcastEvent["status"],
+        userId: string,
+        conversationId: string
+    ) {
+        await this.broadcast({
+            type: "CONVERSATION_PRESENCE",
+            conversationId,
+            status,
+            userId,
+            activeUsers: [...this.activeUsers],
+            activeUsersCount: this.activeUsers.size,
+        } satisfies PresenceBroadcastEvent);
     }
 }

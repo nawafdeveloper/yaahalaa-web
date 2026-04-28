@@ -4,6 +4,7 @@ import useMediaPreviewStore from '@/store/media-preview-store';
 import { Box } from '@mui/material';
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
+import { useDecryptedMessageMedia } from '@/hooks/use-decrypted-message-media';
 
 const MIN_ZOOM = 1;
 const ZOOM_STEP = 0.1;
@@ -17,6 +18,7 @@ type Props = {
 
 export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChange }: Props) {
     const { mediaUrl, mediaType } = useMediaPreviewStore();
+    const { decryptedUrl } = useDecryptedMessageMedia(mediaUrl);
     const containerRef = useRef<HTMLDivElement>(null);
     const imageWrapperRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -134,7 +136,7 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
                     <LazyLoadImage
                         alt=""
                         effect="blur"
-                        src={mediaUrl || ''}
+                        src={decryptedUrl || ''}
                         draggable={false}
                         style={{
                             maxWidth: "100%",
@@ -151,7 +153,7 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
                 {mediaType === 'video' && (
                     <video
                         ref={videoRef}
-                        src={mediaUrl || ''}
+                        src={decryptedUrl || ''}
                         controls
                         playsInline
                         draggable={false}

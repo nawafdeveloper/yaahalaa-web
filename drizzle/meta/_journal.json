@@ -8,6 +8,27 @@
       "when": 1776465354045,
       "tag": "0000_shallow_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777386082096,
+      "tag": "0001_messages_chats_refactor",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777386917778,
+      "tag": "0002_e2ee_message_chat_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777406400000,
+      "tag": "0003_encrypted_contacts",
+      "breakpoints": true
     }
   ]
 }

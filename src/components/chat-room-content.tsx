@@ -5,15 +5,23 @@ import React, { useRef, useState } from "react";
 import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
 import List from "@mui/material/List";
-import { messages } from "@/mocks/messages";
 import ContextMenu from "@/context/menu";
 import { CheckBoxOutlined, DeleteForeverOutlined, DoDisturbOnOutlined, DoNotDisturbOutlined, HighlightOffOutlined, InfoOutlined, NotificationsOffOutlined, ThumbDownOutlined } from "@mui/icons-material";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { authClient } from "@/lib/auth-client";
+import { Typography } from "@mui/material";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
 
 export default function ChatRoomContent() {
     const { data: session } = authClient.useSession();
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const messages = useActiveChatStore((state) =>
+        selectedChatId ? state.messagesByChatId[selectedChatId] ?? [] : []
+    );
+    const messagesLoading = useActiveChatStore((state) =>
+        selectedChatId ? state.messagesLoadingByChatId[selectedChatId] ?? false : false
+    );
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -78,9 +86,17 @@ export default function ChatRoomContent() {
                     paddingBottom: 8,
                 }}
             >
-                {messages.map((item, index) => (
+                {messagesLoading ? (
+                    <Typography sx={{ px: 3, py: 3, color: "text.secondary" }}>
+                        Loading messages...
+                    </Typography>
+                ) : messages.length === 0 ? (
+                    <Typography sx={{ px: 3, py: 3, color: "text.secondary" }}>
+                        No messages yet. Start the conversation.
+                    </Typography>
+                ) : messages.map((item) => (
                     <ChatRoomMessageBubble
-                        key={index}
+                        key={item.message_id}
                         message={item}
                         isSelectMode={isSelectMode}
                         selectedMessages={selectedMessages}

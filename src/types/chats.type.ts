@@ -1,7 +1,17 @@
+import type {
+    RecipientEncryptedAesKey,
+    TextEncryptionAlgorithm,
+} from "./crypto";
+
 export type ChatItemType = {
     chat_id: string;
     chat_type: 'single' | 'group';
     avatar: string;
+    last_message_id?: string | null;
+    encrypted_preview_ciphertext?: string | null;
+    encrypted_preview_iv?: string | null;
+    encrypted_preview_algorithm?: TextEncryptionAlgorithm | null;
+    chat_recipient_keys?: RecipientEncryptedAesKey[] | null;
     last_message_context: string;
     last_message_media: string | null;
     last_message_sender_is_me: boolean;

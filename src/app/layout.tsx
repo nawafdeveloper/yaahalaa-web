@@ -64,7 +64,7 @@ export default async function RootLayout({
       <body className={`${notoSansArabic.variable} antialiased`}>
         <MuiSystemThemeProvider>
           <PinCodeWrapper />
-          <MainClientUIAppWrapper>{children}</MainClientUIAppWrapper>
+          <MainClientUIAppWrapper country={country}>{children}</MainClientUIAppWrapper>
         </MuiSystemThemeProvider>
       </body>
     </html>

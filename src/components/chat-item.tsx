@@ -12,14 +12,24 @@ import { ChatItemType } from '@/types/chats.type';
 import ListItemButton from '@mui/material/ListItemButton';
 import { formatRelativeDate } from '@/lib/date-formatter';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { useActiveChatStore } from '@/store/use-active-chat-store';
+import { authClient } from '@/lib/auth-client';
+import { getChatDisplayName } from '@/lib/chat-utils';
 
 type Props = {
     chat_item: ChatItemType;
 }
 
 export default function ChatItem({ chat_item }: Props) {
+    const { data: session } = authClient.useSession();
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const isSelected = selectedChatId === chat_item.chat_id;
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
+    const chatTitle = getChatDisplayName(chat_item, currentPhone);
 
     const secondaryActionContent = (
         <div
@@ -68,12 +78,17 @@ export default function ChatItem({ chat_item }: Props) {
 
     return (
         <ListItemButton
+            onClick={() => setSelectedChatId(chat_item.chat_id)}
             sx={(theme) => ({
                 width: "100%",
                 borderRadius: 3,
                 padding: 0,
                 marginY: '2px',
-                backgroundColor: "transparent",
+                backgroundColor: isSelected
+                    ? theme.palette.mode === "dark"
+                        ? "#2B2C2C"
+                        : "#EAE9E7"
+                    : "transparent",
                 boxShadow: "0px 4px 20px rgba(0,0,0,0)",
                 textTransform: "inherit",
                 color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
@@ -126,7 +141,7 @@ export default function ChatItem({ chat_item }: Props) {
                     </Avatar>
                 </ListItemAvatar>
                 <ListItemText
-                    primary={chat_item.last_message_sender_nickname}
+                    primary={chatTitle}
                     sx={{
                         transition: "max-width 100ms ease",
                         maxWidth: "75%",
@@ -151,7 +166,7 @@ export default function ChatItem({ chat_item }: Props) {
                             {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${chat_item.last_message_sender_nickname}:`}
                             {chat_item.last_message_media && (
                                 <>
-                                    {chat_item.last_message_media === 'image' && (
+                                    {chat_item.last_message_media === 'photo' && (
                                         <ImageOutlined fontSize="small" />
                                     )}
                                     {chat_item.last_message_media === 'video' && (
@@ -167,7 +182,7 @@ export default function ChatItem({ chat_item }: Props) {
                             )}
                             {'  '}
                             {chat_item.last_message_media ?
-                                chat_item.last_message_media === 'image' ? 'Image' :
+                                chat_item.last_message_media === 'photo' ? 'Image' :
                                     chat_item.last_message_media === 'video' ? 'Video' :
                                         chat_item.last_message_media === 'voice' ? 'Voice' :
                                             'File' :

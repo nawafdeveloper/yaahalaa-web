@@ -28,6 +28,8 @@ import { Avatar, Button } from '@mui/material';
 import PollComponent from './chat-poll-item';
 import { convertToPollWithVotes } from '@/utils/convert-to-poll-with-votes';
 import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
+import { useDecryptedMessageMedia } from '@/hooks/use-decrypted-message-media';
+import { authClient } from '@/lib/auth-client';
 
 type Props = {
     message: Message;
@@ -44,8 +46,13 @@ export default function ChatRoomMessageBubble({
     setSelectedMessages,
     isFirstInGroup = true,
 }: Props) {
+    const { data: session } = authClient.useSession();
     const { openPreview } = useMediaPreviewStore();
     const { open } = useDetailedSidebarStore();
+    const { decryptedUrl: decryptedMediaUrl, mimeType: decryptedMediaMimeType } =
+        useDecryptedMessageMedia(message.media_url);
+    const { decryptedUrl: decryptedThumbnailUrl } =
+        useDecryptedMessageMedia(message.video_thumbnail);
 
     const [thumbnail, setThumbnail] = useState('');
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -74,8 +81,15 @@ export default function ChatRoomMessageBubble({
 
     const getThumbnail = async () => {
         try {
+            if (message.attached_media !== 'video') return;
+            if (decryptedThumbnailUrl) {
+                setThumbnail(decryptedThumbnailUrl);
+                setImageLoaded(true);
+                return;
+            }
+            if (!decryptedMediaUrl) return;
             setImageLoaded(false);
-            const thumbnailBlob = await generateVideoThumbnailFromUrl(message.media_url || '');
+            const thumbnailBlob = await generateVideoThumbnailFromUrl(decryptedMediaUrl);
             const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
             setThumbnail(thumbnailUrl);
         } catch (error) {
@@ -98,11 +112,11 @@ export default function ChatRoomMessageBubble({
     };
 
     useEffect(() => {
-        getThumbnail();
-        filePreperation();
-    }, []);
+        void getThumbnail();
+        void filePreperation();
+    }, [decryptedMediaUrl, decryptedThumbnailUrl, message.media_url]);
 
-    const me = message.sender_user_id === 'user_456';
+    const me = message.sender_user_id === session?.user.id;
     const isSender = me;
 
     const TAIL_WIDTH = 8;
@@ -136,6 +150,10 @@ export default function ChatRoomMessageBubble({
         }
         return "Message";
     };
+
+    const fileTypeLabel =
+        decryptedMediaMimeType?.split('/').pop()?.toUpperCase() ||
+        getFileExtension(message.media_url || '');
 
     return (
         <ListItem disablePadding>
@@ -378,7 +396,7 @@ export default function ChatRoomMessageBubble({
                                     </div>
                                     <div className='flex flex-row items-center gap-x-2 min-w-64 max-w-64'>
                                         <AudioPlayer
-                                            src="https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3"
+                                            src={decryptedMediaUrl || ""}
                                             showJumpControls={false}
                                             customAdditionalControls={[]}
                                             layout='horizontal-reverse'
@@ -397,7 +415,14 @@ export default function ChatRoomMessageBubble({
                                 </div>
                             )}
                             {message.attached_media === 'file' && (
-                                <button className='flex flex-row cursor-pointer items-center gap-x-3 p-4 rounded-lg bg-[#f7f5f3] dark:bg-[#1a1b1b] mb-1 w-full'>
+                                <button
+                                    className='flex flex-row cursor-pointer items-center gap-x-3 p-4 rounded-lg bg-[#f7f5f3] dark:bg-[#1a1b1b] mb-1 w-full'
+                                    onClick={() => {
+                                        if (decryptedMediaUrl) {
+                                            window.open(decryptedMediaUrl, "_blank", "noopener,noreferrer");
+                                        }
+                                    }}
+                                >
                                     <Image
                                         src={'/file.svg'}
                                         alt='File'
@@ -415,10 +440,10 @@ export default function ChatRoomMessageBubble({
                                                 wordBreak: 'break-word',
                                             }}
                                         >
-                                            This is file name
+                                            Encrypted file
                                         </Typography>
                                         <Typography variant="caption" sx={{ color: 'gray' }}>
-                                            {getFileExtension(message.media_url || '')} • {fileSize}
+                                            {fileTypeLabel} • {fileSize}
                                         </Typography>
                                     </span>
                                 </button>
@@ -446,7 +471,13 @@ export default function ChatRoomMessageBubble({
                                         alt={message.message_text_content || ''}
                                         height={'auto'}
                                         effect="blur"
-                                        src={(message.attached_media === 'photo' ? message.media_url : message.attached_media === 'video' ? message.video_thumbnail : thumbnail) || ''}
+                                        src={(
+                                            message.attached_media === 'photo'
+                                                ? decryptedMediaUrl
+                                                : message.attached_media === 'video'
+                                                  ? (decryptedThumbnailUrl || thumbnail)
+                                                  : thumbnail
+                                        ) || ''}
                                         width={'100%'}
                                         wrapperProps={{ style: { transitionDelay: "1s" } }}
                                         style={{ borderRadius: 4, overflow: 'hidden' }}

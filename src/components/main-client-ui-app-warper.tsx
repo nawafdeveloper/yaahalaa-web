@@ -13,8 +13,9 @@ import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
 import { useLogout } from '@/hooks/use-logout';
 import { Snackbar } from '@mui/material';
 import { Info } from '@mui/icons-material';
+import { useChatRealtime } from '@/hooks/use-chat-realtime';
 
-export default function MainClientUIAppWrapper({ children }: { children: React.ReactNode }) {
+export default function MainClientUIAppWrapper({ children, country }: { children: React.ReactNode, country: string | null; }) {
     const { isOpen } = useMediaPreviewStore();
     const { isOpen: isDetailedSidebarOpen } = useDetailedSidebarStore();
     const locale = getLocaleFromCookie();
@@ -26,6 +27,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
         errorMsg,
         logout
     } = useLogout(isRTL);
+    useChatRealtime();
 
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
@@ -58,7 +60,7 @@ export default function MainClientUIAppWrapper({ children }: { children: React.R
                         activeNav={activeNav}
                         setActiveNav={setActiveNav}
                     />
-                    <LargeSideBar logout={logout} />
+                    <LargeSideBar country={country} logout={logout} />
                     <div className="flex flex-1 w-full">
                         {children}
                     </div>

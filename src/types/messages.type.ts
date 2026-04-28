@@ -1,3 +1,8 @@
+import type {
+    RecipientEncryptedAesKey,
+    TextEncryptionAlgorithm,
+} from "./crypto";
+
 export type MessageReaction = {
     id: string;
     user_id: string;
@@ -55,6 +60,10 @@ export type Message = {
     message_id: string;
     sender_user_id: string;
     chat_room_id: string;
+    encrypted_content_ciphertext?: string | null;
+    encrypted_content_iv?: string | null;
+    encrypted_content_algorithm?: TextEncryptionAlgorithm | null;
+    message_recipient_keys?: RecipientEncryptedAesKey[] | null;
     attached_media: 'photo' | 'video' | 'voice' | 'file' | 'contact' | 'location' | null;
     event: Event | null;
     poll: Poll | null;

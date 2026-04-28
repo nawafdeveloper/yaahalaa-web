@@ -7,15 +7,13 @@ import { useState } from 'react';
 import NotificationServicesPermissionAlert from './notification-services-permission-alert';
 import Fab from '@mui/material/Fab';
 import { Add } from '@mui/icons-material';
-import { ChatItemType } from '@/mocks/fake-types';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 
 type Props = {
-    data: ChatItemType[];
     logout: () => void;
 }
 
-export default function ChatsSectionLargeSideBar({ data, logout }: Props) {
+export default function ChatsSectionLargeSideBar({ logout }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -33,7 +31,6 @@ export default function ChatsSectionLargeSideBar({ data, logout }: Props) {
             </div>
             <ChatsSideBarContent
                 activeChatTab={activeChatTab}
-                data={data}
             />
             <div className='absolute bottom-6 left-6 right-6 z-50 flex md:hidden justify-end'>
                 <Fab color="success" sx={{ backgroundColor: "#25D366" }} aria-label="add">

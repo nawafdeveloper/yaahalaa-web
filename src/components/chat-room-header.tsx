@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "@mui/icons-material";
+import { ArrowBack, Search } from "@mui/icons-material";
 import Person from "@mui/icons-material/Person";
 import {
     Avatar,
@@ -12,8 +12,27 @@ import {
 } from "@mui/material";
 import React from "react";
 import ChatRoomMoreActionButton from "./chat-room-more-action-button";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { authClient } from "@/lib/auth-client";
+import { getChatDisplayName } from "@/lib/chat-utils";
 
 export default function ChatRoomHeader() {
+    const { data: session } = authClient.useSession();
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const chats = useActiveChatStore((state) => state.chats);
+    const presenceByChatId = useActiveChatStore((state) => state.presenceByChatId);
+    const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
+    const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
+    const subtitle =
+        activePresence && activePresence.activeUsersCount > 0
+            ? `${activePresence.activeUsersCount} active`
+            : selectedChat?.chat_type === "group"
+              ? "Group chat"
+              : "Direct chat";
+
     return (
         <Button
             sx={(theme) => ({
@@ -33,6 +52,16 @@ export default function ChatRoomHeader() {
             })}
         >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <IconButton
+                    className="md:hidden"
+                    onClick={() => setSelectedChatId(null)}
+                    size="small"
+                    sx={(theme) => ({
+                        color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
+                    })}
+                >
+                    <ArrowBack />
+                </IconButton>
                 <Avatar
                     sx={(theme) => ({
                         width: 40,
@@ -47,15 +76,20 @@ export default function ChatRoomHeader() {
                 >
                     <Person />
                 </Avatar>
-                <Typography
-                    variant="body1"
-                    sx={{
-                        fontWeight: "600",
-                        direction: 'ltr'
-                    }}
-                >
-                    +966 55 994 4487
-                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                    <Typography
+                        variant="body1"
+                        sx={{
+                            fontWeight: "600",
+                            direction: 'ltr'
+                        }}
+                    >
+                        {selectedChat ? getChatDisplayName(selectedChat, currentPhone) : "Chat"}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
+                        {subtitle}
+                    </Typography>
+                </Box>
             </Box>
             <div className="flex flex-row items-center gap-x-2">
                 <Tooltip
@@ -82,7 +116,7 @@ export default function ChatRoomHeader() {
                     </IconButton>
                 </Tooltip>
                 <ChatRoomMoreActionButton
-                    chat_type="group"
+                    chat_type={selectedChat?.chat_type ?? "single"}
                 />
             </div>
         </Button>

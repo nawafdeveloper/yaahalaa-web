@@ -20,6 +20,8 @@ import {
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { authClient } from "@/lib/auth-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { useRealtimeStore } from "@/store/use-realtime-store";
+import { normalizeMessage, buildChatFromMessage } from "@/lib/chat-utils";
 
 export default function ChatRoomInputForm() {
     const locale = getLocaleFromCookie();
@@ -34,27 +36,88 @@ export default function ChatRoomInputForm() {
     const currentPhone = (session?.user as { phoneNumber?: string | null })
         ?.phoneNumber ?? null;
     const recipientPhone = useActiveChatStore((s) => s.recipientPhone);
+    const selectedChatId = useActiveChatStore((s) => s.selectedChatId);
+    const chats = useActiveChatStore((s) => s.chats);
+    const appendMessage = useActiveChatStore((s) => s.appendMessage);
+    const upsertChat = useActiveChatStore((s) => s.upsertChat);
+    const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
+    const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
 
     // --- Send handler -----------------------------------------------------
     const handleSend = useCallback(async () => {
         const trimmed = value.trim();
-        if (!trimmed || !currentPhone || !recipientPhone) return;
+        if (!trimmed || !currentPhone || !selectedChatId || !selectedChat) return;
 
         try {
-            await fetch("/api/messages", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    senderPhone: currentPhone,
-                    recipientPhone,
-                    content: trimmed,
-                }),
+            const realtimeSent = sendRealtimeEvent({
+                type: "SEND_MESSAGE",
+                conversationId: selectedChatId,
+                conversationType:
+                    selectedChat.chat_type === "group" ? "group" : "direct",
+                senderUserId: session?.user.id,
+                senderNickname: session?.user.name ?? currentPhone,
+                senderPhone: currentPhone,
+                recipientPhone: recipientPhone ?? undefined,
+                content: trimmed,
+                messageTextContent: trimmed,
             });
+
+            if (!realtimeSent) {
+                const response = await fetch("/api/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chatRoomId: selectedChatId,
+                        conversationType:
+                            selectedChat.chat_type === "group" ? "group" : "direct",
+                        senderUserId: session?.user.id,
+                        senderNickname: session?.user.name ?? currentPhone,
+                        senderPhone: currentPhone,
+                        recipientPhone,
+                        content: trimmed,
+                        messageTextContent: trimmed,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error("Failed to send message");
+                }
+
+                const payload = (await response.json()) as {
+                    message: Parameters<typeof normalizeMessage>[0];
+                };
+                const nextMessage = normalizeMessage(payload.message);
+
+                appendMessage(selectedChatId, nextMessage);
+                upsertChat(
+                    buildChatFromMessage({
+                        conversationId: selectedChatId,
+                        conversationType:
+                            selectedChat.chat_type === "group" ? "group" : "direct",
+                        message: nextMessage,
+                        currentUserId: session?.user.id ?? "",
+                        unreadCount: 0,
+                        fallbackExistingChat: selectedChat,
+                    })
+                );
+            }
+
             setValue("");
         } catch (err) {
             console.error("Failed to send message:", err);
         }
-    }, [currentPhone, recipientPhone, value]);
+    }, [
+        appendMessage,
+        currentPhone,
+        recipientPhone,
+        selectedChat,
+        selectedChatId,
+        sendRealtimeEvent,
+        session?.user.id,
+        session?.user.name,
+        upsertChat,
+        value,
+    ]);
 
     // --- Voice recorder ---------------------------------------------------
     const recorderControls = useVoiceVisualizer();
