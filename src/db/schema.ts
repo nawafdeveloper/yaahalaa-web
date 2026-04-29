@@ -219,6 +219,8 @@ export const message = pgTable(
         reply_message: jsonb("reply_message").$type<ReplyMessage | null>(),
         location: jsonb("location").$type<Location | null>(),
         media_url: text("media_url"),
+        media_preview_url: text("media_preview_url"),
+        media_size_bytes: integer("media_size_bytes"),
         video_thumbnail: text("video_thumbnail"),
         message_raction: jsonb("message_raction").$type<
             MessageReaction | null
@@ -460,14 +462,18 @@ export const encryptedMedia = pgTable(
             .notNull()
             .references(() => user.id, { onDelete: "cascade" }),
         objectKey: text("object_key").notNull().unique(),
+        previewObjectKey: text("preview_object_key").unique(),
         aesKey: text("aes_key").notNull(), // Legacy single wrapped key or a JSON map of recipient-wrapped AES keys
         iv: text("iv").notNull(), // Base64 encoded AES-GCM IV
         mimeType: text("mime_type").notNull(),
+        previewMimeType: text("preview_mime_type"),
+        originalSizeBytes: integer("original_size_bytes").default(0).notNull(),
         createdAt: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => [
         index("encrypted_media_ownerId_idx").on(table.ownerId),
         index("encrypted_media_objectKey_idx").on(table.objectKey),
+        index("encrypted_media_previewObjectKey_idx").on(table.previewObjectKey),
     ]
 );
 

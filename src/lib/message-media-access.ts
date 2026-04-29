@@ -8,6 +8,32 @@ type SerializedRecipientMediaKeys = {
     keys: Record<string, string>;
 };
 
+function parseRecipientMediaKeyMap(
+    storedValue: string
+): SerializedRecipientMediaKeys | null {
+    if (!storedValue) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(storedValue) as Partial<SerializedRecipientMediaKeys>;
+        if (
+            parsed.version === 1 &&
+            parsed.keys &&
+            typeof parsed.keys === "object"
+        ) {
+            return {
+                version: 1,
+                keys: parsed.keys,
+            };
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+}
+
 export function serializeRecipientMediaKeys(
     keys: Record<string, string>
 ): string {
@@ -25,16 +51,12 @@ export function resolveRecipientMediaKeyForUser(
         return null;
     }
 
-    try {
-        const parsed = JSON.parse(storedValue) as Partial<SerializedRecipientMediaKeys>;
-        if (
-            parsed.version === 1 &&
-            parsed.keys &&
-            typeof parsed.keys === "object"
-        ) {
-            return parsed.keys[userId] ?? null;
-        }
-    } catch {
+    const parsed = parseRecipientMediaKeyMap(storedValue);
+    if (parsed) {
+        return parsed.keys[userId] ?? null;
+    }
+
+    if (storedValue) {
         return storedValue;
     }
 
@@ -44,6 +66,14 @@ export function resolveRecipientMediaKeyForUser(
 export async function findEncryptedMediaRecord(objectKey: string) {
     return db.query.encryptedMedia.findFirst({
         where: eq(encryptedMedia.objectKey, objectKey),
+    });
+}
+
+export async function findEncryptedMediaRecordByPreviewObjectKey(
+    previewObjectKey: string
+) {
+    return db.query.encryptedMedia.findFirst({
+        where: eq(encryptedMedia.previewObjectKey, previewObjectKey),
     });
 }
 
@@ -86,4 +116,12 @@ export async function userCanAccessMessageMedia(
     });
 
     return Boolean(recipientKey);
+}
+
+export function userHasDirectMediaRecipientKey(
+    storedValue: string,
+    userId: string
+): boolean {
+    const parsed = parseRecipientMediaKeyMap(storedValue);
+    return Boolean(parsed?.keys[userId]);
 }

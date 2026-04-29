@@ -20,6 +20,7 @@ export type ClientRealtimeEvent =
       }
     | {
           type: "SEND_MESSAGE";
+          debugTraceId?: string;
           clientMessageId?: string;
           conversationId?: string;
           conversationType: "direct" | "group";
@@ -33,6 +34,8 @@ export type ClientRealtimeEvent =
           messageTextContent?: string | null;
           attachedMedia?: Message["attached_media"];
           mediaUrl?: string | null;
+          mediaPreviewUrl?: string | null;
+          mediaSizeBytes?: number | null;
           videoThumbnail?: string | null;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
@@ -48,6 +51,14 @@ export type ClientRealtimeEvent =
           type: "MARK_READ";
           conversationId: string;
           messageId?: string;
+      }
+    | {
+          type: "START_TYPING";
+          conversationId: string;
+      }
+    | {
+          type: "STOP_TYPING";
+          conversationId: string;
       };
 
 export type ServerRealtimeEvent =
@@ -78,6 +89,13 @@ export type ServerRealtimeEvent =
           userId: string;
           activeUsers: string[];
           activeUsersCount: number;
+      }
+    | {
+          type: "CONVERSATION_TYPING";
+          conversationId: string;
+          status: "started" | "stopped";
+          userId: string;
+          activeTypingUsers: string[];
       }
     | {
           type: "MARK_DELIVERED";

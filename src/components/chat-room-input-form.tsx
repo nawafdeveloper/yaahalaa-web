@@ -20,6 +20,7 @@ import {
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useSendChatMessage } from "@/hooks/use-send-chat-message";
+import { useChatTyping } from "@/hooks/use-chat-typing";
 
 export default function ChatRoomInputForm() {
     const locale = getLocaleFromCookie();
@@ -34,12 +35,14 @@ export default function ChatRoomInputForm() {
     );
     const setDraft = useActiveChatStore((state) => state.setDraft);
     const { sendMessage } = useSendChatMessage();
+    const { handleDraftChange, stopTyping } = useChatTyping(selectedChatId);
 
     const handleSend = async () => {
         if (!selectedChatId) {
             return;
         }
 
+        stopTyping(selectedChatId);
         await sendMessage({
             text: draftValue,
             chatId: selectedChatId,
@@ -133,6 +136,7 @@ export default function ChatRoomInputForm() {
                             return;
                         }
                         setDraft(selectedChatId, event.target.value);
+                        handleDraftChange(event.target.value);
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter" && !event.shiftKey) {
@@ -180,6 +184,7 @@ export default function ChatRoomInputForm() {
                                             return;
                                         }
                                         setDraft(selectedChatId, value);
+                                        handleDraftChange(value);
                                     }}
                                 />
                             </InputAdornment>

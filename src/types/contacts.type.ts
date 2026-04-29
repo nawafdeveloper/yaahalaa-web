@@ -25,7 +25,7 @@ export type StoredContactRecord = {
     owner_user_id: string;
     linked_user_id: string;
     linked_user_image: string | null;
-    linked_user_public_key: string;
+    linked_user_public_key: string | null;
     linked_user_phone_number: string | null;
     contact_ciphertext: string;
     contact_encrypted_aes_key: string;

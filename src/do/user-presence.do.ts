@@ -12,6 +12,7 @@ import type {
     TextEncryptionAlgorithm,
 } from "@/types/crypto";
 import type { Message } from "@/types/messages.type";
+import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 
@@ -40,10 +41,19 @@ type PresenceIncomingMessage =
           type: "MARK_DELIVERED";
           conversationId: string;
           messageId?: string;
+      }
+    | {
+          type: "START_TYPING";
+          conversationId: string;
+      }
+    | {
+          type: "STOP_TYPING";
+          conversationId: string;
       };
 
 type SendMessagePayload = {
           type: "SEND_MESSAGE";
+          debugTraceId?: string;
           clientMessageId?: string;
           conversationId?: string;
           conversationType: "direct" | "group";
@@ -57,6 +67,8 @@ type SendMessagePayload = {
           messageTextContent?: string | null;
           attachedMedia?: Message["attached_media"];
           mediaUrl?: string | null;
+          mediaPreviewUrl?: string | null;
+          mediaSizeBytes?: number | null;
           videoThumbnail?: string | null;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
@@ -83,6 +95,8 @@ type StoredMessage = {
     reply_message: null;
     location: null;
     media_url: string | null;
+    media_preview_url: string | null;
+    media_size_bytes: number | null;
     video_thumbnail: string | null;
     message_raction: null;
     is_forward_message: boolean;
@@ -190,6 +204,24 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                     break;
                 }
 
+                case "START_TYPING": {
+                    await this.updateTypingState(
+                        session,
+                        data.conversationId,
+                        "start"
+                    );
+                    break;
+                }
+
+                case "STOP_TYPING": {
+                    await this.updateTypingState(
+                        session,
+                        data.conversationId,
+                        "stop"
+                    );
+                    break;
+                }
+
                 case "MARK_DELIVERED":
                 case "MARK_READ": {
                     await this.receiveEvent({
@@ -253,29 +285,54 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
         data: SendMessagePayload
     ) {
         const senderUserId = data.senderUserId ?? session.userId;
+        const isMediaMessage = Boolean(data.attachedMedia);
         if (data.senderUserId && data.senderUserId !== session.userId) {
             throw new Error("senderUserId must match the active session.");
         }
 
-        const messageTextContent =
-            data.messageTextContent ?? data.content ?? null;
-        if (
-            !messageTextContent &&
-            !data.attachedMedia &&
-            !data.encryptedContent?.ciphertext
-        ) {
+        if (isMediaMessage) {
+            logMediaDebug("server.realtime.send-message.received", {
+                debugTraceId: data.debugTraceId ?? null,
+                senderUserId,
+                recipientUserId: data.recipientUserId ?? null,
+                conversationId: data.conversationId ?? null,
+                attachedMedia: data.attachedMedia ?? null,
+                mediaUrl: data.mediaUrl ?? null,
+                mediaPreviewUrl: data.mediaPreviewUrl ?? null,
+                mediaSizeBytes: data.mediaSizeBytes ?? null,
+                recipientEncryptionKeyCount:
+                    data.recipientEncryptionKeys?.length ?? 0,
+            });
+        }
+
+        const encryptionValidationError = validateEncryptedMessagePayload({
+            content: data.content ?? null,
+            messageTextContent: data.messageTextContent ?? null,
+            attachedMedia: data.attachedMedia ?? null,
+            encryptedContent: data.encryptedContent ?? null,
+            recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
+            encryptedChatPreview: data.encryptedChatPreview ?? null,
+            chatPreviewRecipientKeys: data.chatPreviewRecipientKeys ?? null,
+        });
+
+        if (!data.attachedMedia && !data.encryptedContent?.ciphertext) {
             throw new Error(
-                "A message must include plaintext content, encrypted content, or attached media."
+                "A message must include encrypted content or attached media."
             );
         }
 
         const attachmentValidationError = validateEncryptedAttachmentPayload({
             attachedMedia: data.attachedMedia ?? null,
             mediaUrl: data.mediaUrl ?? null,
+            mediaPreviewUrl: data.mediaPreviewUrl ?? null,
             videoThumbnail: data.videoThumbnail ?? null,
         });
         if (attachmentValidationError) {
             throw new Error(attachmentValidationError);
+        }
+
+        if (encryptionValidationError) {
+            throw new Error(encryptionValidationError);
         }
 
         const directRecipientId = data.recipientUserId ?? data.recipientPhone;
@@ -297,6 +354,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
         }
 
         const savedMessage = await saveMessageToDb({
+            debugTraceId: data.debugTraceId,
             messageId: data.clientMessageId,
             senderUserId,
             senderNickname: data.senderNickname ?? senderUserId,
@@ -305,8 +363,9 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 data.conversationType === "group" ? "group" : "single",
             attachedMedia: data.attachedMedia ?? null,
             mediaUrl: data.mediaUrl ?? null,
+            mediaPreviewUrl: data.mediaPreviewUrl ?? null,
+            mediaSizeBytes: data.mediaSizeBytes ?? null,
             videoThumbnail: data.videoThumbnail ?? null,
-            messageTextContent,
             encryptedContent: data.encryptedContent ?? null,
             recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
             encryptedChatPreview: data.encryptedChatPreview ?? null,
@@ -339,6 +398,21 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 message: savedMessage,
             }),
         });
+
+        if (isMediaMessage) {
+            logMediaDebug("server.realtime.send-message.saved", {
+                debugTraceId: data.debugTraceId ?? null,
+                messageId: savedMessage.message_id,
+                conversationId,
+                attachedMedia: savedMessage.attached_media,
+                mediaUrl: savedMessage.media_url,
+                mediaPreviewUrl: savedMessage.media_preview_url,
+                mediaSizeBytes: savedMessage.media_size_bytes,
+                messageRecipientKeyCount:
+                    savedMessage.message_recipient_keys?.length ?? 0,
+            });
+        }
+        await this.updateTypingState(session, conversationId, "stop");
 
         const recipients =
             data.conversationType === "group"
@@ -393,6 +467,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             return;
         }
 
+        await this.updateTypingState(session, conversationId, "stop");
         await this.notifyRoom("/user-left", conversationId, session.userId);
         if (session.activeConversationId === conversationId) {
             session.activeConversationId = null;
@@ -400,7 +475,11 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
     }
 
     private async notifyRoom(
-        pathname: "/user-joined" | "/user-left",
+        pathname:
+            | "/user-joined"
+            | "/user-left"
+            | "/typing-start"
+            | "/typing-stop",
         roomId: string,
         userId: string
     ) {
@@ -416,6 +495,37 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             body: JSON.stringify({ userId, conversationId: roomId }),
         });
     }
+
+    private async updateTypingState(
+        session: SessionState,
+        conversationId: string,
+        action: "start" | "stop"
+    ) {
+        if (!conversationId) {
+            return;
+        }
+
+        if (
+            action === "start" &&
+            session.activeConversationId &&
+            session.activeConversationId !== conversationId
+        ) {
+            throw new Error("Cannot start typing in an inactive conversation.");
+        }
+
+        if (
+            action === "start" &&
+            session.activeConversationId !== conversationId
+        ) {
+            session.activeConversationId = conversationId;
+        }
+
+        await this.notifyRoom(
+            action === "start" ? "/typing-start" : "/typing-stop",
+            conversationId,
+            session.userId
+        );
+    }
 }
 
 function buildDirectRoomId(senderParticipant: string, recipientParticipant: string) {
@@ -426,6 +536,7 @@ function buildDirectRoomId(senderParticipant: string, recipientParticipant: stri
 }
 
 async function saveMessageToDb({
+    debugTraceId,
     messageId,
     senderUserId,
     senderNickname,
@@ -433,13 +544,15 @@ async function saveMessageToDb({
     chatType,
     attachedMedia,
     mediaUrl,
+    mediaPreviewUrl,
+    mediaSizeBytes,
     videoThumbnail,
-    messageTextContent,
     encryptedContent,
     recipientEncryptionKeys,
     encryptedChatPreview,
     chatPreviewRecipientKeys,
 }: {
+    debugTraceId?: string;
     messageId?: string;
     senderUserId: string;
     senderNickname: string;
@@ -447,8 +560,9 @@ async function saveMessageToDb({
     chatType: "single" | "group";
     attachedMedia: Message["attached_media"];
     mediaUrl: string | null;
+    mediaPreviewUrl: string | null;
+    mediaSizeBytes: number | null;
     videoThumbnail: string | null;
-    messageTextContent: string | null;
     encryptedContent: EncryptedContentEnvelope | null;
     recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
     encryptedChatPreview: EncryptedContentEnvelope | null;
@@ -462,6 +576,21 @@ async function saveMessageToDb({
     const normalizedChatPreviewKeys = normalizeRecipientKeys(
         chatPreviewRecipientKeys
     );
+    const isMediaMessage = Boolean(attachedMedia);
+
+    if (isMediaMessage) {
+        logMediaDebug("server.realtime.db-save.start", {
+            debugTraceId: debugTraceId ?? null,
+            messageId: finalMessageId,
+            chatRoomId,
+            chatType,
+            attachedMedia,
+            mediaUrl,
+            mediaPreviewUrl,
+            mediaSizeBytes,
+            recipientEncryptionKeyCount: normalizedMessageKeys.length,
+        });
+    }
 
     await db
         .insert(chats)
@@ -475,7 +604,7 @@ async function saveMessageToDb({
             encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
             encrypted_preview_algorithm:
                 encryptedChatPreview?.algorithm ?? null,
-            last_message_context: messageTextContent ?? "",
+            last_message_context: "",
             last_message_media: attachedMedia,
             last_message_sender_is_me: false,
             last_message_sender_nickname: senderNickname,
@@ -499,7 +628,7 @@ async function saveMessageToDb({
                 encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
                 encrypted_preview_algorithm:
                     encryptedChatPreview?.algorithm ?? null,
-                last_message_context: messageTextContent ?? "",
+                last_message_context: "",
                 last_message_media: attachedMedia,
                 last_message_sender_is_me: false,
                 last_message_sender_nickname: senderNickname,
@@ -520,10 +649,12 @@ async function saveMessageToDb({
         reply_message: null,
         location: null,
         media_url: mediaUrl,
+        media_preview_url: mediaPreviewUrl,
+        media_size_bytes: mediaSizeBytes,
         video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,
-        message_text_content: messageTextContent,
+        message_text_content: null,
         open_graph_data: null,
         user_ids_pin_it: null,
         user_ids_star_it: null,
@@ -590,6 +721,19 @@ async function saveMessageToDb({
         }
     }
 
+    if (isMediaMessage) {
+        logMediaDebug("server.realtime.db-save.complete", {
+            debugTraceId: debugTraceId ?? null,
+            messageId: finalMessageId,
+            chatRoomId,
+            attachedMedia,
+            mediaUrl,
+            mediaPreviewUrl,
+            mediaSizeBytes,
+            recipientEncryptionKeyCount: normalizedMessageKeys.length,
+        });
+    }
+
     return {
         message_id: finalMessageId,
         sender_user_id: senderUserId,
@@ -605,10 +749,12 @@ async function saveMessageToDb({
         reply_message: null,
         location: null,
         media_url: mediaUrl,
+        media_preview_url: mediaPreviewUrl,
+        media_size_bytes: mediaSizeBytes,
         video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,
-        message_text_content: messageTextContent,
+        message_text_content: null,
         open_graph_data: null,
         user_ids_pin_it: null,
         user_ids_star_it: null,
@@ -637,10 +783,12 @@ function normalizeRecipientKeys(
 function validateEncryptedAttachmentPayload({
     attachedMedia,
     mediaUrl,
+    mediaPreviewUrl,
     videoThumbnail,
 }: {
     attachedMedia: Message["attached_media"];
     mediaUrl: string | null;
+    mediaPreviewUrl: string | null;
     videoThumbnail: string | null;
 }): string | null {
     const mediaTypesRequiringBinaryPayload: Message["attached_media"][] = [
@@ -662,8 +810,53 @@ function validateEncryptedAttachmentPayload({
         return "Attached media must use an encrypted /api/message-media URL.";
     }
 
+    if (
+        mediaPreviewUrl &&
+        !mediaPreviewUrl.startsWith("/api/message-media-preview/")
+    ) {
+        return "Media previews must use the managed preview route.";
+    }
+
     if (videoThumbnail && !parseManagedMessageMediaUrl(videoThumbnail)) {
         return "Video thumbnails must use an encrypted /api/message-media URL.";
+    }
+
+    return null;
+}
+
+function validateEncryptedMessagePayload({
+    content,
+    messageTextContent,
+    attachedMedia,
+    encryptedContent,
+    recipientEncryptionKeys,
+    encryptedChatPreview,
+    chatPreviewRecipientKeys,
+}: {
+    content: string | null;
+    messageTextContent: string | null;
+    attachedMedia: Message["attached_media"];
+    encryptedContent: EncryptedContentEnvelope | null;
+    recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
+    encryptedChatPreview: EncryptedContentEnvelope | null;
+    chatPreviewRecipientKeys: RecipientEncryptedAesKeyInput[] | null;
+}): string | null {
+    if (content?.trim() || messageTextContent?.trim()) {
+        return "Plaintext message payloads are not allowed. Send encryptedContent instead.";
+    }
+
+    if (encryptedContent?.ciphertext) {
+        if (!recipientEncryptionKeys?.length) {
+            return "Encrypted messages must include recipientEncryptionKeys.";
+        }
+
+        if (!encryptedChatPreview?.ciphertext || !chatPreviewRecipientKeys?.length) {
+            return "Encrypted text messages must include an encrypted chat preview and recipient keys.";
+        }
+    }
+
+    if (!encryptedContent?.ciphertext && !attachedMedia) {
+        return "Messages must include encrypted content or attached media.";
     }
 
     return null;

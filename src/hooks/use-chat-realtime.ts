@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useCryptoKeys } from "@/context/crypto";
 import { authClient } from "@/lib/auth-client";
 import {
+    applyContactToSingleChat,
     buildChatFromMessage,
     normalizeChatItem,
     normalizeMessage,
@@ -12,13 +14,39 @@ import {
     decryptChatPreviewBatch,
     decryptMessageBatch,
 } from "@/lib/chat-e2ee";
+import { decryptStoredContact } from "@/lib/contact-crypto";
+import { resolveDirectChatContact } from "@/lib/contact-display";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { useContactDirectoryStore } from "@/store/use-contact-directory-store";
 import { useRealtimeStore } from "@/store/use-realtime-store";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Message } from "@/types/messages.type";
 import type { ServerRealtimeEvent } from "@/types/realtime-events";
 
+async function hydrateStoredContactOverrides(chats: ChatItemType[]) {
+    const chatsWithStoredContacts = await Promise.all(
+        chats.map(async (chat) => {
+            if (chat.chat_type !== "single" || !chat.stored_contact) {
+                return chat;
+            }
+
+            try {
+                const decryptedContact = await decryptStoredContact(
+                    chat.stored_contact
+                );
+
+                return applyContactToSingleChat(chat, decryptedContact);
+            } catch {
+                return chat;
+            }
+        })
+    );
+
+    return chatsWithStoredContacts;
+}
+
 export function useChatRealtime() {
+    const { isReady } = useCryptoKeys();
     const { data: session } = authClient.useSession();
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const chats = useActiveChatStore((state) => state.chats);
@@ -32,6 +60,7 @@ export function useChatRealtime() {
         (state) => state.setMessagesLoading
     );
     const setPresence = useActiveChatStore((state) => state.setPresence);
+    const setTypingUsers = useActiveChatStore((state) => state.setTypingUsers);
     const markChatRead = useActiveChatStore((state) => state.markChatRead);
     const setRecipientPhone = useActiveChatStore((state) => state.setRecipientPhone);
     const setSocket = useRealtimeStore((state) => state.setSocket);
@@ -46,12 +75,22 @@ export function useChatRealtime() {
     const joinedChatIdRef = useRef<string | null>(null);
     const reconnectTimeoutRef = useRef<number | null>(null);
 
+    const applyKnownContactOverride = (chat: ChatItemType) => {
+        const directContact = resolveDirectChatContact(
+            chat,
+            useContactDirectoryStore.getState().contacts,
+            currentPhone
+        );
+
+        return directContact ? applyContactToSingleChat(chat, directContact) : chat;
+    };
+
     useEffect(() => {
         selectedChatIdRef.current = selectedChatId;
     }, [selectedChatId]);
 
     useEffect(() => {
-        if (!currentUserId) {
+        if (!currentUserId || !isReady) {
             return;
         }
 
@@ -62,7 +101,9 @@ export function useChatRealtime() {
                 setChatsLoading(true);
                 setChatsError(null);
 
-                const response = await fetch("/api/chats");
+                const response = await fetch("/api/chats", {
+                    cache: "no-store",
+                });
                 if (!response.ok) {
                     throw new Error("Failed to fetch chats");
                 }
@@ -76,13 +117,18 @@ export function useChatRealtime() {
                 }
 
                 const normalizedChats = payload.chats.map(normalizeChatItem);
+                const chatsWithStoredContacts = await hydrateStoredContactOverrides(
+                    normalizedChats
+                );
                 const decryptedChats = await decryptChatPreviewBatch({
-                    chats: normalizedChats,
+                    chats: chatsWithStoredContacts,
                     currentUserId,
                 });
 
                 if (!isCancelled) {
-                    setChats(decryptedChats);
+                    setChats(
+                        decryptedChats.map((chat) => applyKnownContactOverride(chat))
+                    );
                 }
             } catch (error) {
                 if (!isCancelled) {
@@ -100,11 +146,16 @@ export function useChatRealtime() {
         };
 
         void fetchChats();
+        const handleContactsChanged = () => {
+            void fetchChats();
+        };
+        window.addEventListener("contacts:changed", handleContactsChanged);
 
         return () => {
             isCancelled = true;
+            window.removeEventListener("contacts:changed", handleContactsChanged);
         };
-    }, [currentUserId, setChats, setChatsError, setChatsLoading]);
+    }, [currentPhone, currentUserId, isReady, setChats, setChatsError, setChatsLoading]);
 
     useEffect(() => {
         if (!selectedChatId) {
@@ -127,7 +178,7 @@ export function useChatRealtime() {
     }, [chats, currentPhone, markChatRead, selectedChatId, setRecipientPhone]);
 
     useEffect(() => {
-        if (!currentUserId || !selectedChatId) {
+        if (!currentUserId || !selectedChatId || !isReady) {
             return;
         }
 
@@ -185,6 +236,7 @@ export function useChatRealtime() {
         };
     }, [
         currentUserId,
+        isReady,
         selectedChatId,
         setChatsError,
         setMessages,
@@ -192,7 +244,7 @@ export function useChatRealtime() {
     ]);
 
     useEffect(() => {
-        if (!currentUserId) {
+        if (!currentUserId || !isReady) {
             return;
         }
 
@@ -226,14 +278,16 @@ export function useChatRealtime() {
                         .chats.find((chat) => chat.chat_id === event.conversationId);
 
                     upsertChat(
-                        buildChatFromMessage({
-                            conversationId: event.conversationId,
-                            conversationType: event.conversationType,
-                            message: nextMessage,
-                            currentUserId,
-                            unreadCount: 0,
-                            fallbackExistingChat: existingChat,
-                        })
+                        applyKnownContactOverride(
+                            buildChatFromMessage({
+                                conversationId: event.conversationId,
+                                conversationType: event.conversationType,
+                                message: nextMessage,
+                                currentUserId,
+                                unreadCount: 0,
+                                fallbackExistingChat: existingChat,
+                            })
+                        )
                     );
                     break;
                 }
@@ -263,14 +317,16 @@ export function useChatRealtime() {
                             : (existingChat?.unreaded_messages_length ?? 0) + 1;
 
                     upsertChat(
-                        buildChatFromMessage({
-                            conversationId: event.conversationId,
-                            conversationType: event.conversationType,
-                            message: nextMessage,
-                            currentUserId,
-                            unreadCount,
-                            fallbackExistingChat: existingChat,
-                        })
+                        applyKnownContactOverride(
+                            buildChatFromMessage({
+                                conversationId: event.conversationId,
+                                conversationType: event.conversationType,
+                                message: nextMessage,
+                                currentUserId,
+                                unreadCount,
+                                fallbackExistingChat: existingChat,
+                            })
+                        )
                     );
                     if (isSelected) {
                         markChatRead(event.conversationId);
@@ -292,14 +348,16 @@ export function useChatRealtime() {
                         event.conversationId;
 
                     upsertChat(
-                        buildChatFromMessage({
-                            conversationId: event.conversationId,
-                            conversationType: event.conversationType,
-                            message: nextMessage,
-                            currentUserId,
-                            unreadCount: isSelected ? 0 : event.unreadCount,
-                            fallbackExistingChat: existingChat,
-                        })
+                        applyKnownContactOverride(
+                            buildChatFromMessage({
+                                conversationId: event.conversationId,
+                                conversationType: event.conversationType,
+                                message: nextMessage,
+                                currentUserId,
+                                unreadCount: isSelected ? 0 : event.unreadCount,
+                                fallbackExistingChat: existingChat,
+                            })
+                        )
                     );
                     break;
                 }
@@ -309,6 +367,16 @@ export function useChatRealtime() {
                         activeUsers: event.activeUsers,
                         activeUsersCount: event.activeUsersCount,
                     });
+                    break;
+                }
+
+                case "CONVERSATION_TYPING": {
+                    setTypingUsers(
+                        event.conversationId,
+                        event.activeTypingUsers.filter(
+                            (userId) => userId !== currentUserId
+                        )
+                    );
                     break;
                 }
 
@@ -388,13 +456,16 @@ export function useChatRealtime() {
         };
     }, [
         appendMessage,
+        currentPhone,
         currentUserId,
+        isReady,
         markChatRead,
         sendEvent,
         setChatsError,
         setPresence,
         setSocket,
         setStatus,
+        setTypingUsers,
         upsertChat,
     ]);
 

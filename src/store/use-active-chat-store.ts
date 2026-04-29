@@ -10,6 +10,10 @@ type PresenceState = {
     activeUsersCount: number;
 };
 
+type TypingState = {
+    activeTypingUsers: string[];
+};
+
 interface ActiveChatState {
     chats: ChatItemType[];
     chatsLoading: boolean;
@@ -20,6 +24,7 @@ interface ActiveChatState {
     messagesByChatId: Record<string, Message[]>;
     messagesLoadingByChatId: Record<string, boolean>;
     presenceByChatId: Record<string, PresenceState>;
+    typingByChatId: Record<string, TypingState>;
     setChats: (chats: ChatItemType[]) => void;
     upsertChat: (chat: ChatItemType) => void;
     setChatsLoading: (loading: boolean) => void;
@@ -36,6 +41,7 @@ interface ActiveChatState {
     ) => void;
     setMessagesLoading: (chatId: string, loading: boolean) => void;
     setPresence: (chatId: string, presence: PresenceState) => void;
+    setTypingUsers: (chatId: string, activeTypingUsers: string[]) => void;
     markChatRead: (chatId: string) => void;
     openDirectContactChat: (params: {
         contact: Contact;
@@ -55,6 +61,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     messagesByChatId: {},
     messagesLoadingByChatId: {},
     presenceByChatId: {},
+    typingByChatId: {},
     setChats: (chats) =>
         set(() => ({
             chats: sortChatsByRecent(chats),
@@ -163,6 +170,15 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 [chatId]: presence,
             },
         })),
+    setTypingUsers: (chatId, activeTypingUsers) =>
+        set((state) => ({
+            typingByChatId: {
+                ...state.typingByChatId,
+                [chatId]: {
+                    activeTypingUsers: [...new Set(activeTypingUsers)].filter(Boolean),
+                },
+            },
+        })),
     markChatRead: (chatId) =>
         set((state) => {
             let didChange = false;
@@ -203,6 +219,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 recipient_user_id: contact.linked_user_id,
                 recipient_public_key: contact.linked_user_public_key ?? null,
                 contact_phone: contact.contact_number,
+                stored_contact: existingChat?.stored_contact ?? null,
                 is_provisional: !existingChat,
                 last_message_id: existingChat?.last_message_id ?? null,
                 encrypted_preview_ciphertext:
@@ -253,5 +270,6 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             messagesByChatId: {},
             messagesLoadingByChatId: {},
             presenceByChatId: {},
+            typingByChatId: {},
         }),
 }));

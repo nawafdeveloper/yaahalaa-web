@@ -19,6 +19,10 @@ import type {
 } from "@/types/crypto";
 import type { Message } from "@/types/messages.type";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
+import {
+    logMediaDebug,
+    readMediaDebugTraceId,
+} from "@/lib/message-media-debug";
 
 /**
  * The better-auth `phoneNumber` plugin adds `phoneNumber` at runtime
@@ -41,6 +45,7 @@ type RealtimeBindings = {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
+    const debugTraceId = readMediaDebugTraceId(request);
     const session = await auth.api.getSession({
         headers: new Headers(request.headers),
     });
@@ -50,6 +55,7 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as {
+        debugTraceId?: string;
         clientMessageId?: string;
         senderUserId?: string;
         senderNickname?: string;
@@ -61,6 +67,8 @@ export async function POST(request: Request) {
         messageTextContent?: string | null;
         attachedMedia?: Message["attached_media"];
         mediaUrl?: string | null;
+        mediaPreviewUrl?: string | null;
+        mediaSizeBytes?: number | null;
         videoThumbnail?: string | null;
         encryptedContent?: EncryptedContentEnvelope | null;
         recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
@@ -70,6 +78,7 @@ export async function POST(request: Request) {
 
     const sessionUser = session.user as unknown as UserWithPhone;
     const {
+        debugTraceId: bodyDebugTraceId,
         senderUserId,
         clientMessageId,
         senderNickname,
@@ -81,30 +90,40 @@ export async function POST(request: Request) {
         messageTextContent,
         attachedMedia,
         mediaUrl,
+        mediaPreviewUrl,
+        mediaSizeBytes,
         videoThumbnail,
         encryptedContent,
         recipientEncryptionKeys,
         encryptedChatPreview,
         chatPreviewRecipientKeys,
     } = body;
+    const effectiveDebugTraceId = bodyDebugTraceId ?? debugTraceId ?? null;
     const finalSenderUserId = senderUserId ?? sessionUser.id;
     const finalChatRoomId =
         chatRoomId ??
         (senderPhone && recipientPhone
             ? buildDirectChatRoomId(senderPhone, recipientPhone)
             : null);
-    const finalMessageTextContent = messageTextContent ?? content ?? null;
     const attachmentValidationError = validateEncryptedAttachmentPayload({
         attachedMedia: attachedMedia ?? null,
         mediaUrl: mediaUrl ?? null,
+        mediaPreviewUrl: mediaPreviewUrl ?? null,
         videoThumbnail: videoThumbnail ?? null,
+    });
+    const encryptionValidationError = validateEncryptedMessagePayload({
+        content: content ?? null,
+        messageTextContent: messageTextContent ?? null,
+        attachedMedia: attachedMedia ?? null,
+        encryptedContent: encryptedContent ?? null,
+        recipientEncryptionKeys: recipientEncryptionKeys ?? null,
+        encryptedChatPreview: encryptedChatPreview ?? null,
+        chatPreviewRecipientKeys: chatPreviewRecipientKeys ?? null,
     });
 
     if (
         !finalChatRoomId ||
-        (!finalMessageTextContent &&
-            !attachedMedia &&
-            !encryptedContent?.ciphertext)
+        (!attachedMedia && !encryptedContent?.ciphertext)
     ) {
         return Response.json(
             { error: "Missing required message fields" },
@@ -115,6 +134,13 @@ export async function POST(request: Request) {
     if (attachmentValidationError) {
         return Response.json(
             { error: attachmentValidationError },
+            { status: 400 },
+        );
+    }
+
+    if (encryptionValidationError) {
+        return Response.json(
+            { error: encryptionValidationError },
             { status: 400 },
         );
     }
@@ -131,6 +157,21 @@ export async function POST(request: Request) {
     const normalizedChatPreviewKeys = normalizeRecipientKeys(
         chatPreviewRecipientKeys
     );
+    const isMediaMessage = Boolean(attachedMedia);
+
+    if (isMediaMessage) {
+        logMediaDebug("server.http.messages.post.start", {
+            debugTraceId: effectiveDebugTraceId,
+            senderUserId: finalSenderUserId,
+            chatRoomId: finalChatRoomId,
+            conversationType: conversationType ?? null,
+            attachedMedia: attachedMedia ?? null,
+            mediaUrl: mediaUrl ?? null,
+            mediaPreviewUrl: mediaPreviewUrl ?? null,
+            mediaSizeBytes: mediaSizeBytes ?? null,
+            recipientEncryptionKeyCount: normalizedMessageKeys.length,
+        });
+    }
 
     await db
         .insert(chats)
@@ -144,7 +185,7 @@ export async function POST(request: Request) {
             encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
             encrypted_preview_algorithm:
                 encryptedChatPreview?.algorithm ?? null,
-            last_message_context: finalMessageTextContent ?? "",
+            last_message_context: "",
             last_message_media: attachedMedia ?? null,
             last_message_sender_is_me: false,
             last_message_sender_nickname:
@@ -169,7 +210,7 @@ export async function POST(request: Request) {
                 encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
                 encrypted_preview_algorithm:
                     encryptedChatPreview?.algorithm ?? null,
-                last_message_context: finalMessageTextContent ?? "",
+                last_message_context: "",
                 last_message_media: attachedMedia ?? null,
                 last_message_sender_is_me: false,
                 last_message_sender_nickname:
@@ -191,10 +232,12 @@ export async function POST(request: Request) {
         reply_message: null,
         location: null,
         media_url: mediaUrl ?? null,
+        media_preview_url: mediaPreviewUrl ?? null,
+        media_size_bytes: mediaSizeBytes ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
         is_forward_message: false,
-        message_text_content: finalMessageTextContent,
+        message_text_content: null,
         open_graph_data: null,
         user_ids_pin_it: null,
         user_ids_star_it: null,
@@ -272,10 +315,12 @@ export async function POST(request: Request) {
         reply_message: null,
         location: null,
         media_url: mediaUrl ?? null,
+        media_preview_url: mediaPreviewUrl ?? null,
+        media_size_bytes: mediaSizeBytes ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
         is_forward_message: false,
-        message_text_content: finalMessageTextContent,
+        message_text_content: null,
         open_graph_data: null,
         user_ids_pin_it: null,
         user_ids_star_it: null,
@@ -287,6 +332,19 @@ export async function POST(request: Request) {
         updated_at: now,
         contact: null,
     };
+
+    if (isMediaMessage) {
+        logMediaDebug("server.http.messages.post.saved", {
+            debugTraceId: effectiveDebugTraceId,
+            messageId: id,
+            chatRoomId: finalChatRoomId,
+            attachedMedia: attachedMedia ?? null,
+            mediaUrl: mediaUrl ?? null,
+            mediaPreviewUrl: mediaPreviewUrl ?? null,
+            mediaSizeBytes: mediaSizeBytes ?? null,
+            messageRecipientKeyCount: normalizedMessageKeys.length,
+        });
+    }
 
     await broadcastRealtimeMessage({
         conversationId: finalChatRoomId,
@@ -386,6 +444,26 @@ export async function GET(request: Request) {
             keysByMessageId.set(key.message_id, existing);
         }
 
+        const mediaRows = rows.filter((row) => Boolean(row.attached_media));
+        if (mediaRows.length > 0) {
+            logMediaDebug("server.http.messages.get.media-rows", {
+                requesterUserId: sessionUser.id,
+                chatRoomId,
+                requestedPhone: phone,
+                count: mediaRows.length,
+                messages: mediaRows.map((row) => ({
+                    messageId: row.message_id,
+                    senderUserId: row.sender_user_id,
+                    attachedMedia: row.attached_media,
+                    mediaUrl: row.media_url,
+                    mediaPreviewUrl: row.media_preview_url,
+                    mediaSizeBytes: row.media_size_bytes,
+                    recipientKeyCount:
+                        keysByMessageId.get(row.message_id)?.length ?? 0,
+                })),
+            });
+        }
+
         return Response.json({
             messages: rows.map((m) => ({
                 message_id: m.message_id,
@@ -402,10 +480,12 @@ export async function GET(request: Request) {
                 reply_message: m.reply_message,
                 location: m.location,
                 media_url: m.media_url,
+                media_preview_url: m.media_preview_url,
+                media_size_bytes: m.media_size_bytes,
                 video_thumbnail: m.video_thumbnail,
                 message_raction: m.message_raction,
                 is_forward_message: m.is_forward_message,
-                message_text_content: m.message_text_content,
+                message_text_content: null,
                 open_graph_data: m.open_graph_data,
                 user_ids_pin_it: m.user_ids_pin_it,
                 user_ids_star_it: m.user_ids_star_it,
@@ -475,10 +555,12 @@ function normalizeRecipientKeys(
 function validateEncryptedAttachmentPayload({
     attachedMedia,
     mediaUrl,
+    mediaPreviewUrl,
     videoThumbnail,
 }: {
     attachedMedia: Message["attached_media"];
     mediaUrl: string | null;
+    mediaPreviewUrl: string | null;
     videoThumbnail: string | null;
 }): string | null {
     const mediaTypesRequiringBinaryPayload: Message["attached_media"][] = [
@@ -500,8 +582,53 @@ function validateEncryptedAttachmentPayload({
         return "Attached media must use an encrypted /api/message-media URL.";
     }
 
+    if (
+        mediaPreviewUrl &&
+        !mediaPreviewUrl.startsWith("/api/message-media-preview/")
+    ) {
+        return "Media previews must use the managed preview route.";
+    }
+
     if (videoThumbnail && !parseManagedMessageMediaUrl(videoThumbnail)) {
         return "Video thumbnails must use an encrypted /api/message-media URL.";
+    }
+
+    return null;
+}
+
+function validateEncryptedMessagePayload({
+    content,
+    messageTextContent,
+    attachedMedia,
+    encryptedContent,
+    recipientEncryptionKeys,
+    encryptedChatPreview,
+    chatPreviewRecipientKeys,
+}: {
+    content: string | null;
+    messageTextContent: string | null;
+    attachedMedia: Message["attached_media"];
+    encryptedContent: EncryptedContentEnvelope | null;
+    recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
+    encryptedChatPreview: EncryptedContentEnvelope | null;
+    chatPreviewRecipientKeys: RecipientEncryptedAesKeyInput[] | null;
+}): string | null {
+    if (content?.trim() || messageTextContent?.trim()) {
+        return "Plaintext message payloads are not allowed. Send encryptedContent instead.";
+    }
+
+    if (encryptedContent?.ciphertext) {
+        if (!recipientEncryptionKeys?.length) {
+            return "Encrypted messages must include recipientEncryptionKeys.";
+        }
+
+        if (!encryptedChatPreview?.ciphertext || !chatPreviewRecipientKeys?.length) {
+            return "Encrypted text messages must include an encrypted chat preview and recipient keys.";
+        }
+    }
+
+    if (!encryptedContent?.ciphertext && !attachedMedia) {
+        return "Messages must include encrypted content or attached media.";
     }
 
     return null;

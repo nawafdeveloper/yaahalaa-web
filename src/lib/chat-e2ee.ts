@@ -1,5 +1,5 @@
 import { importPublicKey } from "@/lib/crypto-keys";
-import { base64ToBuffer, bufferToBase64 } from "@/lib/crypto-pin";
+import { bufferToBase64 } from "@/lib/crypto-pin";
 import type { ChatItemType } from "@/types/chats.type";
 import type {
     EncryptedContentEnvelope,
@@ -10,6 +10,11 @@ import type { Message } from "@/types/messages.type";
 type RecipientKeySource = {
     userId: string;
     publicKey: string;
+};
+
+type SharedContactMessagePayload = {
+    kind: "contact";
+    contact: NonNullable<Message["contact"]>;
 };
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -113,10 +118,15 @@ export async function decryptMessageBatch({
                     encryptedAesKey: recipientKey.encrypted_aes_key,
                     iv: message.encrypted_content_iv,
                 });
+                const sharedContact =
+                    message.attached_media === "contact"
+                        ? parseSharedContactMessage(decryptedText)
+                        : null;
 
                 return {
                     ...message,
-                    message_text_content: decryptedText,
+                    message_text_content: sharedContact ? null : decryptedText,
+                    contact: sharedContact ?? message.contact,
                     client_status:
                         message.client_status === "failed"
                             ? "failed"
@@ -185,12 +195,30 @@ export function createOptimisticMessage({
     messageId,
     chatId,
     senderUserId,
-    plaintext,
+    plaintext = null,
+    attachedMedia = null,
+    mediaUrl = null,
+    mediaPreviewUrl = null,
+    mediaSizeBytes = null,
+    videoThumbnail = null,
+    contact = null,
+    clientLocalMediaName = null,
+    clientLocalMediaSize = null,
+    clientLocalMediaMimeType = null,
 }: {
     messageId: string;
     chatId: string;
     senderUserId: string;
-    plaintext: string;
+    plaintext?: string | null;
+    attachedMedia?: Message["attached_media"];
+    mediaUrl?: string | null;
+    mediaPreviewUrl?: string | null;
+    mediaSizeBytes?: number | null;
+    videoThumbnail?: string | null;
+    contact?: Message["contact"] | null;
+    clientLocalMediaName?: string | null;
+    clientLocalMediaSize?: number | null;
+    clientLocalMediaMimeType?: string | null;
 }): Message {
     const now = new Date();
 
@@ -198,13 +226,18 @@ export function createOptimisticMessage({
         message_id: messageId,
         sender_user_id: senderUserId,
         chat_room_id: chatId,
-        attached_media: null,
+        client_local_media_name: clientLocalMediaName,
+        client_local_media_size: clientLocalMediaSize,
+        client_local_media_mime_type: clientLocalMediaMimeType,
+        attached_media: attachedMedia,
         event: null,
         poll: null,
         reply_message: null,
         location: null,
-        media_url: null,
-        video_thumbnail: null,
+        media_url: mediaUrl,
+        media_preview_url: mediaPreviewUrl,
+        media_size_bytes: mediaSizeBytes,
+        video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,
         message_text_content: plaintext,
@@ -217,7 +250,7 @@ export function createOptimisticMessage({
         user_id_edit_it: null,
         created_at: now,
         updated_at: now,
-        contact: null,
+        contact,
         client_status: "sending",
         client_error: null,
         encrypted_content_ciphertext: null,
@@ -225,4 +258,39 @@ export function createOptimisticMessage({
         encrypted_content_algorithm: null,
         message_recipient_keys: null,
     };
+}
+
+export function serializeSharedContactMessage(
+    contact: NonNullable<Message["contact"]>
+) {
+    return JSON.stringify({
+        kind: "contact",
+        contact,
+    } satisfies SharedContactMessagePayload);
+}
+
+function parseSharedContactMessage(
+    payload: string
+): NonNullable<Message["contact"]> | null {
+    try {
+        const parsed = JSON.parse(payload) as Partial<SharedContactMessagePayload>;
+
+        if (
+            parsed.kind !== "contact" ||
+            !parsed.contact?.contact_id ||
+            !parsed.contact.contact_name
+        ) {
+            return null;
+        }
+
+        return {
+            contact_id: parsed.contact.contact_id,
+            contact_name: parsed.contact.contact_name,
+            contact_image: parsed.contact.contact_image ?? "",
+            contact_phone: parsed.contact.contact_phone ?? null,
+            linked_user_id: parsed.contact.linked_user_id ?? null,
+        };
+    } catch {
+        return null;
+    }
 }

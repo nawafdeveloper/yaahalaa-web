@@ -8,6 +8,7 @@
 		"start": "next start",
 		"lint": "next lint",
 		"auth:generate-schema": "tsx scripts/generate-auth-schema.ts",
+		"e2ee:scrub-plaintext": "tsx scripts/scrub-e2ee-plaintext.ts",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",

@@ -1,7 +1,13 @@
 import { auth } from "@/lib/auth";
 import { getMessageMediaRuntimeConfig } from "@/lib/message-media-runtime-config";
 import {
+    logMediaDebug,
+    readMediaDebugTraceId,
+} from "@/lib/message-media-debug";
+import {
     buildMessageMediaObjectKey,
+    buildMessageMediaPreviewObjectKey,
+    buildMessageMediaPreviewUrl,
     buildMessageMediaUrl,
 } from "@/lib/message-media-url";
 import {
@@ -22,6 +28,7 @@ function jsonError(message: string, status: number): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+    const debugTraceId = readMediaDebugTraceId(request);
     const session = await auth.api.getSession({
         headers: new Headers(request.headers),
     });
@@ -38,8 +45,10 @@ export async function POST(request: Request): Promise<Response> {
     try {
         const formData = await request.formData();
         const file = formData.get("file");
+        const previewFile = formData.get("previewFile");
         const iv = formData.get("iv") as string | null;
         const rawRecipientKeys = formData.get("recipientKeys");
+        const rawOriginalSizeBytes = formData.get("originalSizeBytes");
 
         if (!(file instanceof File)) {
             return jsonError("Missing message media file.", 400);
@@ -52,6 +61,12 @@ export async function POST(request: Request): Promise<Response> {
         if (file.size > MESSAGE_MEDIA_MAX_SIZE_BYTES) {
             return jsonError("Message media exceeds 100 MB limit.", 400);
         }
+
+        const originalSizeBytes = Number(
+            typeof rawOriginalSizeBytes === "string"
+                ? rawOriginalSizeBytes
+                : file.size
+        );
 
         const parsedRecipientKeys = JSON.parse(
             typeof rawRecipientKeys === "string" ? rawRecipientKeys : "[]"
@@ -71,7 +86,26 @@ export async function POST(request: Request): Promise<Response> {
             );
         }
 
+        logMediaDebug("server.upload.request", {
+            debugTraceId: debugTraceId ?? null,
+            userId: session.user.id,
+            fileName: file.name,
+            fileType: file.type || null,
+            encryptedSize: file.size,
+            hasPreviewFile: previewFile instanceof File,
+            previewSize:
+                previewFile instanceof File ? previewFile.size : null,
+            recipientKeyCount: Object.keys(recipientKeyMap).length,
+            originalSizeBytes: Number.isFinite(originalSizeBytes)
+                ? originalSizeBytes
+                : file.size,
+        });
+
         const objectKey = await buildMessageMediaObjectKey(session.user.id);
+        const previewObjectKey =
+            previewFile instanceof File
+                ? await buildMessageMediaPreviewObjectKey(session.user.id)
+                : null;
         await bucket.put(objectKey, await file.arrayBuffer(), {
             httpMetadata: {
                 contentType: file.type || "application/octet-stream",
@@ -84,18 +118,53 @@ export async function POST(request: Request): Promise<Response> {
             },
         });
 
+        if (previewObjectKey && previewFile instanceof File) {
+            await bucket.put(previewObjectKey, await previewFile.arrayBuffer(), {
+                httpMetadata: {
+                    contentType: previewFile.type || "image/jpeg",
+                },
+                customMetadata: {
+                    mimeType: previewFile.type || "image/jpeg",
+                    ownerId: session.user.id,
+                    encrypted: "false",
+                    scope: "message-media-preview",
+                },
+            });
+        }
+
         await db.insert(encryptedMedia).values({
             id: crypto.randomUUID(),
             ownerId: session.user.id,
             objectKey,
+            previewObjectKey,
             aesKey: serializeRecipientMediaKeys(recipientKeyMap),
             iv,
             mimeType: file.type || "application/octet-stream",
+            previewMimeType:
+                previewFile instanceof File ? previewFile.type || "image/jpeg" : null,
+            originalSizeBytes: Number.isFinite(originalSizeBytes)
+                ? originalSizeBytes
+                : file.size,
             createdAt: new Date(),
+        });
+
+        logMediaDebug("server.upload.success", {
+            debugTraceId: debugTraceId ?? null,
+            userId: session.user.id,
+            objectKey,
+            previewObjectKey,
+            previewMimeType:
+                previewFile instanceof File ? previewFile.type || "image/jpeg" : null,
         });
 
         return Response.json({
             mediaUrl: buildMessageMediaUrl(objectKey),
+            previewUrl: previewObjectKey
+                ? buildMessageMediaPreviewUrl(previewObjectKey)
+                : null,
+            sizeBytes: Number.isFinite(originalSizeBytes)
+                ? originalSizeBytes
+                : file.size,
             objectKey,
         });
     } catch (error) {
@@ -103,6 +172,11 @@ export async function POST(request: Request): Promise<Response> {
             error instanceof Error
                 ? error.message
                 : "Failed to upload encrypted message media.";
+
+        logMediaDebug("server.upload.error", {
+            debugTraceId: debugTraceId ?? null,
+            error: message,
+        });
 
         return jsonError(message, 500);
     }

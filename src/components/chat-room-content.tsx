@@ -25,6 +25,7 @@ import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
+import ChatRoomTypingBubble from "./chat-room-typing-bubble";
 import { CircularProgress } from "@mui/material";
 
 const EMPTY_MESSAGES: Message[] = [];
@@ -34,6 +35,7 @@ export default function ChatRoomContent() {
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const messagesByChatId = useActiveChatStore((state) => state.messagesByChatId);
     const messagesLoadingByChatId = useActiveChatStore((state) => state.messagesLoadingByChatId);
+    const typingByChatId = useActiveChatStore((state) => state.typingByChatId);
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { sendMessage } = useSendChatMessage();
@@ -49,18 +51,27 @@ export default function ChatRoomContent() {
     const messagesLoading = selectedChatId
         ? messagesLoadingByChatId[selectedChatId] ?? false
         : false;
+    const activeTypingUsers = selectedChatId
+        ? typingByChatId[selectedChatId]?.activeTypingUsers ?? []
+        : [];
 
-    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const scrollToBottom = (behavior: ScrollBehavior) => {
         bottomRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
-        scrollToBottom("auto");
+        scrollToBottom("instant");
     }, []);
 
     useEffect(() => {
-        scrollToBottom("smooth");
+        scrollToBottom("instant");
     }, [messages]);
+
+    useEffect(() => {
+        if (activeTypingUsers.length > 0) {
+            scrollToBottom("smooth");
+        }
+    }, [activeTypingUsers.length]);
 
     const getWallpaper = (mode: "dark" | "light") => {
         if (!session) {
@@ -168,6 +179,7 @@ export default function ChatRoomContent() {
                         }
                     />
                 ))}
+                <ChatRoomTypingBubble />
                 <div ref={bottomRef} />
             </List>
             {isSelectMode ? (

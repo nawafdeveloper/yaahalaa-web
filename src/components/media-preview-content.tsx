@@ -18,7 +18,10 @@ type Props = {
 
 export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChange }: Props) {
     const { mediaUrl, mediaType } = useMediaPreviewStore();
-    const { decryptedUrl } = useDecryptedMessageMedia(mediaUrl);
+    const { displayUrl } = useDecryptedMessageMedia({
+        mediaUrl,
+        autoDownload: true,
+    });
     const containerRef = useRef<HTMLDivElement>(null);
     const imageWrapperRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -136,7 +139,7 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
                     <LazyLoadImage
                         alt=""
                         effect="blur"
-                        src={decryptedUrl || ''}
+                        src={displayUrl || ''}
                         draggable={false}
                         style={{
                             maxWidth: "100%",
@@ -153,7 +156,7 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
                 {mediaType === 'video' && (
                     <video
                         ref={videoRef}
-                        src={decryptedUrl || ''}
+                        src={displayUrl || ''}
                         controls
                         playsInline
                         draggable={false}

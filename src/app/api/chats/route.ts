@@ -1,8 +1,10 @@
 import { auth } from "@/lib/auth";
 import db from "@/db";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import {
     chatRecipientKeys,
     chats,
+    contacts,
     message,
     messageRecipientKeys,
     user,
@@ -11,12 +13,20 @@ import {
     buildPhoneLookupVariants,
     phoneValuesMatch,
 } from "@/lib/contact-utils";
-import { desc, eq, inArray, like } from "drizzle-orm";
+import { and, desc, eq, inArray, like } from "drizzle-orm";
 import type { RecipientEncryptedAesKey } from "@/types/crypto";
 
 interface UserWithPhone {
     id: string;
     phoneNumber?: string | null;
+}
+
+function getSafeAvatarUrl(value?: string | null): string {
+    if (!value || isManagedProfileImageUrl(value)) {
+        return "";
+    }
+
+    return value;
 }
 
 export async function GET(request: Request) {
@@ -126,6 +136,38 @@ export async function GET(request: Request) {
             partnerUsersByPhoneVariant.set(variant, partner);
         }
     }
+    const partnerUserIds = [...new Set(partnerUsers.map((partner) => partner.id))];
+    const savedContacts =
+        partnerUserIds.length > 0
+            ? await db
+                  .select({
+                      contact_id: contacts.contact_id,
+                      owner_user_id: contacts.owner_user_id,
+                      linked_user_id: contacts.linked_user_id,
+                      linked_user_image: user.image,
+                      linked_user_public_key: user.yhlaPublicKey,
+                      linked_user_phone_number: user.phoneNumber,
+                      contact_ciphertext: contacts.contact_ciphertext,
+                      contact_encrypted_aes_key:
+                          contacts.contact_encrypted_aes_key,
+                      contact_iv: contacts.contact_iv,
+                      contact_algorithm: contacts.contact_algorithm,
+                      normalized_phone_hash: contacts.normalized_phone_hash,
+                      created_at: contacts.created_at,
+                      updated_at: contacts.updated_at,
+                  })
+                  .from(contacts)
+                  .leftJoin(user, eq(contacts.linked_user_id, user.id))
+                  .where(
+                      and(
+                          eq(contacts.owner_user_id, sessionUser.id),
+                          inArray(contacts.linked_user_id, partnerUserIds)
+                      )
+                  )
+            : [];
+    const savedContactsByLinkedUserId = new Map(
+        savedContacts.map((contact) => [contact.linked_user_id, contact])
+    );
 
     const recipientKeys = await db
         .select()
@@ -145,6 +187,7 @@ export async function GET(request: Request) {
     return Response.json({
         chats: rows.map((chat) => ({
             ...chat,
+            last_message_context: "",
             ...(chat.chat_type === "single" && sessionUser.phoneNumber
                 ? (() => {
                       const partnerPhone = chat.chat_id
@@ -163,12 +206,18 @@ export async function GET(request: Request) {
                                 )
                                 .find(Boolean) ?? null
                           : null;
+                      const savedContact = partner?.id
+                          ? savedContactsByLinkedUserId.get(partner.id) ?? null
+                          : null;
 
                       return {
-                          avatar: partner?.image ?? chat.avatar,
+                          avatar:
+                              getSafeAvatarUrl(partner?.image) ||
+                              getSafeAvatarUrl(chat.avatar),
                           recipient_user_id: partner?.id ?? null,
                           recipient_public_key: partner?.publicKey ?? null,
                           contact_phone: partner?.phoneNumber ?? partnerPhone,
+                          stored_contact: savedContact,
                       };
                   })()
                 : {}),

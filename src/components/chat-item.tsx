@@ -16,6 +16,7 @@ import { useActiveChatStore } from '@/store/use-active-chat-store';
 import { authClient } from '@/lib/auth-client';
 import { getChatDisplayName } from '@/lib/chat-utils';
 import { useDecryptedContacts } from '@/hooks/use-decrypted-contacts';
+import { isManagedProfileImageUrl } from '@/lib/profile-image-url';
 import {
     findContactByUserId,
     getContactDisplayName,
@@ -41,10 +42,13 @@ export default function ChatItem({ chat_item }: Props) {
         chat_item.chat_type === "single" && directContact
             ? getContactDisplayName(directContact)
             : getChatDisplayName(chat_item, currentPhone);
+    const fallbackAvatarSrc = isManagedProfileImageUrl(chat_item.avatar)
+        ? ""
+        : chat_item.avatar;
     const avatarSrc =
         chat_item.chat_type === "single"
-            ? directContact?.contact_avatar ?? chat_item.avatar
-            : chat_item.avatar;
+            ? directContact?.contact_avatar ?? fallbackAvatarSrc
+            : fallbackAvatarSrc;
     const groupSenderContact = findContactByUserId(
         contacts,
         chat_item.last_message_sender_nickname
@@ -200,6 +204,9 @@ export default function ChatItem({ chat_item }: Props) {
                                     {chat_item.last_message_media === 'file' && (
                                         <AttachFileOutlined fontSize="small" />
                                     )}
+                                    {chat_item.last_message_media === 'contact' && (
+                                        <Person fontSize="small" />
+                                    )}
                                 </>
                             )}
                             {'  '}
@@ -207,7 +214,8 @@ export default function ChatItem({ chat_item }: Props) {
                                 chat_item.last_message_media === 'photo' ? 'Image' :
                                     chat_item.last_message_media === 'video' ? 'Video' :
                                         chat_item.last_message_media === 'voice' ? 'Voice' :
-                                            'File' :
+                                            chat_item.last_message_media === 'contact' ? 'Contact' :
+                                                'File' :
                                 chat_item.last_message_context
                             }
                         </React.Fragment>

@@ -1,9 +1,16 @@
 "use client";
 
 import { importPrivateKey, importPublicKey } from "./crypto-keys";
+import { cacheMessageMedia, getCachedMessageMedia } from "./message-media-cache";
+import {
+    buildMediaDebugHeaders,
+    logMediaDebug,
+} from "./message-media-debug";
+import { createMessageMediaPreview } from "./message-media-preview";
 import { base64ToBuffer, bufferToBase64 } from "./crypto-pin";
 import { decryptFileWithAes, encryptFileWithAes } from "./profile-image-encryption";
 import { parseManagedMessageMediaUrl } from "./message-media-url";
+import type { RecipientEncryptedAesKeyInput } from "@/types/crypto";
 
 const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
 
@@ -19,7 +26,10 @@ export type MessageMediaRecipientPublicKeyInput = {
 
 export interface MessageMediaUploadResult {
     mediaUrl: string;
+    previewUrl: string | null;
+    sizeBytes: number;
     objectKey: string;
+    recipientEncryptionKeys: RecipientEncryptedAesKeyInput[];
 }
 
 async function retrieveSessionKeys(): Promise<{
@@ -95,11 +105,22 @@ function cloneUint8Array(data: Uint8Array): ArrayBuffer {
 
 export async function uploadEncryptedMessageMedia(
     file: File,
-    recipientPublicKeys: MessageMediaRecipientPublicKeyInput[]
+    recipientPublicKeys: MessageMediaRecipientPublicKeyInput[],
+    previewBlobOverride?: Blob | null,
+    debugTraceId?: string
 ): Promise<MessageMediaUploadResult> {
     if (recipientPublicKeys.length === 0) {
         throw new Error("At least one recipient public key is required.");
     }
+
+    logMediaDebug("client.upload.start", {
+        debugTraceId: debugTraceId ?? null,
+        fileName: file.name,
+        fileType: file.type || null,
+        fileSize: file.size,
+        recipientCount: recipientPublicKeys.length,
+        hasPreviewOverride: previewBlobOverride !== undefined,
+    });
 
     const normalizedRecipientKeys = await Promise.all(
         recipientPublicKeys.map(async (recipient) => ({
@@ -125,38 +146,104 @@ export async function uploadEncryptedMessageMedia(
     const encryptedFile = new File([cloneUint8Array(encryptedData)], file.name, {
         type: file.type,
     });
+    const previewBlob =
+        previewBlobOverride === undefined
+            ? await createMessageMediaPreview(file)
+            : previewBlobOverride;
+    logMediaDebug("client.upload.prepared", {
+        debugTraceId: debugTraceId ?? null,
+        encryptedSize: encryptedFile.size,
+        previewSize: previewBlob?.size ?? null,
+        previewType: previewBlob?.type ?? null,
+        recipientKeyCount: recipientKeys.length,
+    });
     const formData = new FormData();
     formData.append("file", encryptedFile);
     formData.append("iv", iv);
     formData.append("recipientKeys", JSON.stringify(recipientKeys));
+    formData.append("originalSizeBytes", String(file.size));
+
+    if (previewBlob) {
+        formData.append(
+            "previewFile",
+            new File([previewBlob], `${file.name}-preview.jpg`, {
+                type: previewBlob.type || "image/jpeg",
+            })
+        );
+    }
 
     const response = await fetch("/api/message-media", {
         method: "POST",
+        headers: buildMediaDebugHeaders(debugTraceId),
         body: formData,
     });
 
     if (!response.ok) {
         const error = (await response.json()) as { error?: string };
+        logMediaDebug("client.upload.failed", {
+            debugTraceId: debugTraceId ?? null,
+            status: response.status,
+            error: error.error ?? "Failed to upload message media",
+        });
         throw new Error(error.error || "Failed to upload message media");
     }
 
-    return response.json();
+    const result = (await response.json()) as Omit<
+        MessageMediaUploadResult,
+        "recipientEncryptionKeys"
+    >;
+    logMediaDebug("client.upload.success", {
+        debugTraceId: debugTraceId ?? null,
+        objectKey: result.objectKey,
+        mediaUrl: result.mediaUrl,
+        previewUrl: result.previewUrl,
+        sizeBytes: result.sizeBytes,
+    });
+
+    return {
+        ...result,
+        recipientEncryptionKeys: recipientKeys.map((key) => ({
+            recipientUserId: key.recipientUserId,
+            encryptedAesKey: key.encryptedAesKey,
+            algorithm: "aes-256-gcm+rsa-oaep-sha256",
+        })),
+    };
 }
 
 export async function fetchAndDecryptMessageMedia(
     objectKeyOrUrl: string
 ): Promise<Blob> {
+    logMediaDebug("client.decrypt.start", {
+        objectKeyOrUrl,
+    });
     const sessionKeys = await retrieveSessionKeys();
     if (!sessionKeys?.privateKey) {
+        logMediaDebug("client.decrypt.no-private-key", {
+            objectKeyOrUrl,
+        });
         throw new Error("No private key found in session. Please unlock your keys again.");
     }
 
     const parsed =
         parseManagedMessageMediaUrl(objectKeyOrUrl) ??
         ({ objectKey: objectKeyOrUrl } as const);
+    const cachedBlob = await getCachedMessageMedia(parsed.objectKey);
+
+    if (cachedBlob) {
+        logMediaDebug("client.decrypt.cache-hit", {
+            objectKey: parsed.objectKey,
+            mimeType: cachedBlob.type || null,
+            size: cachedBlob.size,
+        });
+        return cachedBlob;
+    }
 
     const keyResponse = await fetch(`/api/message-media/key/${parsed.objectKey}`);
     if (!keyResponse.ok) {
+        logMediaDebug("client.decrypt.key-failed", {
+            objectKey: parsed.objectKey,
+            status: keyResponse.status,
+        });
         throw new Error("Failed to fetch message media encryption key");
     }
 
@@ -172,6 +259,10 @@ export async function fetchAndDecryptMessageMedia(
 
     const mediaResponse = await fetch(`/api/message-media/${parsed.objectKey}`);
     if (!mediaResponse.ok) {
+        logMediaDebug("client.decrypt.media-failed", {
+            objectKey: parsed.objectKey,
+            status: mediaResponse.status,
+        });
         throw new Error("Failed to fetch encrypted message media");
     }
 
@@ -181,8 +272,32 @@ export async function fetchAndDecryptMessageMedia(
         aesKeyBase64,
         keyData.iv
     );
-
-    return new Blob([cloneUint8Array(decryptedData)], {
+    const blob = new Blob([cloneUint8Array(decryptedData)], {
         type: keyData.mimeType,
+    });
+    logMediaDebug("client.decrypt.success", {
+        objectKey: parsed.objectKey,
+        mimeType: keyData.mimeType,
+        size: blob.size,
+    });
+
+    await cacheMessageMedia(parsed.objectKey, blob);
+
+    return blob;
+}
+
+export async function persistDecryptedMessageMedia(
+    objectKeyOrUrl: string,
+    blob: Blob
+) {
+    const parsed =
+        parseManagedMessageMediaUrl(objectKeyOrUrl) ??
+        ({ objectKey: objectKeyOrUrl } as const);
+
+    await cacheMessageMedia(parsed.objectKey, blob);
+    logMediaDebug("client.decrypt.persisted-cache", {
+        objectKey: parsed.objectKey,
+        mimeType: blob.type || null,
+        size: blob.size,
     });
 }

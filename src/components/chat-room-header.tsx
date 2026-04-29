@@ -9,6 +9,7 @@ import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { authClient } from "@/lib/auth-client";
 import { getChatDisplayName } from "@/lib/chat-utils";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import {
     getContactDisplayName,
     resolveDirectChatContact,
@@ -36,10 +37,14 @@ export default function ChatRoomHeader() {
             : selectedChat
                 ? getChatDisplayName(selectedChat, currentPhone)
                 : "Chat";
+    const safeSelectedAvatar =
+        selectedChat?.avatar && !isManagedProfileImageUrl(selectedChat.avatar)
+            ? selectedChat.avatar
+            : "";
     const headerAvatar =
         selectedChat?.chat_type === "single"
-            ? directContact?.contact_avatar ?? selectedChat?.avatar ?? ""
-            : selectedChat?.avatar ?? "";
+            ? directContact?.contact_avatar ?? safeSelectedAvatar
+            : safeSelectedAvatar;
     const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
     const subtitle =
         activePresence && activePresence.activeUsersCount > 0

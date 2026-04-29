@@ -37,6 +37,8 @@ export type Contact = {
     contact_id: string;
     contact_name: string;
     contact_image: string;
+    contact_phone?: string | null;
+    linked_user_id?: string | null;
 };
 
 export type Location = {
@@ -62,6 +64,9 @@ export type Message = {
     chat_room_id: string;
     client_status?: "sending" | "failed" | "sent";
     client_error?: string | null;
+    client_local_media_name?: string | null;
+    client_local_media_size?: number | null;
+    client_local_media_mime_type?: string | null;
     encrypted_content_ciphertext?: string | null;
     encrypted_content_iv?: string | null;
     encrypted_content_algorithm?: TextEncryptionAlgorithm | null;
@@ -72,6 +77,8 @@ export type Message = {
     reply_message: ReplyMessage | null;
     location: Location | null;
     media_url: string | null;
+    media_preview_url?: string | null;
+    media_size_bytes?: number | null;
     video_thumbnail: string | null;
     message_raction: MessageReaction | null;
     is_forward_message: boolean;

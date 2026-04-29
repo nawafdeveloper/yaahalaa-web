@@ -1,7 +1,12 @@
 import { auth } from "@/lib/auth";
 import { getMessageMediaRuntimeConfig } from "@/lib/message-media-runtime-config";
 import {
+    logMediaDebug,
+    readMediaDebugTraceId,
+} from "@/lib/message-media-debug";
+import {
     findEncryptedMediaRecord,
+    userHasDirectMediaRecipientKey,
     userCanAccessMessageMedia,
 } from "@/lib/message-media-access";
 
@@ -38,6 +43,7 @@ async function authorizeMessageMediaAccess(
     const isOwner = mediaRecord.ownerId === session.user.id;
     const canAccess =
         isOwner ||
+        userHasDirectMediaRecipientKey(mediaRecord.aesKey, session.user.id) ||
         (await userCanAccessMessageMedia(objectKey, session.user.id));
 
     if (!canAccess) {
@@ -55,6 +61,7 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ objectKey: string[] }> }
 ): Promise<Response> {
+    const debugTraceId = readMediaDebugTraceId(request);
     const { objectKey: objectKeySegments } = await params;
     const objectKey = objectKeySegments?.join("/");
 
@@ -64,6 +71,11 @@ export async function GET(
 
     const authResult = await authorizeMessageMediaAccess(request, objectKey);
     if (authResult.error) {
+        logMediaDebug("server.media.access-failed", {
+            debugTraceId: debugTraceId ?? null,
+            objectKey,
+            status: authResult.error.status,
+        });
         return authResult.error;
     }
 
@@ -76,6 +88,11 @@ export async function GET(
 
     const object = await bucket.get(objectKey);
     if (!object) {
+        logMediaDebug("server.media.object-missing", {
+            debugTraceId: debugTraceId ?? null,
+            objectKey,
+            userId: authResult.session.user.id,
+        });
         return new Response("Message media not found.", { status: 404 });
     }
 
@@ -84,6 +101,14 @@ export async function GET(
         authResult.mediaRecord.mimeType ||
         "application/octet-stream";
     const body = await object.arrayBuffer();
+
+    logMediaDebug("server.media.success", {
+        debugTraceId: debugTraceId ?? null,
+        objectKey,
+        userId: authResult.session.user.id,
+        mimeType,
+        byteLength: body.byteLength,
+    });
 
     return new Response(body, {
         status: 200,

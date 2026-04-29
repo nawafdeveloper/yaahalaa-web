@@ -24,6 +24,7 @@ import React, { useRef, useState } from "react";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { authClient } from "@/lib/auth-client";
 import { getChatDisplayName } from "@/lib/chat-utils";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 
 export default function ChatRoomForwardButton() {
     const { data: session } = authClient.useSession();
@@ -143,7 +144,12 @@ export default function ChatRoomForwardButton() {
                             </Typography>
                         </div>
                         <List sx={{ bgcolor: 'transparent', overflowY: "scroll", height: "83%", paddingX: '20px' }}>
-                            {chats.map((item) => (
+                            {chats.map((item) => {
+                                const avatarSrc = isManagedProfileImageUrl(item.avatar)
+                                    ? ""
+                                    : item.avatar;
+
+                                return (
                                 <ListItem
                                     disablePadding
                                     key={item.chat_id}
@@ -198,7 +204,7 @@ export default function ChatRoomForwardButton() {
                                                         backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
                                                         color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                                                     })}
-                                                    src={item.avatar || ""}
+                                                    src={avatarSrc || ""}
                                                 >
                                                     {item.chat_type === 'group' ? <Group /> : <Person />}
                                                 </Avatar>
@@ -227,7 +233,8 @@ export default function ChatRoomForwardButton() {
                                         </div>
                                     </ListItemButton>
                                 </ListItem>
-                            ))}
+                                );
+                            })}
                         </List>
                         <AnimatePresence>
                             {selectedChatsToForward.length > 0 && (

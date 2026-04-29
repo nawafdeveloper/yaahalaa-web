@@ -131,7 +131,7 @@ html.dark * {
 }
 
 .rhap_container {
-  background-color: var(--card-background) !important;
+  background-color: transparent !important;
   box-shadow: none !important;
   padding: 0 !important;
 }

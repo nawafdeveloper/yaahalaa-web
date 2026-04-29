@@ -2,6 +2,7 @@ import type {
     RecipientEncryptedAesKey,
     TextEncryptionAlgorithm,
 } from "./crypto";
+import type { StoredContactRecord } from "./contacts.type";
 
 export type ChatItemType = {
     chat_id: string;
@@ -11,6 +12,7 @@ export type ChatItemType = {
     recipient_user_id?: string | null;
     recipient_public_key?: string | null;
     contact_phone?: string | null;
+    stored_contact?: StoredContactRecord | null;
     is_provisional?: boolean;
     last_message_id?: string | null;
     encrypted_preview_ciphertext?: string | null;

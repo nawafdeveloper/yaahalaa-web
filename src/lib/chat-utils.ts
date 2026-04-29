@@ -1,8 +1,10 @@
 import {
     buildPhoneLookupVariants,
+    toContactDisplayName,
     phoneValuesMatch,
 } from "@/lib/contact-utils";
 import type { ChatItemType } from "@/types/chats.type";
+import type { Contact } from "@/types/contacts.type";
 import type { Message } from "@/types/messages.type";
 
 type RawChatItem = Omit<ChatItemType, "created_at" | "updated_at"> & {
@@ -130,6 +132,41 @@ export function getChatDisplayName(
     return chat.chat_id || "Group chat";
 }
 
+export function applyContactToSingleChat(
+    chat: ChatItemType,
+    contact: Contact
+): ChatItemType {
+    if (chat.chat_type !== "single") {
+        return chat;
+    }
+
+    const nextDisplayName = toContactDisplayName(contact);
+    const nextAvatar = contact.contact_avatar ?? chat.avatar;
+    const nextRecipientUserId = contact.linked_user_id ?? chat.recipient_user_id ?? null;
+    const nextRecipientPublicKey =
+        contact.linked_user_public_key ?? chat.recipient_public_key ?? null;
+    const nextContactPhone = contact.contact_number;
+
+    if (
+        chat.display_name === nextDisplayName &&
+        chat.avatar === nextAvatar &&
+        chat.recipient_user_id === nextRecipientUserId &&
+        chat.recipient_public_key === nextRecipientPublicKey &&
+        chat.contact_phone === nextContactPhone
+    ) {
+        return chat;
+    }
+
+    return {
+        ...chat,
+        display_name: nextDisplayName,
+        avatar: nextAvatar,
+        recipient_user_id: nextRecipientUserId,
+        recipient_public_key: nextRecipientPublicKey,
+        contact_phone: nextContactPhone,
+    };
+}
+
 export function buildChatFromMessage({
     conversationId,
     conversationType,
@@ -153,6 +190,7 @@ export function buildChatFromMessage({
         recipient_user_id: fallbackExistingChat?.recipient_user_id ?? null,
         recipient_public_key: fallbackExistingChat?.recipient_public_key ?? null,
         contact_phone: fallbackExistingChat?.contact_phone ?? null,
+        stored_contact: fallbackExistingChat?.stored_contact ?? null,
         is_provisional: false,
         last_message_id: message.message_id,
         encrypted_preview_ciphertext:

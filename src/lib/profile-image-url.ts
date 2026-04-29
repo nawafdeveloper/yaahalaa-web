@@ -63,3 +63,7 @@ export function parseManagedProfileImageUrl(imageUrl?: string | null): {
         return null;
     }
 }
+
+export function isManagedProfileImageUrl(imageUrl?: string | null): boolean {
+    return parseManagedProfileImageUrl(imageUrl) !== null;
+}
