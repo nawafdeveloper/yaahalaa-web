@@ -10,6 +10,7 @@ import {
     DeleteForeverOutlined,
     DoDisturbOnOutlined,
     DoNotDisturbOutlined,
+    ExpandMore,
     HighlightOffOutlined,
     InfoOutlined,
     LockOutlined,
@@ -19,11 +20,12 @@ import {
 import Box from "@mui/material/Box";
 import List from "@mui/material/List";
 import Typography from "@mui/material/Typography";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
+import { CircularProgress } from "@mui/material";
 
 const EMPTY_MESSAGES: Message[] = [];
 
@@ -39,6 +41,7 @@ export default function ChatRoomContent() {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
+    const bottomRef = useRef<HTMLDivElement>(null);
 
     const messages = selectedChatId
         ? messagesByChatId[selectedChatId] ?? EMPTY_MESSAGES
@@ -46,6 +49,18 @@ export default function ChatRoomContent() {
     const messagesLoading = selectedChatId
         ? messagesLoadingByChatId[selectedChatId] ?? false
         : false;
+
+    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+        bottomRef.current?.scrollIntoView({ behavior });
+    };
+
+    useEffect(() => {
+        scrollToBottom("auto");
+    }, []);
+
+    useEffect(() => {
+        scrollToBottom("smooth");
+    }, [messages]);
 
     const getWallpaper = (mode: "dark" | "light") => {
         if (!session) {
@@ -108,14 +123,14 @@ export default function ChatRoomContent() {
                 }}
             >
                 {messagesLoading ? (
-                    <Typography sx={{ px: 3, py: 3, color: "text.secondary" }}>
-                        Loading messages...
-                    </Typography>
+                    <div className="flex justify-center items-end h-full w-full">
+                        <CircularProgress aria-label="Loading…" className="p-2 rounded-full shadow-sm dark:bg-[#1d1f1f] bg-[#f7f5f3] border dark:border-neutral-700 border-neutral-300" />
+                    </div>
                 ) : messages.length === 0 ? (
                     <Box
                         sx={{
                             mx: "auto",
-                            my: "auto",
+                            mt: "auto",
                             px: 2.5,
                             py: 1.5,
                             borderRadius: 3,
@@ -132,7 +147,7 @@ export default function ChatRoomContent() {
                         <LockOutlined sx={{ fontSize: 16, color: "#25D366" }} />
                         <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
                             {isRTL
-                                ? "\u0631\u0633\u0627\u0626\u0644\u0643 \u0645\u062d\u0645\u064a\u0629 \u0628\u0627\u0644\u062a\u0634\u0641\u064a\u0631 \u0645\u0646 \u0637\u0631\u0641\u064a\u0646."
+                                ? "جميع محادثاتك مشفرة من طرف إلى طرف"
                                 : "Your messages are end-to-end encrypted."}
                         </Typography>
                     </Box>
@@ -153,6 +168,7 @@ export default function ChatRoomContent() {
                         }
                     />
                 ))}
+                <div ref={bottomRef} />
             </List>
             {isSelectMode ? (
                 <ChatRoomInputSelectMode
@@ -163,6 +179,11 @@ export default function ChatRoomContent() {
             ) : (
                 <ChatRoomInputForm />
             )}
+            <div className={`absolute bottom-18 ${isRTL ? 'left-4' : 'right-4'} z-50`}>
+                <button className="p-2 rounded-full cursor-pointer bg-[#ffffff] dark:bg-[#222424] justify-center items-center">
+                    <ExpandMore className="size-4" />
+                </button>
+            </div>
             <ContextMenu
                 containerRef={containerRef}
                 items={[

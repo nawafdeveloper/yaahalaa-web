@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowBack, Search } from "@mui/icons-material";
+import { ArrowBack, ArrowForward, Search } from "@mui/icons-material";
 import Person from "@mui/icons-material/Person";
 import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import React from "react";
@@ -13,9 +13,12 @@ import {
     getContactDisplayName,
     resolveDirectChatContact,
 } from "@/lib/contact-display";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
 export default function ChatRoomHeader() {
     const { data: session } = authClient.useSession();
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const chats = useActiveChatStore((state) => state.chats);
     const presenceByChatId = useActiveChatStore((state) => state.presenceByChatId);
@@ -31,8 +34,8 @@ export default function ChatRoomHeader() {
         selectedChat?.chat_type === "single" && directContact
             ? getContactDisplayName(directContact)
             : selectedChat
-              ? getChatDisplayName(selectedChat, currentPhone)
-              : "Chat";
+                ? getChatDisplayName(selectedChat, currentPhone)
+                : "Chat";
     const headerAvatar =
         selectedChat?.chat_type === "single"
             ? directContact?.contact_avatar ?? selectedChat?.avatar ?? ""
@@ -42,8 +45,8 @@ export default function ChatRoomHeader() {
         activePresence && activePresence.activeUsersCount > 0
             ? `${activePresence.activeUsersCount} active`
             : selectedChat?.chat_type === "group"
-              ? "Group chat"
-              : "Direct chat";
+                ? "Group chat"
+                : "Direct chat";
 
     return (
         <Box
@@ -74,7 +77,7 @@ export default function ChatRoomHeader() {
                         color: theme.palette.mode === "dark" ? "#ffffff" : "#000000",
                     })}
                 >
-                    <ArrowBack />
+                    {isRTL ? <ArrowForward /> : <ArrowBack />}
                 </IconButton>
                 <Avatar
                     src={headerAvatar}

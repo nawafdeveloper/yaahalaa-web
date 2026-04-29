@@ -321,9 +321,6 @@ export async function GET(request: Request) {
         });
 
         if (!session) {
-            console.warn("[api/messages][GET] no session", {
-                cookieHeaderPresent: Boolean(request.headers.get("cookie")),
-            });
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -344,14 +341,6 @@ export async function GET(request: Request) {
         }
 
         const sessionUser = session.user as unknown as UserWithPhone;
-        console.log("[api/messages][GET] session", {
-            sessionUserId: sessionUser.id,
-            sessionUserPhone: sessionUser.phoneNumber ?? null,
-            rawChatRoomId,
-            chatRoomId,
-            phone,
-            limit,
-        });
         if (phone && sessionUser.phoneNumber !== phone) {
             return Response.json({ error: "Forbidden" }, { status: 403 });
         }
@@ -377,14 +366,6 @@ export async function GET(request: Request) {
                   )
                   .orderBy(desc(message.created_at))
                   .limit(limit);
-        console.log("[api/messages][GET] rows", {
-            chatRoomId,
-            chatRoomIds,
-            sessionUserId: sessionUser.id,
-            rowCount: rows.length,
-            rowIds: rows.map((row) => row.message_id),
-            rowChatIds: rows.map((row) => row.chat_room_id),
-        });
 
         const rowIds = rows.map((row) => row.message_id);
         const recipientKeys =
@@ -439,22 +420,6 @@ export async function GET(request: Request) {
         });
     } catch (error) {
         const url = new URL(request.url);
-        console.error("[api/messages][GET] failed", {
-            rawChatRoomId: url.searchParams.get("chatRoomId"),
-            chatRoomId: normalizeRequestedChatRoomId(
-                url.searchParams.get("chatRoomId")
-            ),
-            phone: url.searchParams.get("phone"),
-            limit: url.searchParams.get("limit"),
-            error:
-                error instanceof Error
-                    ? {
-                          name: error.name,
-                          message: error.message,
-                          stack: error.stack,
-                      }
-                    : error,
-        });
 
         return Response.json(
             { error: "Failed to load messages." },
@@ -592,19 +557,6 @@ async function getDirectChatMessages({
         )
         .sort((left, right) => right.created_at.getTime() - left.created_at.getTime())
         .slice(0, limit);
-
-    console.log("[api/messages][GET][direct] debug", {
-        chatRoomId,
-        chatRoomIds,
-        sessionUserId,
-        directRecipientMessageIdsCount: directRecipientMessageIds.length,
-        candidateRowsCount: candidateRows.length,
-        sentRowsCount: sentRows.length,
-        mergedRowsCount: mergedById.size,
-        filteredRowsCount: filteredRows.length,
-        filteredRowIds: filteredRows.map((row) => row.message_id),
-        filteredRowChatIds: filteredRows.map((row) => row.chat_room_id),
-    });
 
     return filteredRows;
 }
