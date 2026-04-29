@@ -9,7 +9,7 @@ import {
     Send,
 } from "@mui/icons-material";
 import { IconButton, InputAdornment, TextField } from "@mui/material";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import ChatRoomInputAttachButton from "./chat-room-input-attach-button";
 import ChatRoomInputEmojiButton from "./chat-room-input-emoji-button";
 import RecordTimer from "./record-timer";
@@ -18,108 +18,34 @@ import {
     VoiceVisualizer,
 } from "react-voice-visualizer";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
-import { authClient } from "@/lib/auth-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
-import { useRealtimeStore } from "@/store/use-realtime-store";
-import { normalizeMessage, buildChatFromMessage } from "@/lib/chat-utils";
+import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 
 export default function ChatRoomInputForm() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
-    const [value, setValue] = useState("");
     const [micHover, setMicHover] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // --- Real user session & active chat ---------------------------------
-    const { data: session } = authClient.useSession();
-    const currentPhone = (session?.user as { phoneNumber?: string | null })
-        ?.phoneNumber ?? null;
-    const recipientPhone = useActiveChatStore((s) => s.recipientPhone);
-    const selectedChatId = useActiveChatStore((s) => s.selectedChatId);
-    const chats = useActiveChatStore((s) => s.chats);
-    const appendMessage = useActiveChatStore((s) => s.appendMessage);
-    const upsertChat = useActiveChatStore((s) => s.upsertChat);
-    const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
-    const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const draftValue = useActiveChatStore((state) =>
+        selectedChatId ? state.draftsByChatId[selectedChatId] ?? "" : ""
+    );
+    const setDraft = useActiveChatStore((state) => state.setDraft);
+    const { sendMessage } = useSendChatMessage();
 
-    // --- Send handler -----------------------------------------------------
-    const handleSend = useCallback(async () => {
-        const trimmed = value.trim();
-        if (!trimmed || !currentPhone || !selectedChatId || !selectedChat) return;
-
-        try {
-            const realtimeSent = sendRealtimeEvent({
-                type: "SEND_MESSAGE",
-                conversationId: selectedChatId,
-                conversationType:
-                    selectedChat.chat_type === "group" ? "group" : "direct",
-                senderUserId: session?.user.id,
-                senderNickname: session?.user.name ?? currentPhone,
-                senderPhone: currentPhone,
-                recipientPhone: recipientPhone ?? undefined,
-                content: trimmed,
-                messageTextContent: trimmed,
-            });
-
-            if (!realtimeSent) {
-                const response = await fetch("/api/messages", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        chatRoomId: selectedChatId,
-                        conversationType:
-                            selectedChat.chat_type === "group" ? "group" : "direct",
-                        senderUserId: session?.user.id,
-                        senderNickname: session?.user.name ?? currentPhone,
-                        senderPhone: currentPhone,
-                        recipientPhone,
-                        content: trimmed,
-                        messageTextContent: trimmed,
-                    }),
-                });
-
-                if (!response.ok) {
-                    throw new Error("Failed to send message");
-                }
-
-                const payload = (await response.json()) as {
-                    message: Parameters<typeof normalizeMessage>[0];
-                };
-                const nextMessage = normalizeMessage(payload.message);
-
-                appendMessage(selectedChatId, nextMessage);
-                upsertChat(
-                    buildChatFromMessage({
-                        conversationId: selectedChatId,
-                        conversationType:
-                            selectedChat.chat_type === "group" ? "group" : "direct",
-                        message: nextMessage,
-                        currentUserId: session?.user.id ?? "",
-                        unreadCount: 0,
-                        fallbackExistingChat: selectedChat,
-                    })
-                );
-            }
-
-            setValue("");
-        } catch (err) {
-            console.error("Failed to send message:", err);
+    const handleSend = async () => {
+        if (!selectedChatId) {
+            return;
         }
-    }, [
-        appendMessage,
-        currentPhone,
-        recipientPhone,
-        selectedChat,
-        selectedChatId,
-        sendRealtimeEvent,
-        session?.user.id,
-        session?.user.name,
-        upsertChat,
-        value,
-    ]);
 
-    // --- Voice recorder ---------------------------------------------------
+        await sendMessage({
+            text: draftValue,
+            chatId: selectedChatId,
+        });
+    };
+
     const recorderControls = useVoiceVisualizer();
     const {
         startRecording,
@@ -131,12 +57,21 @@ export default function ChatRoomInputForm() {
         clearCanvas,
     } = recorderControls;
 
+    const placeholder = useMemo(
+        () =>
+            isRTL
+                ? "\u0627\u0628\u062f\u0623 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629"
+                : "Type a message",
+        [isRTL]
+    );
+
     return (
-        <div className="absolute bottom-2 left-2 right-2 z-50 md:max-w-7xl md:mx-auto">
+        <div className="absolute right-2 bottom-2 left-2 z-50 md:mx-auto md:max-w-7xl">
             {isRecordingInProgress ? (
-                <div className="lg:w-161 w-100 relative mx-auto flex-row p-1.25 rounded-full shadow-sm bg-gray-100 dark:bg-[#242626] flex items-center justify-between">
-                    <div className="flex items-center gap-1 relative">
+                <div className="relative mx-auto flex w-100 flex-row items-center justify-between rounded-full bg-gray-100 p-1.25 shadow-sm dark:bg-[#242626] lg:w-161">
+                    <div className="relative flex items-center gap-1">
                         <IconButton
+                            type="button"
                             onClick={() => {
                                 stopRecording();
                                 clearCanvas();
@@ -145,16 +80,10 @@ export default function ChatRoomInputForm() {
                         >
                             <DeleteOutlined />
                         </IconButton>
-                        <RecordTimer
-                            recordingTime={formattedRecordingTime}
-                        />
-                        <div className="flex-1 mx-2 lg:min-w-100 min-w-40 relative overflow-hidden">
+                        <RecordTimer recordingTime={formattedRecordingTime} />
+                        <div className="relative mx-2 min-w-40 flex-1 overflow-hidden lg:min-w-100">
                             <VoiceVisualizer
-                                key={
-                                    isRecordingInProgress
-                                        ? "recording"
-                                        : "idle"
-                                }
+                                key={isRecordingInProgress ? "recording" : "idle"}
                                 controls={recorderControls}
                                 isControlPanelShown={false}
                                 rounded={10}
@@ -164,16 +93,14 @@ export default function ChatRoomInputForm() {
                             />
                         </div>
                         <IconButton
+                            type="button"
                             onClick={() => togglePauseResume()}
                             size="medium"
                         >
-                            {isPausedRecording ? (
-                                <PlayArrow />
-                            ) : (
-                                <Pause />
-                            )}
+                            {isPausedRecording ? <PlayArrow /> : <Pause />}
                         </IconButton>
                         <IconButton
+                            type="button"
                             onClick={() => {
                                 stopRecording();
                                 clearCanvas();
@@ -188,9 +115,7 @@ export default function ChatRoomInputForm() {
                                 },
                             }}
                         >
-                            <Send
-                                className={`${isRTL ? "rotate-180" : ""}`}
-                            />
+                            <Send className={isRTL ? "rotate-180" : ""} />
                         </IconButton>
                     </div>
                 </div>
@@ -200,18 +125,26 @@ export default function ChatRoomInputForm() {
                     id="filled-chat-input-bar"
                     variant="filled"
                     size="small"
-                    placeholder={
-                        isRTL ? "إبدأ المحادثة" : "Type a message"
-                    }
+                    placeholder={placeholder}
                     fullWidth
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
+                    value={draftValue}
+                    onChange={(event) => {
+                        if (!selectedChatId) {
+                            return;
+                        }
+                        setDraft(selectedChatId, event.target.value);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void handleSend();
+                        }
+                    }}
                     inputRef={inputRef}
                     sx={(theme) => ({
                         "& .MuiFilledInput-root": {
                             borderRadius: 8,
-                            boxShadow:
-                                "0px 2px 2px rgba(0,0,0,0.08)",
+                            boxShadow: "0px 2px 2px rgba(0,0,0,0.08)",
                             paddingY: "5px",
                             paddingX: "5px",
                             backgroundColor:
@@ -241,58 +174,50 @@ export default function ChatRoomInputForm() {
                             <InputAdornment position="start">
                                 <ChatRoomInputAttachButton />
                                 <ChatRoomInputEmojiButton
-                                    messageInput={value}
-                                    setMessageInput={setValue}
+                                    messageInput={draftValue}
+                                    setMessageInput={(value) => {
+                                        if (!selectedChatId) {
+                                            return;
+                                        }
+                                        setDraft(selectedChatId, value);
+                                    }}
                                 />
                             </InputAdornment>
                         ),
                         endAdornment: (
                             <InputAdornment position="end">
-                                {value.trim().length > 0 ? (
+                                {draftValue.trim().length > 0 ? (
                                     <IconButton
-                                        onClick={handleSend}
+                                        type="button"
+                                        onClick={() => void handleSend()}
                                         size="medium"
                                         sx={{
                                             backgroundColor: "#25D366",
                                             color: "#161717",
                                             "&:hover": {
-                                                backgroundColor:
-                                                    "#25D366",
+                                                backgroundColor: "#25D366",
                                                 color: "#161717",
                                             },
                                         }}
                                     >
-                                        <Send
-                                            className={`${isRTL ? "rotate-180" : ""}`}
-                                        />
+                                        <Send className={isRTL ? "rotate-180" : ""} />
                                     </IconButton>
                                 ) : (
                                     <IconButton
-                                        onClick={() =>
-                                            startRecording()
-                                        }
+                                        type="button"
+                                        onClick={() => startRecording()}
                                         size="medium"
-                                        onMouseEnter={() =>
-                                            setMicHover(true)
-                                        }
-                                        onMouseLeave={() =>
-                                            setMicHover(false)
-                                        }
+                                        onMouseEnter={() => setMicHover(true)}
+                                        onMouseLeave={() => setMicHover(false)}
                                         sx={{
-                                            transition:
-                                                "background-color 0.2s ease",
+                                            transition: "background-color 0.2s ease",
                                             "&:hover": {
-                                                backgroundColor:
-                                                    "#25D366",
+                                                backgroundColor: "#25D366",
                                                 color: "#161717",
                                             },
                                         }}
                                     >
-                                        {micHover ? (
-                                            <Mic />
-                                        ) : (
-                                            <MicNoneOutlined />
-                                        )}
+                                        {micHover ? <Mic /> : <MicNoneOutlined />}
                                     </IconButton>
                                 )}
                             </InputAdornment>

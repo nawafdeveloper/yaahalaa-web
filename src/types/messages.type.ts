@@ -60,6 +60,8 @@ export type Message = {
     message_id: string;
     sender_user_id: string;
     chat_room_id: string;
+    client_status?: "sending" | "failed" | "sent";
+    client_error?: string | null;
     encrypted_content_ciphertext?: string | null;
     encrypted_content_iv?: string | null;
     encrypted_content_algorithm?: TextEncryptionAlgorithm | null;

@@ -2,6 +2,8 @@ import type { TextEncryptionAlgorithm } from "./crypto";
 
 export type Contact = {
     contact_id: string;
+    linked_user_id?: string;
+    linked_user_public_key?: string;
     contact_first_name?: string;
     contact_second_name?: string;
     contact_number: string;
@@ -23,6 +25,8 @@ export type StoredContactRecord = {
     owner_user_id: string;
     linked_user_id: string;
     linked_user_image: string | null;
+    linked_user_public_key: string;
+    linked_user_phone_number: string | null;
     contact_ciphertext: string;
     contact_encrypted_aes_key: string;
     contact_iv: string;

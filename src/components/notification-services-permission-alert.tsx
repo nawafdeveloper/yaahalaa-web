@@ -3,7 +3,6 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { NotificationsOffOutlined } from '@mui/icons-material';
 import Alert from '@mui/material/Alert';
-import { getPushClientConfig, subscribeUser, syncExistingSubscription, unsubscribeUser } from '@/app/actions'
 import { useState, useEffect } from 'react'
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -38,7 +37,16 @@ export default function NotificationServicesPermissionAlert() {
 
             setIsSupported(true)
 
-            const clientConfig = await getPushClientConfig()
+            const clientConfigResponse = await fetch('/api/push/config', {
+                cache: 'no-store',
+            })
+            if (!clientConfigResponse.ok) {
+                throw new Error('Failed to load push configuration.')
+            }
+            const clientConfig = (await clientConfigResponse.json()) as {
+                success: boolean
+                publicKey: string
+            }
             if (!clientConfig.publicKey) {
                 throw new Error('Missing public VAPID key.')
             }
@@ -54,7 +62,15 @@ export default function NotificationServicesPermissionAlert() {
             setSubscription(existingSubscription)
 
             if (existingSubscription) {
-                await syncExistingSubscription(JSON.parse(JSON.stringify(existingSubscription)))
+                await fetch('/api/push/subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        subscription: JSON.parse(JSON.stringify(existingSubscription)),
+                    }),
+                })
             }
 
             if (isMounted) {
@@ -80,12 +96,28 @@ export default function NotificationServicesPermissionAlert() {
             applicationServerKey: urlBase64ToUint8Array(publicKey),
         })
         setSubscription(sub)
-        await subscribeUser(JSON.parse(JSON.stringify(sub)))
+        await fetch('/api/push/subscription', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                subscription: JSON.parse(JSON.stringify(sub)),
+            }),
+        })
     }
 
     async function unsubscribe() {
         await subscription?.unsubscribe()
-        await unsubscribeUser(subscription!.endpoint)
+        await fetch('/api/push/subscription', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                endpoint: subscription!.endpoint,
+            }),
+        })
         setSubscription(null)
     }
 

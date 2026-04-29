@@ -1,3 +1,7 @@
+import {
+    buildPhoneLookupVariants,
+    phoneValuesMatch,
+} from "@/lib/contact-utils";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Message } from "@/types/messages.type";
 
@@ -56,13 +60,69 @@ export function resolveDirectChatPartner(
         return participants[0] ?? null;
     }
 
-    return participants.find((participant) => participant !== currentPhone) ?? null;
+    return (
+        participants.find(
+            (participant) => !phoneValuesMatch(participant, currentPhone)
+        ) ?? null
+    );
+}
+
+export function buildDirectChatIdVariants(chatId: string): string[] {
+    if (!chatId.includes("::")) {
+        return [chatId];
+    }
+
+    const participants = chatId.split("::").filter(Boolean);
+    if (participants.length !== 2) {
+        return [chatId];
+    }
+
+    const [leftParticipant, rightParticipant] = participants;
+    const leftVariants = buildPhoneLookupVariants(leftParticipant);
+    const rightVariants = buildPhoneLookupVariants(rightParticipant);
+    const chatIdVariants = new Set<string>();
+
+    for (const leftVariant of leftVariants) {
+        for (const rightVariant of rightVariants) {
+            chatIdVariants.add(
+                [leftVariant, rightVariant].filter(Boolean).sort().join("::")
+            );
+        }
+    }
+
+    return chatIdVariants.size > 0 ? [...chatIdVariants] : [chatId];
+}
+
+export function areDirectChatIdsEquivalent(
+    leftChatId: string,
+    rightChatId: string
+): boolean {
+    if (!leftChatId.includes("::") || !rightChatId.includes("::")) {
+        return leftChatId === rightChatId;
+    }
+
+    const leftParticipants = leftChatId.split("::").filter(Boolean);
+    const rightParticipants = rightChatId.split("::").filter(Boolean);
+
+    if (leftParticipants.length !== 2 || rightParticipants.length !== 2) {
+        return leftChatId === rightChatId;
+    }
+
+    return leftParticipants.every((leftParticipant) =>
+        rightParticipants.some((rightParticipant) =>
+            phoneValuesMatch(leftParticipant, rightParticipant)
+        )
+    );
 }
 
 export function getChatDisplayName(
     chat: ChatItemType,
     currentPhone?: string | null
 ): string {
+    if (chat.display_name?.trim()) {
+        return chat.display_name;
+    }
+
     if (chat.chat_type === "single") {
         return resolveDirectChatPartner(chat.chat_id, currentPhone) ?? chat.chat_id;
     }
@@ -89,6 +149,11 @@ export function buildChatFromMessage({
         chat_id: conversationId,
         chat_type: conversationType === "group" ? "group" : "single",
         avatar: fallbackExistingChat?.avatar ?? "",
+        display_name: fallbackExistingChat?.display_name ?? null,
+        recipient_user_id: fallbackExistingChat?.recipient_user_id ?? null,
+        recipient_public_key: fallbackExistingChat?.recipient_public_key ?? null,
+        contact_phone: fallbackExistingChat?.contact_phone ?? null,
+        is_provisional: false,
         last_message_id: message.message_id,
         encrypted_preview_ciphertext:
             fallbackExistingChat?.encrypted_preview_ciphertext ?? null,

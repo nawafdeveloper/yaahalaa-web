@@ -2,19 +2,17 @@
 
 import { ArrowBack, Search } from "@mui/icons-material";
 import Person from "@mui/icons-material/Person";
-import {
-    Avatar,
-    Box,
-    Button,
-    IconButton,
-    Tooltip,
-    Typography
-} from "@mui/material";
+import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import React from "react";
 import ChatRoomMoreActionButton from "./chat-room-more-action-button";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { authClient } from "@/lib/auth-client";
 import { getChatDisplayName } from "@/lib/chat-utils";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import {
+    getContactDisplayName,
+    resolveDirectChatContact,
+} from "@/lib/contact-display";
 
 export default function ChatRoomHeader() {
     const { data: session } = authClient.useSession();
@@ -22,9 +20,23 @@ export default function ChatRoomHeader() {
     const chats = useActiveChatStore((state) => state.chats);
     const presenceByChatId = useActiveChatStore((state) => state.presenceByChatId);
     const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const { contacts } = useDecryptedContacts();
     const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
     const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
         ?.phoneNumber ?? null;
+    const directContact = selectedChat
+        ? resolveDirectChatContact(selectedChat, contacts, currentPhone)
+        : null;
+    const headerTitle =
+        selectedChat?.chat_type === "single" && directContact
+            ? getContactDisplayName(directContact)
+            : selectedChat
+              ? getChatDisplayName(selectedChat, currentPhone)
+              : "Chat";
+    const headerAvatar =
+        selectedChat?.chat_type === "single"
+            ? directContact?.contact_avatar ?? selectedChat?.avatar ?? ""
+            : selectedChat?.avatar ?? "";
     const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
     const subtitle =
         activePresence && activePresence.activeUsersCount > 0
@@ -34,7 +46,8 @@ export default function ChatRoomHeader() {
               : "Direct chat";
 
     return (
-        <Button
+        <Box
+            component="header"
             sx={(theme) => ({
                 height: 64,
                 width: "100%",
@@ -53,6 +66,7 @@ export default function ChatRoomHeader() {
         >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <IconButton
+                    type="button"
                     className="md:hidden"
                     onClick={() => setSelectedChatId(null)}
                     size="small"
@@ -63,6 +77,7 @@ export default function ChatRoomHeader() {
                     <ArrowBack />
                 </IconButton>
                 <Avatar
+                    src={headerAvatar}
                     sx={(theme) => ({
                         width: 40,
                         height: 40,
@@ -84,7 +99,7 @@ export default function ChatRoomHeader() {
                             direction: 'ltr'
                         }}
                     >
-                        {selectedChat ? getChatDisplayName(selectedChat, currentPhone) : "Chat"}
+                        {headerTitle}
                     </Typography>
                     <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
                         {subtitle}
@@ -106,8 +121,8 @@ export default function ChatRoomHeader() {
                     }}
                 >
                     <IconButton
+                        type="button"
                         size="medium"
-                        component="span"
                         sx={(theme) => ({
                             color: theme.palette.mode === "dark" ? "#ffffff" : "#000000"
                         })}
@@ -119,6 +134,6 @@ export default function ChatRoomHeader() {
                     chat_type={selectedChat?.chat_type ?? "single"}
                 />
             </div>
-        </Button>
+        </Box>
     );
 }

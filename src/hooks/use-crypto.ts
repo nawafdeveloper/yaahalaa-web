@@ -6,9 +6,9 @@ import { generateSalt, derivePinKey, createPinVerificationTag, verifyPin, buffer
 import { uploadKeyBundle, fetchKeyBundle, updateKeyBundle } from "@/lib/crypto-storage";
 import { SessionKeys } from "@/types/crypto";
 
-const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
+export const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
 
-type CryptoState =
+export type CryptoState =
     | { status: "idle" }
     | { status: "loading" }
     | { status: "unlocked"; session: SessionKeys }
@@ -78,8 +78,9 @@ function clearSessionKeys(): void {
     localStorage.removeItem(SESSION_KEYS_STORAGE_KEY);
 }
 
-export function useCrypto() {
+export function useCryptoController() {
     const [state, setState] = useState<CryptoState>({ status: "idle" });
+    const [isHydrated, setIsHydrated] = useState(false);
 
     // Load session keys from localStorage on mount
     useEffect(() => {
@@ -88,8 +89,11 @@ export function useCrypto() {
             if (session) {
                 setState({ status: "unlocked", session });
             }
+
+            setIsHydrated(true);
         };
-        loadSessionKeys();
+
+        void loadSessionKeys();
     }, []);
 
     const register = useCallback(async (pin: string) => {
@@ -233,5 +237,5 @@ export function useCrypto() {
         setState({ status: "idle" });
     }, []);
 
-    return { state, register, unlock, changePin, lock };
+    return { state, isHydrated, register, unlock, changePin, lock };
 }

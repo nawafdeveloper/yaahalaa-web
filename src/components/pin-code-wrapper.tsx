@@ -1,28 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCrypto } from "@/context/crypto";
+import type React from "react";
+import GlobalLoading from "./global-loading";
 import PinCode from "./pin-code";
 
-export default function PinCodeWrapper() {
-    const [showPinCode, setShowPinCode] = useState<boolean | null>(null);
+export default function PinCodeWrapper({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    const { isHydrated, isReady } = useCrypto();
 
-    useEffect(() => {
-        const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
-        const hasKeys = localStorage.getItem(SESSION_KEYS_STORAGE_KEY) !== null;
-        
-        // If keys already exist, user is already unlocked - don't show PIN screen
-        setShowPinCode(!hasKeys);
-    }, []);
-
-    // While checking, show nothing
-    if (showPinCode === null) {
-        return null;
+    if (!isHydrated) {
+        return <GlobalLoading />;
     }
 
-    // If keys exist, don't show PIN screen
-    if (!showPinCode) {
-        return null;
+    if (!isReady) {
+        return <PinCode />;
     }
 
-    return <PinCode />;
+    return <>{children}</>;
 }

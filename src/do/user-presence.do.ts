@@ -17,6 +17,7 @@ import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 
 type SessionState = {
     userId: string;
+    phoneNumber: string | null;
     activeConversationId: string | null;
 };
 
@@ -43,6 +44,7 @@ type PresenceIncomingMessage =
 
 type SendMessagePayload = {
           type: "SEND_MESSAGE";
+          clientMessageId?: string;
           conversationId?: string;
           conversationType: "direct" | "group";
           senderUserId?: string;
@@ -126,6 +128,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 { status: 400 }
             );
         }
+        const phoneNumber = url.searchParams.get("phone");
 
         const pair = new WebSocketPair();
         const client = pair[0];
@@ -133,6 +136,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
 
         this.sessions.set(server, {
             userId,
+            phoneNumber,
             activeConversationId: null,
         });
         this.ctx.acceptWebSocket(server);
@@ -182,7 +186,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 }
 
                 case "SEND_MESSAGE": {
-                    await this.handleSendMessage(session, data);
+                    await this.handleSendMessage(ws, session, data);
                     break;
                 }
 
@@ -244,6 +248,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
     }
 
     private async handleSendMessage(
+        ws: WebSocket,
         session: SessionState,
         data: SendMessagePayload
     ) {
@@ -292,6 +297,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
         }
 
         const savedMessage = await saveMessageToDb({
+            messageId: data.clientMessageId,
             senderUserId,
             senderNickname: data.senderNickname ?? senderUserId,
             chatRoomId: conversationId,
@@ -306,6 +312,16 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             encryptedChatPreview: data.encryptedChatPreview ?? null,
             chatPreviewRecipientKeys: data.chatPreviewRecipientKeys ?? null,
         });
+
+        ws.send(
+            JSON.stringify({
+                type: "MESSAGE_SENT",
+                conversationId,
+                conversationType: data.conversationType,
+                clientMessageId: data.clientMessageId ?? savedMessage.message_id,
+                message: savedMessage,
+            })
+        );
 
         const roomDO = this.env.CHAT_ROOM_DO.get(
             this.env.CHAT_ROOM_DO.idFromName(conversationId)
@@ -410,6 +426,7 @@ function buildDirectRoomId(senderParticipant: string, recipientParticipant: stri
 }
 
 async function saveMessageToDb({
+    messageId,
     senderUserId,
     senderNickname,
     chatRoomId,
@@ -423,6 +440,7 @@ async function saveMessageToDb({
     encryptedChatPreview,
     chatPreviewRecipientKeys,
 }: {
+    messageId?: string;
     senderUserId: string;
     senderNickname: string;
     chatRoomId: string;
@@ -436,7 +454,7 @@ async function saveMessageToDb({
     encryptedChatPreview: EncryptedContentEnvelope | null;
     chatPreviewRecipientKeys: RecipientEncryptedAesKeyInput[] | null;
 }): Promise<StoredMessage> {
-    const messageId = crypto.randomUUID();
+    const finalMessageId = messageId ?? crypto.randomUUID();
     const now = new Date();
     const normalizedMessageKeys = normalizeRecipientKeys(
         recipientEncryptionKeys
@@ -451,7 +469,7 @@ async function saveMessageToDb({
             chat_id: chatRoomId,
             chat_type: chatType,
             avatar: "",
-            last_message_id: messageId,
+            last_message_id: finalMessageId,
             encrypted_preview_ciphertext:
                 encryptedChatPreview?.ciphertext ?? null,
             encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
@@ -475,7 +493,7 @@ async function saveMessageToDb({
             target: chats.chat_id,
             set: {
                 chat_type: chatType,
-                last_message_id: messageId,
+                last_message_id: finalMessageId,
                 encrypted_preview_ciphertext:
                     encryptedChatPreview?.ciphertext ?? null,
                 encrypted_preview_iv: encryptedChatPreview?.iv ?? null,
@@ -490,7 +508,7 @@ async function saveMessageToDb({
         });
 
     await db.insert(messageTable).values({
-        message_id: messageId,
+        message_id: finalMessageId,
         sender_user_id: senderUserId,
         chat_room_id: chatRoomId,
         encrypted_content_ciphertext: encryptedContent?.ciphertext ?? null,
@@ -524,7 +542,7 @@ async function saveMessageToDb({
                 .insert(messageRecipientKeys)
                 .values({
                     id: crypto.randomUUID(),
-                    message_id: messageId,
+                    message_id: finalMessageId,
                     recipient_user_id: key.recipient_user_id,
                     encrypted_aes_key: key.encrypted_aes_key,
                     algorithm: key.algorithm,
@@ -573,7 +591,7 @@ async function saveMessageToDb({
     }
 
     return {
-        message_id: messageId,
+        message_id: finalMessageId,
         sender_user_id: senderUserId,
         chat_room_id: chatRoomId,
         encrypted_content_ciphertext: encryptedContent?.ciphertext ?? null,

@@ -6,9 +6,7 @@ import { ArrowBackOutlined, ArrowForwardOutlined } from '@mui/icons-material';
 import { IconButton, Tooltip } from '@mui/material';
 import React from 'react'
 
-type Props = {}
-
-export default function CreateContactHeaderLargeSidebar({ }: Props) {
+export default function CreateContactHeaderLargeSidebar() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 

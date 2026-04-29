@@ -15,6 +15,12 @@ import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useActiveChatStore } from '@/store/use-active-chat-store';
 import { authClient } from '@/lib/auth-client';
 import { getChatDisplayName } from '@/lib/chat-utils';
+import { useDecryptedContacts } from '@/hooks/use-decrypted-contacts';
+import {
+    findContactByUserId,
+    getContactDisplayName,
+    resolveDirectChatContact,
+} from '@/lib/contact-display';
 
 type Props = {
     chat_item: ChatItemType;
@@ -24,12 +30,28 @@ export default function ChatItem({ chat_item }: Props) {
     const { data: session } = authClient.useSession();
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const { contacts } = useDecryptedContacts();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const isSelected = selectedChatId === chat_item.chat_id;
     const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
         ?.phoneNumber ?? null;
-    const chatTitle = getChatDisplayName(chat_item, currentPhone);
+    const directContact = resolveDirectChatContact(chat_item, contacts, currentPhone);
+    const chatTitle =
+        chat_item.chat_type === "single" && directContact
+            ? getContactDisplayName(directContact)
+            : getChatDisplayName(chat_item, currentPhone);
+    const avatarSrc =
+        chat_item.chat_type === "single"
+            ? directContact?.contact_avatar ?? chat_item.avatar
+            : chat_item.avatar;
+    const groupSenderContact = findContactByUserId(
+        contacts,
+        chat_item.last_message_sender_nickname
+    );
+    const groupSenderLabel = groupSenderContact
+        ? getContactDisplayName(groupSenderContact)
+        : chat_item.last_message_sender_nickname;
 
     const secondaryActionContent = (
         <div
@@ -135,7 +157,7 @@ export default function ChatItem({ chat_item }: Props) {
                             backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
                             color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                         })}
-                        src={chat_item.avatar || ""}
+                        src={avatarSrc || ""}
                     >
                         {chat_item.chat_type === 'group' ? <Group /> : <Person />}
                     </Avatar>
@@ -163,7 +185,7 @@ export default function ChatItem({ chat_item }: Props) {
                     secondary={
                         <React.Fragment>
                             {chat_item.chat_type === 'group' && chat_item.last_message_sender_is_me && <DoneAll fontSize="small" />}
-                            {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${chat_item.last_message_sender_nickname}:`}
+                            {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${groupSenderLabel}:`}
                             {chat_item.last_message_media && (
                                 <>
                                     {chat_item.last_message_media === 'photo' && (

@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import NewPinCode from "@/components/new-pin-code";
 import PinCodeWrapper from "@/components/pin-code-wrapper";
 import { MuiSystemThemeProvider } from "@/context/theme";
+import { CryptoProvider } from "@/context/crypto";
 
 const notoSansArabic = Noto_Sans_Arabic({
   weight: ["300", "400", "500", "700"],
@@ -52,7 +53,9 @@ export default async function RootLayout({
       <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'} suppressHydrationWarning>
         <body className={`${notoSansArabic.variable} antialiased`}>
           <MuiSystemThemeProvider>
-            <NewPinCode />
+            <CryptoProvider>
+              <NewPinCode />
+            </CryptoProvider>
           </MuiSystemThemeProvider>
         </body>
       </html>
@@ -63,8 +66,13 @@ export default async function RootLayout({
     <html lang={locale} dir={isRTL(locale) ? 'rtl' : 'ltr'} suppressHydrationWarning>
       <body className={`${notoSansArabic.variable} antialiased`}>
         <MuiSystemThemeProvider>
-          <PinCodeWrapper />
-          <MainClientUIAppWrapper country={country}>{children}</MainClientUIAppWrapper>
+          <CryptoProvider>
+            <PinCodeWrapper>
+              <MainClientUIAppWrapper country={country}>
+                {children}
+              </MainClientUIAppWrapper>
+            </PinCodeWrapper>
+          </CryptoProvider>
         </MuiSystemThemeProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@
 
 import { generateVideoThumbnailFromUrl } from '@/lib/generate-thumbnail';
 import { Message } from '@/types/messages.type';
-import { Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, VideocamRounded } from '@mui/icons-material';
+import { AccessTime, DoneAll, ErrorOutline, Mic, PauseRounded, Person, PlayArrowRounded, ShortcutOutlined, VideocamRounded } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -24,12 +24,15 @@ import ChatRoomActionBubble from './chat-room-action-bubble';
 import ChatRoomReactionButton from './chat-room-reaction-button';
 import ChatRoomForwardButton from './chat-room-forward-button';
 import useMediaPreviewStore from '@/store/media-preview-store';
-import { Avatar, Button } from '@mui/material';
+import { Avatar, Button, IconButton } from '@mui/material';
 import PollComponent from './chat-poll-item';
 import { convertToPollWithVotes } from '@/utils/convert-to-poll-with-votes';
 import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
 import { useDecryptedMessageMedia } from '@/hooks/use-decrypted-message-media';
 import { authClient } from '@/lib/auth-client';
+import { useActiveChatStore } from '@/store/use-active-chat-store';
+import { useDecryptedContacts } from '@/hooks/use-decrypted-contacts';
+import { findContactByUserId, getContactDisplayName } from '@/lib/contact-display';
 
 type Props = {
     message: Message;
@@ -37,6 +40,7 @@ type Props = {
     selectedMessages: string[];
     setSelectedMessages: (value: string[]) => void;
     isFirstInGroup?: boolean;
+    onRetry?: () => void;
 }
 
 export default function ChatRoomMessageBubble({
@@ -45,10 +49,13 @@ export default function ChatRoomMessageBubble({
     selectedMessages,
     setSelectedMessages,
     isFirstInGroup = true,
+    onRetry,
 }: Props) {
     const { data: session } = authClient.useSession();
     const { openPreview } = useMediaPreviewStore();
     const { open } = useDetailedSidebarStore();
+    const chats = useActiveChatStore((state) => state.chats);
+    const { contacts } = useDecryptedContacts();
     const { decryptedUrl: decryptedMediaUrl, mimeType: decryptedMediaMimeType } =
         useDecryptedMessageMedia(message.media_url);
     const { decryptedUrl: decryptedThumbnailUrl } =
@@ -118,6 +125,20 @@ export default function ChatRoomMessageBubble({
 
     const me = message.sender_user_id === session?.user.id;
     const isSender = me;
+    const activeChat = chats.find((chat) => chat.chat_id === message.chat_room_id) ?? null;
+    const isGroupChat = activeChat?.chat_type === "group";
+    const senderContact = findContactByUserId(contacts, message.sender_user_id);
+    const senderDisplayName = senderContact
+        ? getContactDisplayName(senderContact)
+        : message.sender_user_id;
+    const senderAvatar = senderContact?.contact_avatar ?? "";
+    const replySenderContact = findContactByUserId(
+        contacts,
+        message.reply_message?.original_sender_user_id
+    );
+    const replySenderDisplayName = replySenderContact
+        ? getContactDisplayName(replySenderContact)
+        : message.reply_message?.original_sender_user_id;
 
     const TAIL_WIDTH = 8;
 
@@ -194,7 +215,7 @@ export default function ChatRoomMessageBubble({
                         </div>
                     )}
                     <div className={`flex flex-row items-start`}>
-                        {!isSender && (
+                        {!isSender && isGroupChat && (
                             <div style={{ width: 34, flexShrink: 0, alignSelf: 'flex-start', marginRight: 4 }}>
                                 {isFirstInGroup ? (
                                     <Avatar
@@ -220,8 +241,8 @@ export default function ChatRoomMessageBubble({
                                                 };
                                             }
                                         }}
-                                        src={""}
-                                        alt={message.sender_user_id}
+                                        src={senderAvatar}
+                                        alt={senderDisplayName}
                                     >
                                         <Person fontSize="small" />
                                     </Avatar>
@@ -287,7 +308,7 @@ export default function ChatRoomMessageBubble({
                                     pointerEvents: 'none'
                                 }}
                             />
-                            {!isSender && (
+                            {!isSender && isGroupChat && (
                                 <Button
                                     variant="text"
                                     onClick={open}
@@ -312,7 +333,7 @@ export default function ChatRoomMessageBubble({
                                         };
                                     }}
                                 >
-                                    {message.sender_user_id}
+                                    {senderDisplayName}
                                 </Button>
                             )}
                             {message.is_forward_message && (
@@ -352,7 +373,7 @@ export default function ChatRoomMessageBubble({
                                             };
                                         }}
                                     >
-                                        {message.reply_message.original_sender_user_id}
+                                        {replySenderDisplayName}
                                     </Typography>
                                     <Typography
                                         variant="caption"
@@ -534,6 +555,28 @@ export default function ChatRoomMessageBubble({
                                         <Typography variant="caption" sx={{ color: 'gray' }}>
                                             {message.created_at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                                         </Typography>
+                                        {isSender && (
+                                            <>
+                                                {message.client_status === "sending" && (
+                                                    <AccessTime sx={{ fontSize: 14, color: 'gray' }} />
+                                                )}
+                                                {message.client_status === "failed" && (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={onRetry}
+                                                        sx={{
+                                                            p: 0.25,
+                                                            color: "#d32f2f",
+                                                        }}
+                                                    >
+                                                        <ErrorOutline sx={{ fontSize: 16 }} />
+                                                    </IconButton>
+                                                )}
+                                                {(message.client_status === "sent" || !message.client_status) && (
+                                                    <DoneAll sx={{ fontSize: 16, color: '#53bdeb' }} />
+                                                )}
+                                            </>
+                                        )}
                                     </Box>
                                 </Box>
                             </CardContent>

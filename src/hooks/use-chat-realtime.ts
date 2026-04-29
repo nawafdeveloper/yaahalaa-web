@@ -8,6 +8,10 @@ import {
     normalizeMessage,
     resolveDirectChatPartner,
 } from "@/lib/chat-utils";
+import {
+    decryptChatPreviewBatch,
+    decryptMessageBatch,
+} from "@/lib/chat-e2ee";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useRealtimeStore } from "@/store/use-realtime-store";
 import type { ChatItemType } from "@/types/chats.type";
@@ -34,6 +38,10 @@ export function useChatRealtime() {
     const setStatus = useRealtimeStore((state) => state.setStatus);
     const sendEvent = useRealtimeStore((state) => state.sendEvent);
 
+    const currentUserId = session?.user.id ?? null;
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
+
     const selectedChatIdRef = useRef<string | null>(selectedChatId);
     const joinedChatIdRef = useRef<string | null>(null);
     const reconnectTimeoutRef = useRef<number | null>(null);
@@ -43,7 +51,7 @@ export function useChatRealtime() {
     }, [selectedChatId]);
 
     useEffect(() => {
-        if (!session?.user.id) {
+        if (!currentUserId) {
             return;
         }
 
@@ -67,17 +75,23 @@ export function useChatRealtime() {
                     return;
                 }
 
-                setChats(payload.chats.map(normalizeChatItem));
-            } catch (error) {
-                if (isCancelled) {
-                    return;
-                }
+                const normalizedChats = payload.chats.map(normalizeChatItem);
+                const decryptedChats = await decryptChatPreviewBatch({
+                    chats: normalizedChats,
+                    currentUserId,
+                });
 
-                setChatsError(
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to load chats"
-                );
+                if (!isCancelled) {
+                    setChats(decryptedChats);
+                }
+            } catch (error) {
+                if (!isCancelled) {
+                    setChatsError(
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to load chats"
+                    );
+                }
             } finally {
                 if (!isCancelled) {
                     setChatsLoading(false);
@@ -90,7 +104,7 @@ export function useChatRealtime() {
         return () => {
             isCancelled = true;
         };
-    }, [session?.user.id, setChats, setChatsError, setChatsLoading]);
+    }, [currentUserId, setChats, setChatsError, setChatsLoading]);
 
     useEffect(() => {
         if (!selectedChatId) {
@@ -98,23 +112,22 @@ export function useChatRealtime() {
             return;
         }
 
-        const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
-            ?.phoneNumber;
         const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId);
 
         if (selectedChat?.chat_type === "single") {
             setRecipientPhone(
-                resolveDirectChatPartner(selectedChat.chat_id, currentPhone)
+                selectedChat.contact_phone ??
+                    resolveDirectChatPartner(selectedChat.chat_id, currentPhone)
             );
             markChatRead(selectedChat.chat_id);
         } else {
             setRecipientPhone(null);
             markChatRead(selectedChatId);
         }
-    }, [chats, markChatRead, selectedChatId, session?.user, setRecipientPhone]);
+    }, [chats, currentPhone, markChatRead, selectedChatId, setRecipientPhone]);
 
     useEffect(() => {
-        if (!session?.user.id || !selectedChatId) {
+        if (!currentUserId || !selectedChatId) {
             return;
         }
 
@@ -124,7 +137,7 @@ export function useChatRealtime() {
             try {
                 setMessagesLoading(selectedChatId, true);
                 const response = await fetch(
-                    `/api/messages?chatRoomId=${encodeURIComponent(selectedChatId)}`
+                    `/api/messages?chatRoomId=${encodeURIComponent(selectedChatId)}&limit=40`
                 );
                 if (!response.ok) {
                     throw new Error("Failed to fetch messages");
@@ -136,14 +149,20 @@ export function useChatRealtime() {
                         updated_at: string;
                     })[];
                 };
+
                 if (isCancelled) {
                     return;
                 }
 
-                setMessages(
-                    selectedChatId,
-                    payload.messages.map(normalizeMessage)
-                );
+                const normalizedMessages = payload.messages.map(normalizeMessage);
+                const decryptedMessages = await decryptMessageBatch({
+                    currentUserId,
+                    messages: normalizedMessages,
+                });
+
+                if (!isCancelled) {
+                    setMessages(selectedChatId, decryptedMessages);
+                }
             } catch (error) {
                 if (!isCancelled) {
                     setChatsError(
@@ -165,28 +184,72 @@ export function useChatRealtime() {
             isCancelled = true;
         };
     }, [
+        currentUserId,
         selectedChatId,
-        session?.user.id,
         setChatsError,
         setMessages,
         setMessagesLoading,
     ]);
 
     useEffect(() => {
-        if (!session?.user.id) {
+        if (!currentUserId) {
             return;
         }
 
         let isDisposed = false;
         let socket: WebSocket | null = null;
 
-        const handleServerEvent = (event: ServerRealtimeEvent) => {
-            const currentUserId = session.user.id;
-
+        const handleServerEvent = async (event: ServerRealtimeEvent) => {
             switch (event.type) {
+                case "MESSAGE_SENT": {
+                    const normalizedMessage = normalizeMessage(event.message);
+                    const [nextMessage] = await decryptMessageBatch({
+                        currentUserId,
+                        messages: [normalizedMessage],
+                    });
+
+                    const messageId =
+                        event.clientMessageId ?? nextMessage.message_id;
+
+                    useActiveChatStore.getState().updateMessage(
+                        event.conversationId,
+                        messageId,
+                        () => ({
+                            ...nextMessage,
+                            client_status: "sent",
+                            client_error: null,
+                        })
+                    );
+
+                    const existingChat = useActiveChatStore
+                        .getState()
+                        .chats.find((chat) => chat.chat_id === event.conversationId);
+
+                    upsertChat(
+                        buildChatFromMessage({
+                            conversationId: event.conversationId,
+                            conversationType: event.conversationType,
+                            message: nextMessage,
+                            currentUserId,
+                            unreadCount: 0,
+                            fallbackExistingChat: existingChat,
+                        })
+                    );
+                    break;
+                }
+
                 case "NEW_MESSAGE": {
-                    const nextMessage = normalizeMessage(event.message);
-                    appendMessage(event.conversationId, nextMessage);
+                    const normalizedMessage = normalizeMessage(event.message);
+                    const [nextMessage] = await decryptMessageBatch({
+                        currentUserId,
+                        messages: [normalizedMessage],
+                    });
+
+                    appendMessage(event.conversationId, {
+                        ...nextMessage,
+                        client_status: "sent",
+                        client_error: null,
+                    });
 
                     const existingChat = useActiveChatStore
                         .getState()
@@ -216,7 +279,11 @@ export function useChatRealtime() {
                 }
 
                 case "CONVERSATION_UPDATED": {
-                    const nextMessage = normalizeMessage(event.lastMessage);
+                    const normalizedMessage = normalizeMessage(event.lastMessage);
+                    const [nextMessage] = await decryptMessageBatch({
+                        currentUserId,
+                        messages: [normalizedMessage],
+                    });
                     const existingChat = useActiveChatStore
                         .getState()
                         .chats.find((chat) => chat.chat_id === event.conversationId);
@@ -277,7 +344,7 @@ export function useChatRealtime() {
                     const payload = JSON.parse(
                         messageEvent.data as string
                     ) as ServerRealtimeEvent;
-                    handleServerEvent(payload);
+                    void handleServerEvent(payload);
                 } catch {
                     setChatsError("Received malformed realtime event");
                 }
@@ -321,9 +388,9 @@ export function useChatRealtime() {
         };
     }, [
         appendMessage,
+        currentUserId,
         markChatRead,
         sendEvent,
-        session?.user.id,
         setChatsError,
         setPresence,
         setSocket,

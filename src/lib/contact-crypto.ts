@@ -27,9 +27,12 @@ export async function decryptStoredContact(
 
     return {
         contact_id: record.contact_id,
+        linked_user_id: record.linked_user_id,
+        linked_user_public_key: record.linked_user_public_key || undefined,
         contact_first_name: parsed.contact_first_name?.trim() || undefined,
         contact_second_name: parsed.contact_second_name?.trim() || undefined,
-        contact_number: parsed.contact_number,
+        contact_number:
+            record.linked_user_phone_number || parsed.contact_number,
         contact_avatar:
             record.linked_user_image &&
             !record.linked_user_image.startsWith("/api/profile-image/")

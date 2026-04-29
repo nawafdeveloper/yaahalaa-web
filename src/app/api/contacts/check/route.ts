@@ -1,8 +1,11 @@
 import db from "@/db";
 import { contacts, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { normalizePhoneNumber } from "@/lib/contact-utils";
-import { and, eq } from "drizzle-orm";
+import {
+    buildPhoneLookupVariants,
+    normalizePhoneNumber,
+} from "@/lib/contact-utils";
+import { and, eq, inArray } from "drizzle-orm";
 
 interface UserSessionShape {
     id: string;
@@ -21,8 +24,9 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const rawPhone = url.searchParams.get("phone") ?? "";
     const normalizedPhone = normalizePhoneNumber(rawPhone);
+    const phoneLookupVariants = buildPhoneLookupVariants(rawPhone);
 
-    if (!normalizedPhone) {
+    if (!normalizedPhone || phoneLookupVariants.length === 0) {
         return Response.json(
             { exists: false, linkedUserId: null, alreadyExists: false },
             { status: 200 }
@@ -32,9 +36,10 @@ export async function GET(request: Request) {
     const [accountMatch] = await db
         .select({
             id: user.id,
+            phoneNumber: user.phoneNumber,
         })
         .from(user)
-        .where(eq(user.phoneNumber, normalizedPhone));
+        .where(inArray(user.phoneNumber, phoneLookupVariants));
 
     if (!accountMatch) {
         return Response.json({

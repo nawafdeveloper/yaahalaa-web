@@ -1,7 +1,10 @@
 import db from "@/db";
 import { contacts, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { normalizePhoneNumber } from "@/lib/contact-utils";
+import {
+    buildPhoneLookupVariants,
+    normalizePhoneNumber,
+} from "@/lib/contact-utils";
 import { and, desc, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { EncryptedTextPayload } from "@/lib/text-encryption";
@@ -30,6 +33,8 @@ export async function GET(request: Request) {
             owner_user_id: contacts.owner_user_id,
             linked_user_id: contacts.linked_user_id,
             linked_user_image: user.image,
+            linked_user_public_key: user.yhlaPublicKey,
+            linked_user_phone_number: user.phoneNumber,
             contact_ciphertext: contacts.contact_ciphertext,
             contact_encrypted_aes_key: contacts.contact_encrypted_aes_key,
             contact_iv: contacts.contact_iv,
@@ -91,10 +96,14 @@ export async function POST(request: Request) {
     }
 
     const normalizedLinkedPhone = normalizePhoneNumber(linkedAccount.phoneNumber);
+    const linkedPhoneVariants = buildPhoneLookupVariants(linkedAccount.phoneNumber);
+    const linkedPhoneHashes = new Set(
+        linkedPhoneVariants.map((variant) => hashPhoneNumber(variant))
+    );
 
     if (
         !normalizedLinkedPhone ||
-        hashPhoneNumber(normalizedLinkedPhone) !== body.phoneHash
+        !linkedPhoneHashes.has(body.phoneHash)
     ) {
         return Response.json(
             { error: "The encrypted contact payload does not match the account." },
@@ -137,6 +146,8 @@ export async function POST(request: Request) {
             owner_user_id: contacts.owner_user_id,
             linked_user_id: contacts.linked_user_id,
             linked_user_image: user.image,
+            linked_user_public_key: user.yhlaPublicKey,
+            linked_user_phone_number: user.phoneNumber,
             contact_ciphertext: contacts.contact_ciphertext,
             contact_encrypted_aes_key: contacts.contact_encrypted_aes_key,
             contact_iv: contacts.contact_iv,

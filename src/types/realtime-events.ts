@@ -20,6 +20,7 @@ export type ClientRealtimeEvent =
       }
     | {
           type: "SEND_MESSAGE";
+          clientMessageId?: string;
           conversationId?: string;
           conversationType: "direct" | "group";
           senderUserId?: string;
@@ -50,6 +51,13 @@ export type ClientRealtimeEvent =
       };
 
 export type ServerRealtimeEvent =
+    | {
+          type: "MESSAGE_SENT";
+          conversationId: string;
+          conversationType: "direct" | "group";
+          clientMessageId: string | null;
+          message: RealtimeMessage;
+      }
     | {
           type: "NEW_MESSAGE";
           conversationId: string;

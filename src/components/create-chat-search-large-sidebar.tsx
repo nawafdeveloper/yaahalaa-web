@@ -1,11 +1,16 @@
 "use client";
 
 import { useCryptoKeys } from "@/context/crypto";
-import { decryptStoredContact, matchesContactSearch } from "@/lib/contact-crypto";
+import { matchesContactSearch } from "@/lib/contact-crypto";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import { getContactDisplayName } from "@/lib/contact-display";
 import { groupContactsByLetter } from "@/lib/contact-organizer";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { authClient } from "@/lib/auth-client";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import { useSubsidebarStore } from "@/store/use-active-subsidebar-store";
-import type { Contact, StoredContactRecord } from "@/types/contacts.type";
+import type { Contact } from "@/types/contacts.type";
 import {
     CloseOutlined,
     GroupAdd,
@@ -25,19 +30,23 @@ import {
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import CreateChatHeaderLargeSidebar from "./create-chat-header-large-sidebar";
 
 export default function CreateChatSearchLargeSidebar() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { isReady } = useCryptoKeys();
+    const { data: session } = authClient.useSession();
     const { setActiveSubsideBar } = useSubsidebarStore();
+    const { setActiveSideBar } = useSidebarStore();
+    const openDirectContactChat = useActiveChatStore(
+        (state) => state.openDirectContactChat
+    );
 
     const [value, setValue] = useState("");
-    const [contacts, setContacts] = useState<Contact[]>([]);
-    const [isLoadingContacts, setIsLoadingContacts] = useState(false);
-    const [contactsError, setContactsError] = useState("");
+    const { contacts, isLoading: isLoadingContacts, error: contactsError } =
+        useDecryptedContacts();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const filteredContacts = value.trim()
@@ -45,81 +54,26 @@ export default function CreateChatSearchLargeSidebar() {
         : contacts;
     const groupedContacts = groupContactsByLetter(filteredContacts);
 
-    useEffect(() => {
-        if (!isReady) {
-            return;
-        }
-
-        let isActive = true;
-
-        const loadContacts = async () => {
-            try {
-                setIsLoadingContacts(true);
-                setContactsError("");
-
-                const response = await fetch("/api/contacts", {
-                    cache: "no-store",
-                });
-
-                if (!response.ok) {
-                    throw new Error("Failed to load contacts.");
-                }
-
-                const payload = (await response.json()) as {
-                    contacts: StoredContactRecord[];
-                };
-                const decryptedContacts = await Promise.all(
-                    payload.contacts.map(async (contactRecord) => {
-                        try {
-                            return await decryptStoredContact(contactRecord);
-                        } catch {
-                            return null;
-                        }
-                    })
-                );
-
-                if (!isActive) {
-                    return;
-                }
-
-                setContacts(
-                    decryptedContacts.filter(
-                        (contact): contact is Contact => contact !== null
-                    )
-                );
-            } catch (error) {
-                if (!isActive) {
-                    return;
-                }
-
-                setContactsError(
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to load contacts."
-                );
-            } finally {
-                if (isActive) {
-                    setIsLoadingContacts(false);
-                }
-            }
-        };
-
-        const handleContactsChanged = () => {
-            void loadContacts();
-        };
-
-        void loadContacts();
-        window.addEventListener("contacts:changed", handleContactsChanged);
-
-        return () => {
-            isActive = false;
-            window.removeEventListener("contacts:changed", handleContactsChanged);
-        };
-    }, [isReady]);
-
     const handleClear = () => {
         setValue("");
         inputRef.current?.blur();
+    };
+
+    const handleContactSelect = (contact: Contact) => {
+        const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+            ?.phoneNumber;
+
+        if (!currentPhone || !session?.user.id) {
+            return;
+        }
+
+        openDirectContactChat({
+            contact,
+            currentPhone,
+            currentUserId: session.user.id,
+        });
+        setActiveSubsideBar(null);
+        setActiveSideBar("main-chat");
     };
 
     return (
@@ -131,7 +85,7 @@ export default function CreateChatSearchLargeSidebar() {
                 variant="filled"
                 size="small"
                 placeholder={
-                    isRTL ? "ط¥ط¨ط­ط« ط¹ظ† ط¥ط³ظ… ط£ظˆ ط±ظ‚ظ…" : "Search name or number"
+                    isRTL ? "إبحث عن إسم أو رقم هاتف" : "Search name or number"
                 }
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
@@ -186,6 +140,8 @@ export default function CreateChatSearchLargeSidebar() {
             <div className="flex flex-col overflow-y-auto px-5">
                 <List>
                     <ListItemButton
+                        component="button"
+                        type="button"
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 3,
@@ -217,12 +173,14 @@ export default function CreateChatSearchLargeSidebar() {
                                 </Avatar>
                             </ListItemAvatar>
                             <ListItemText
-                                primary={isRTL ? "ظ…ط¬ظ…ظˆط¹ط© ط¬ط¯ظٹط¯ط©" : "New group"}
+                                primary={isRTL ? "مجموعة جديدة" : "New group"}
                             />
                         </ListItem>
                     </ListItemButton>
 
                     <ListItemButton
+                        component="button"
+                        type="button"
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 3,
@@ -255,7 +213,7 @@ export default function CreateChatSearchLargeSidebar() {
                                 </Avatar>
                             </ListItemAvatar>
                             <ListItemText
-                                primary={isRTL ? "ط¬ظ‡ط© ط¥طھطµط§ظ„" : "New contact"}
+                                primary={isRTL ? "جهة إتصال جديدة" : "New contact"}
                             />
                         </ListItem>
                     </ListItemButton>
@@ -314,7 +272,10 @@ export default function CreateChatSearchLargeSidebar() {
                                 </Typography>
                                 {group.contacts.map((contact) => (
                                     <ListItemButton
+                                        component="button"
+                                        type="button"
                                         key={contact.contact_id}
+                                        onClick={() => handleContactSelect(contact)}
                                         sx={(theme) => ({
                                             width: "100%",
                                             borderRadius: 3,
@@ -358,11 +319,7 @@ export default function CreateChatSearchLargeSidebar() {
                                                 </Avatar>
                                             </ListItemAvatar>
                                             <ListItemText
-                                                primary={
-                                                    `${contact.contact_first_name || ""} ${
-                                                        contact.contact_second_name || ""
-                                                    }`.trim() || contact.contact_number
-                                                }
+                                                primary={getContactDisplayName(contact)}
                                                 secondary={contact.contact_number}
                                             />
                                         </ListItem>

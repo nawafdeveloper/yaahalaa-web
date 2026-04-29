@@ -34,8 +34,8 @@ export default function ChatItemMoreButtonMenu({ chat_type }: Props) {
     return (
         <div>
             <IconButton
+                type="button"
                 id="more-button"
-                component="span"
                 size="medium"
                 className="chat-hover-action"
                 aria-controls={open ? 'basic-menu' : undefined}

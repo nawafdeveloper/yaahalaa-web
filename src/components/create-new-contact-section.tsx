@@ -154,20 +154,20 @@ export default function CreateNewContactSection({ country }: Props) {
     const phoneHelperText = isError
         ? errorMsg
         : accountStatus === "exists"
-          ? isRTL
-              ? "هذا الرقم لديه حساب ويمكن إضافته."
-              : "This number has an account and can be added."
-          : accountStatus === "duplicate"
             ? isRTL
-                ? "جهة الاتصال هذه موجودة بالفعل."
-                : "This contact already exists."
-            : accountStatus === "missing"
-              ? isRTL
-                  ? "هذا الرقم غير موجود في قاعدة البيانات."
-                  : "This number does not have an account."
-              : accountStatus === "error"
-                ? errorMsg
-                : " ";
+                ? "هذا الرقم لديه حساب ويمكن إضافته."
+                : "This number has an account and can be added."
+            : accountStatus === "duplicate"
+                ? isRTL
+                    ? "جهة الاتصال هذه موجودة بالفعل."
+                    : "This contact already exists."
+                : accountStatus === "missing"
+                    ? isRTL
+                        ? "هذا الرقم غير موجود في قاعدة البيانات."
+                        : "This number does not have an account."
+                    : accountStatus === "error"
+                        ? errorMsg
+                        : " ";
 
     const canCreate =
         isReady &&
@@ -257,9 +257,8 @@ export default function CreateNewContactSection({ country }: Props) {
 
     return (
         <div
-            className={`flex flex-col space-y-4 w-full bg-white dark:bg-[#161717] ${
-                isRTL ? "border-l" : "border-r"
-            } dark:border-neutral-700 border-neutral-300 overflow-y-auto pt-5`}
+            className={`flex flex-col space-y-4 w-full bg-white dark:bg-[#161717] ${isRTL ? "border-l" : "border-r"
+                } dark:border-neutral-700 border-neutral-300 overflow-y-auto pt-5`}
         >
             <div className="flex h-full flex-col gap-y-3">
                 <CreateContactHeaderLargeSidebar />
@@ -273,7 +272,7 @@ export default function CreateNewContactSection({ country }: Props) {
                 >
                     <TextField
                         id="first-name"
-                        label={isRTL ? "ط§ظ„ط¥ط³ظ… ط§ظ„ط£ظˆظ„" : "First name"}
+                        label={isRTL ? "الإسم الأول" : "First name"}
                         variant="standard"
                         disabled={isCreating}
                         error={isError && !firstName.trim()}
@@ -288,7 +287,7 @@ export default function CreateNewContactSection({ country }: Props) {
                     />
                     <TextField
                         id="last-name"
-                        label={isRTL ? "ط§ظ„ط¥ط³ظ… ط§ظ„ط£ط®ظٹط±" : "Last name"}
+                        label={isRTL ? "الإسم الأخير" : "Last name"}
                         variant="standard"
                         disabled={isCreating}
                         helperText=" "
@@ -302,7 +301,7 @@ export default function CreateNewContactSection({ country }: Props) {
                     />
                     <div className="flex w-full flex-row items-start gap-x-4">
                         <FormControl variant="standard" sx={{ minWidth: 120 }}>
-                            <InputLabel id="country-selector">Country</InputLabel>
+                            <InputLabel id="country-selector">{isRTL ? 'الدولة' : 'Country'}</InputLabel>
                             <Select
                                 labelId="country-selector"
                                 id="country-selection"
@@ -321,7 +320,7 @@ export default function CreateNewContactSection({ country }: Props) {
                         </FormControl>
                         <TextField
                             id="phone-number"
-                            label={isRTL ? "ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ" : "Phone number"}
+                            label={isRTL ? "رقم الهاتف" : "Phone number"}
                             variant="standard"
                             disabled={isCreating}
                             error={isError || accountStatus === "error"}
@@ -377,10 +376,18 @@ export default function CreateNewContactSection({ country }: Props) {
                             }}
                         >
                             {isCreating ? (
-                                <CircularProgress
-                                    size={18}
-                                    sx={{ color: "#1C1E21" }}
-                                />
+                                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <g>
+                                        <rect x="11" y="1" width="2" height="5" opacity=".14" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(30 12 12)" opacity=".29" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(60 12 12)" opacity=".43" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(90 12 12)" opacity=".57" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(120 12 12)" opacity=".71" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(150 12 12)" opacity=".86" />
+                                        <rect x="11" y="1" width="2" height="5" transform="rotate(180 12 12)" />
+                                        <animateTransform attributeName="transform" type="rotate" calcMode="discrete" dur="0.75s" values="0 12 12;30 12 12;60 12 12;90 12 12;120 12 12;150 12 12;180 12 12;210 12 12;240 12 12;270 12 12;300 12 12;330 12 12;360 12 12" repeatCount="indefinite" />
+                                    </g>
+                                </svg>
                             ) : isRTL ? (
                                 "إضافة جهة الاتصال"
                             ) : (

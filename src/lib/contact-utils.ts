@@ -11,12 +11,62 @@ export function normalizePhoneNumber(value: string): string {
     return trimmed.startsWith("+") ? `+${digits}` : digits;
 }
 
+export function buildPhoneLookupVariants(value: string): string[] {
+    const normalized = normalizePhoneNumber(value);
+
+    if (!normalized) {
+        return [];
+    }
+
+    const variants = new Set<string>([normalized]);
+
+    if (normalized.startsWith("+")) {
+        const digits = normalized.slice(1);
+
+        for (let countryCodeLength = 1; countryCodeLength <= 3; countryCodeLength += 1) {
+            const countryCode = digits.slice(0, countryCodeLength);
+            const subscriber = digits.slice(countryCodeLength);
+
+            if (!countryCode || !subscriber) {
+                continue;
+            }
+
+            const trimmedSubscriber = subscriber.replace(/^0+/, "");
+            if (!trimmedSubscriber) {
+                continue;
+            }
+
+            variants.add(`+${countryCode}${trimmedSubscriber}`);
+            variants.add(`+${countryCode}0${trimmedSubscriber}`);
+        }
+    }
+
+    return [...variants];
+}
+
+export function phoneValuesMatch(
+    left: string | null | undefined,
+    right: string | null | undefined
+): boolean {
+    if (!left || !right) {
+        return false;
+    }
+
+    const leftVariants = new Set(buildPhoneLookupVariants(left));
+    const rightVariants = buildPhoneLookupVariants(right);
+
+    return rightVariants.some((variant) => leftVariants.has(variant));
+}
+
 export function buildFullPhoneNumber(
     dialCode: string | undefined,
     phoneNumber: string
 ): string {
     const normalizedDialCode = normalizePhoneNumber(dialCode ?? "");
-    const localDigits = phoneNumber.replace(/\D/g, "");
+    const rawLocalDigits = phoneNumber.replace(/\D/g, "");
+    const localDigits = normalizedDialCode
+        ? rawLocalDigits.replace(/^0+/, "")
+        : rawLocalDigits;
 
     if (!normalizedDialCode || !localDigits) {
         return normalizePhoneNumber(`${normalizedDialCode}${localDigits}`);

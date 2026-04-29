@@ -7,6 +7,11 @@ export type ChatItemType = {
     chat_id: string;
     chat_type: 'single' | 'group';
     avatar: string;
+    display_name?: string | null;
+    recipient_user_id?: string | null;
+    recipient_public_key?: string | null;
+    contact_phone?: string | null;
+    is_provisional?: boolean;
     last_message_id?: string | null;
     encrypted_preview_ciphertext?: string | null;
     encrypted_preview_iv?: string | null;
