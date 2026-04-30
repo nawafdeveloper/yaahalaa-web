@@ -276,6 +276,14 @@ export default function ChatRoomMessageBubble({
               : null;
     const resolvedMediaAspectRatio =
         storedMediaAspectRatio ?? mediaAspectRatio ?? 4 / 3;
+    const hasResolvedMediaAspectRatio = Boolean(
+        storedMediaAspectRatio ?? mediaAspectRatio
+    );
+    const mediaFrameStyle: React.CSSProperties = {
+        aspectRatio: `${resolvedMediaAspectRatio}`,
+        minHeight: hasResolvedMediaAspectRatio ? undefined : 176,
+        maxWidth: "100%",
+    };
 
     useEffect(() => {
         let isActive = true;
@@ -754,6 +762,7 @@ export default function ChatRoomMessageBubble({
                                         }
                                     }}
                                     className="relative block w-full cursor-pointer overflow-hidden rounded"
+                                    style={mediaFrameStyle}
                                 >
                                     {(isAttachmentDecrypting || isAttachmentPending) && (
                                         <div className="absolute inset-0 z-10 flex items-center justify-center rounded bg-black/20">
@@ -776,7 +785,7 @@ export default function ChatRoomMessageBubble({
                                     )}
                                     {mediaDisplaySource ? (
                                         <div
-                                            className="relative w-full max-w-full overflow-hidden rounded"
+                                            className="absolute inset-0 w-full max-w-full overflow-hidden rounded"
                                             style={{
                                                 maxWidth: "100%",
                                             }}
@@ -788,6 +797,8 @@ export default function ChatRoomMessageBubble({
                                                 wrapperProps={{
                                                     style: {
                                                         display: "block",
+                                                        position: "absolute",
+                                                        inset: 0,
                                                         height: "100%",
                                                         width: "100%",
                                                         maxWidth: "100%",
@@ -806,7 +817,7 @@ export default function ChatRoomMessageBubble({
                                                         ? "blur(12px)"
                                                         : "none",
                                                     transform: shouldBlurPreview
-                                                        ? "scale(1.04)"
+                                                        ? "scale(1.08)"
                                                         : "none",
                                                     transition:
                                                         "filter 180ms ease, transform 180ms ease",
@@ -815,10 +826,8 @@ export default function ChatRoomMessageBubble({
                                         </div>
                                     ) : (
                                         <div
-                                            className="flex w-full max-w-full items-center justify-center rounded bg-linear-to-br from-[#d6d1cb] to-[#bab4ae] text-white dark:from-[#2d3131] dark:to-[#1e2222]"
+                                            className="absolute inset-0 flex w-full max-w-full items-center justify-center rounded bg-linear-to-br from-[#d6d1cb] to-[#bab4ae] text-white dark:from-[#2d3131] dark:to-[#1e2222]"
                                             style={{
-                                                aspectRatio: `${resolvedMediaAspectRatio}`,
-                                                minHeight: 176,
                                                 maxWidth: "100%",
                                             }}
                                         >

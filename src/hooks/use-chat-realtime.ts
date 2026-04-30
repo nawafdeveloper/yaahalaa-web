@@ -279,6 +279,7 @@ export function useChatRealtime() {
                             ...nextMessage,
                             client_status: "sent",
                             client_error: null,
+                            client_received_via_realtime: false,
                         })
                     );
 
@@ -312,6 +313,8 @@ export function useChatRealtime() {
                         ...nextMessage,
                         client_status: "sent",
                         client_error: null,
+                        client_received_via_realtime:
+                            nextMessage.sender_user_id !== currentUserId,
                     });
 
                     const existingChat = useActiveChatStore

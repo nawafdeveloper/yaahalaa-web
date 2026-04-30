@@ -64,6 +64,7 @@ export type Message = {
     chat_room_id: string;
     client_status?: "sending" | "failed" | "sent";
     client_error?: string | null;
+    client_received_via_realtime?: boolean;
     client_local_media_name?: string | null;
     client_local_media_size?: number | null;
     client_local_media_mime_type?: string | null;

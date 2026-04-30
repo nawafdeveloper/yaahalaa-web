@@ -114,17 +114,21 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
 
             for (const incomingMessage of messages) {
                 const existingMessage = mergedById.get(incomingMessage.message_id);
+                const fetchedMessage = {
+                    ...incomingMessage,
+                    client_received_via_realtime: false,
+                };
 
                 mergedById.set(
                     incomingMessage.message_id,
                     existingMessage
                         ? {
                               ...existingMessage,
-                              ...incomingMessage,
+                              ...fetchedMessage,
                               client_status: "sent",
                               client_error: null,
                           }
-                        : incomingMessage
+                        : fetchedMessage
                 );
             }
 

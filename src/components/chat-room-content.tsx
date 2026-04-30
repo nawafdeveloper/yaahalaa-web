@@ -4,11 +4,8 @@ import ContextMenu from "@/context/menu";
 import { useCryptoKeys } from "@/context/crypto";
 import { authClient } from "@/lib/auth-client";
 import { decryptMessageBatch } from "@/lib/chat-e2ee";
-import { generateVideoThumbnailFromUrl } from "@/lib/generate-thumbnail";
 import { normalizeMessage } from "@/lib/chat-utils";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
-import { getMessageMediaAutoDownload } from "@/lib/message-media";
-import { useDecryptedMessageMedia } from "@/hooks/use-decrypted-message-media";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { Message } from "@/types/messages.type";
 import {
@@ -52,22 +49,13 @@ async function preloadImageAsset(src: string) {
 
 function ChatRoomMessageMediaPreloader({
     message,
-    autoDownloadMedia,
     onStatusChange,
 }: {
     message: Message;
-    autoDownloadMedia: boolean;
     onStatusChange: (messageId: string, ready: boolean) => void;
 }) {
-    const { decryptedUrl, displayUrl, loading, error } = useDecryptedMessageMedia({
-        mediaUrl: message.media_url,
-        previewUrl: message.media_preview_url ?? null,
-        autoDownload: autoDownloadMedia,
-    });
-
     useEffect(() => {
         let isActive = true;
-        let generatedThumbnailUrl: string | null = null;
 
         const markReady = (ready: boolean) => {
             if (isActive) {
@@ -78,66 +66,30 @@ function ChatRoomMessageMediaPreloader({
         const prepare = async () => {
             const attachedMedia = message.attached_media;
             const shouldBlock =
-                !message.client_status &&
-                Boolean(message.media_url) &&
+                Boolean(message.client_received_via_realtime) &&
                 attachedMedia !== null &&
                 BLOCKING_MEDIA_TYPES.has(attachedMedia);
 
-            if (!shouldBlock || !autoDownloadMedia) {
+            if (!shouldBlock) {
                 markReady(true);
                 return;
             }
 
-            if (loading) {
+            if (!message.media_url) {
                 markReady(false);
                 return;
             }
 
-            if (error) {
-                markReady(true);
-                return;
-            }
-
-            if (message.attached_media === "photo") {
-                if (!displayUrl) {
-                    markReady(false);
-                    return;
-                }
-
+            if (
+                (message.attached_media === "photo" ||
+                    message.attached_media === "video") &&
+                message.media_preview_url
+            ) {
                 try {
-                    await preloadImageAsset(displayUrl);
+                    await preloadImageAsset(message.media_preview_url);
                 } catch {
-                    // Avoid blocking the whole room forever on a failed decode.
+                    // Avoid blocking the bubble forever on a failed preview decode.
                 }
-
-                markReady(true);
-                return;
-            }
-
-            if (message.attached_media === "video") {
-                const previewSource = decryptedUrl ?? message.media_preview_url ?? null;
-
-                if (!previewSource) {
-                    markReady(false);
-                    return;
-                }
-
-                try {
-                    if (decryptedUrl) {
-                        const thumbnailBlob =
-                            await generateVideoThumbnailFromUrl(decryptedUrl);
-                        const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
-                        generatedThumbnailUrl = thumbnailUrl;
-                        await preloadImageAsset(thumbnailUrl);
-                    } else {
-                        await preloadImageAsset(previewSource);
-                    }
-                } catch {
-                    // Fall back to showing the room if thumbnail generation fails.
-                }
-
-                markReady(true);
-                return;
             }
 
             markReady(true);
@@ -147,18 +99,10 @@ function ChatRoomMessageMediaPreloader({
 
         return () => {
             isActive = false;
-            if (generatedThumbnailUrl) {
-                URL.revokeObjectURL(generatedThumbnailUrl);
-            }
         };
     }, [
-        autoDownloadMedia,
-        decryptedUrl,
-        displayUrl,
-        error,
-        loading,
         message.attached_media,
-        message.client_status,
+        message.client_received_via_realtime,
         message.media_preview_url,
         message.media_url,
         message.message_id,
@@ -224,19 +168,27 @@ export default function ChatRoomContent() {
     const activeTypingUsers = selectedChatId
         ? typingByChatId[selectedChatId]?.activeTypingUsers ?? []
         : [];
-    const blockingMediaMessages = messages.filter((message) => {
-        if (message.client_status || !message.media_url || !message.attached_media) {
-            return false;
-        }
+    const currentUserId = session?.user.id ?? null;
+    const shouldDelayRealtimeMediaBubble = React.useCallback(
+        (message: Message) => {
+            if (
+                !currentUserId ||
+                !message.client_received_via_realtime ||
+                message.sender_user_id === currentUserId ||
+                !message.attached_media
+            ) {
+                return false;
+            }
 
-        return BLOCKING_MEDIA_TYPES.has(message.attached_media);
+            return BLOCKING_MEDIA_TYPES.has(message.attached_media);
+        },
+        [currentUserId]
+    );
+    const blockingMediaMessages = messages.filter((message) => {
+        return shouldDelayRealtimeMediaBubble(message);
     });
     const visibleMessages = messages.filter((message) => {
-        if (message.client_status || !message.media_url || !message.attached_media) {
-            return true;
-        }
-
-        if (!BLOCKING_MEDIA_TYPES.has(message.attached_media)) {
+        if (!shouldDelayRealtimeMediaBubble(message)) {
             return true;
         }
 
@@ -250,8 +202,6 @@ export default function ChatRoomContent() {
     const shouldShowInitialLoader =
         (messagesLoading && visibleMessages.length === 0) ||
         (!isMediaReady && visibleMessages.length === 0);
-    const currentUserId = session?.user.id ?? null;
-
     const handleMediaReadyChange = React.useCallback(
         (messageId: string, ready: boolean) => {
             setMediaReadyByMessageId((current) => {
@@ -509,16 +459,6 @@ export default function ChatRoomContent() {
                     <ChatRoomMessageMediaPreloader
                         key={`preload-${message.message_id}`}
                         message={message}
-                        autoDownloadMedia={getMessageMediaAutoDownload(
-                            message,
-                            session?.user as
-                                | {
-                                      id?: string;
-                                      imageMediaAutoDownload?: boolean;
-                                      videoMediaAutoDownload?: boolean;
-                                  }
-                                | undefined
-                        )}
                         onStatusChange={handleMediaReadyChange}
                     />
                 ))}

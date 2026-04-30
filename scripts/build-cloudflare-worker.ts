@@ -1,8 +1,9 @@
 import { execSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const openNextOutputPath = resolve(".open-next");
+const staleOutputPaths: string[] = [];
 
 if (existsSync(openNextOutputPath)) {
     try {
@@ -18,17 +19,30 @@ if (existsSync(openNextOutputPath)) {
                 ? (error as NodeJS.ErrnoException).code
                 : undefined;
 
-        if (errorCode !== "EPERM" && errorCode !== "ENOTEMPTY") {
+        if (errorCode !== "EPERM" && errorCode !== "ENOTEMPTY" && errorCode !== "EBUSY") {
             throw error;
         }
 
-        console.warn(
-            `[build-cloudflare-worker] Skipping pre-build cleanup for ${openNextOutputPath} because it is locked on Windows. Continuing with OpenNext build.`
+        const staleOutputPath = resolve(
+            `.open-next-stale-${Date.now()}-${process.pid}`
         );
+
+        try {
+            renameSync(openNextOutputPath, staleOutputPath);
+            staleOutputPaths.push(staleOutputPath);
+            console.warn(
+                `[build-cloudflare-worker] Moved locked OpenNext output to ${staleOutputPath}.`
+            );
+        } catch (renameError) {
+            console.error(
+                `[build-cloudflare-worker] Could not clean or move ${openNextOutputPath}. Close any local Next/Wrangler dev server that may be using .open-next, then retry.`
+            );
+            throw renameError;
+        }
     }
 }
 
-execSync("npx opennextjs-cloudflare build", {
+execSync("npx opennextjs-cloudflare build --skipWranglerConfigCheck", {
     stdio: "inherit",
 });
 
@@ -69,3 +83,18 @@ export {
 `;
 
 writeFileSync(wrapperPath, wrapperSource, "utf8");
+
+for (const staleOutputPath of staleOutputPaths) {
+    try {
+        rmSync(staleOutputPath, {
+            recursive: true,
+            force: true,
+            maxRetries: 5,
+            retryDelay: 200,
+        });
+    } catch {
+        console.warn(
+            `[build-cloudflare-worker] Leaving stale OpenNext output at ${staleOutputPath} because it is still locked. It is safe to delete later.`
+        );
+    }
+}
