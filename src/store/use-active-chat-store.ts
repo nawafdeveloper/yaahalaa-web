@@ -23,6 +23,8 @@ interface ActiveChatState {
     draftsByChatId: Record<string, string>;
     messagesByChatId: Record<string, Message[]>;
     messagesLoadingByChatId: Record<string, boolean>;
+    olderMessagesLoadingByChatId: Record<string, boolean>;
+    hasOlderMessagesByChatId: Record<string, boolean>;
     presenceByChatId: Record<string, PresenceState>;
     typingByChatId: Record<string, TypingState>;
     setChats: (chats: ChatItemType[]) => void;
@@ -40,6 +42,8 @@ interface ActiveChatState {
         updater: (message: Message) => Message
     ) => void;
     setMessagesLoading: (chatId: string, loading: boolean) => void;
+    setOlderMessagesLoading: (chatId: string, loading: boolean) => void;
+    setHasOlderMessages: (chatId: string, hasOlder: boolean) => void;
     setPresence: (chatId: string, presence: PresenceState) => void;
     setTypingUsers: (chatId: string, activeTypingUsers: string[]) => void;
     markChatRead: (chatId: string) => void;
@@ -60,6 +64,8 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     draftsByChatId: {},
     messagesByChatId: {},
     messagesLoadingByChatId: {},
+    olderMessagesLoadingByChatId: {},
+    hasOlderMessagesByChatId: {},
     presenceByChatId: {},
     typingByChatId: {},
     setChats: (chats) =>
@@ -161,6 +167,20 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             messagesLoadingByChatId: {
                 ...state.messagesLoadingByChatId,
                 [chatId]: loading,
+            },
+        })),
+    setOlderMessagesLoading: (chatId, loading) =>
+        set((state) => ({
+            olderMessagesLoadingByChatId: {
+                ...state.olderMessagesLoadingByChatId,
+                [chatId]: loading,
+            },
+        })),
+    setHasOlderMessages: (chatId, hasOlder) =>
+        set((state) => ({
+            hasOlderMessagesByChatId: {
+                ...state.hasOlderMessagesByChatId,
+                [chatId]: hasOlder,
             },
         })),
     setPresence: (chatId, presence) =>
@@ -269,6 +289,8 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             draftsByChatId: {},
             messagesByChatId: {},
             messagesLoadingByChatId: {},
+            olderMessagesLoadingByChatId: {},
+            hasOlderMessagesByChatId: {},
             presenceByChatId: {},
             typingByChatId: {},
         }),

@@ -2,12 +2,16 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { auth } from "@/lib/auth";
 import db from "@/db";
 import {
+    getUnreadCountForRecipient,
+    markConversationRead,
+} from "@/lib/chat-read-state";
+import {
     chatRecipientKeys,
     chats,
     message,
     messageRecipientKeys,
 } from "@/db/schema";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import {
     areDirectChatIdsEquivalent,
     buildDirectChatIdVariants,
@@ -69,6 +73,9 @@ export async function POST(request: Request) {
         mediaUrl?: string | null;
         mediaPreviewUrl?: string | null;
         mediaSizeBytes?: number | null;
+        mediaWidth?: number | null;
+        mediaHeight?: number | null;
+        mediaFileName?: string | null;
         videoThumbnail?: string | null;
         encryptedContent?: EncryptedContentEnvelope | null;
         recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
@@ -92,6 +99,9 @@ export async function POST(request: Request) {
         mediaUrl,
         mediaPreviewUrl,
         mediaSizeBytes,
+        mediaWidth,
+        mediaHeight,
+        mediaFileName,
         videoThumbnail,
         encryptedContent,
         recipientEncryptionKeys,
@@ -169,6 +179,9 @@ export async function POST(request: Request) {
             mediaUrl: mediaUrl ?? null,
             mediaPreviewUrl: mediaPreviewUrl ?? null,
             mediaSizeBytes: mediaSizeBytes ?? null,
+            mediaWidth: mediaWidth ?? null,
+            mediaHeight: mediaHeight ?? null,
+            mediaFileName: mediaFileName ?? null,
             recipientEncryptionKeyCount: normalizedMessageKeys.length,
         });
     }
@@ -234,6 +247,9 @@ export async function POST(request: Request) {
         media_url: mediaUrl ?? null,
         media_preview_url: mediaPreviewUrl ?? null,
         media_size_bytes: mediaSizeBytes ?? null,
+        media_width: mediaWidth ?? null,
+        media_height: mediaHeight ?? null,
+        media_file_name: mediaFileName ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
         is_forward_message: false,
@@ -317,6 +333,9 @@ export async function POST(request: Request) {
         media_url: mediaUrl ?? null,
         media_preview_url: mediaPreviewUrl ?? null,
         media_size_bytes: mediaSizeBytes ?? null,
+        media_width: mediaWidth ?? null,
+        media_height: mediaHeight ?? null,
+        media_file_name: mediaFileName ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
         is_forward_message: false,
@@ -342,9 +361,18 @@ export async function POST(request: Request) {
             mediaUrl: mediaUrl ?? null,
             mediaPreviewUrl: mediaPreviewUrl ?? null,
             mediaSizeBytes: mediaSizeBytes ?? null,
+            mediaWidth: mediaWidth ?? null,
+            mediaHeight: mediaHeight ?? null,
+            mediaFileName: mediaFileName ?? null,
             messageRecipientKeyCount: normalizedMessageKeys.length,
         });
     }
+
+    await markConversationRead({
+        chatId: finalChatRoomId,
+        userId: finalSenderUserId,
+        readAt: now,
+    });
 
     await broadcastRealtimeMessage({
         conversationId: finalChatRoomId,
@@ -390,6 +418,17 @@ export async function GET(request: Request) {
             Math.max(Number(url.searchParams.get("limit") ?? "40") || 40, 1),
             100
         );
+        const beforeCreatedAtParam = url.searchParams.get("beforeCreatedAt");
+        const beforeCreatedAt = beforeCreatedAtParam
+            ? new Date(beforeCreatedAtParam)
+            : null;
+
+        if (beforeCreatedAt && Number.isNaN(beforeCreatedAt.getTime())) {
+            return Response.json(
+                { error: "Invalid beforeCreatedAt parameter" },
+                { status: 400 }
+            );
+        }
 
         if (!chatRoomId && !phone) {
             return Response.json(
@@ -413,17 +452,28 @@ export async function GET(request: Request) {
                   chatRoomIds,
                   limit,
                   sessionUserId: sessionUser.id,
+                  beforeCreatedAt,
               })
             : await db
                   .select()
                   .from(message)
                   .where(
                       chatRoomId
-                          ? inArray(message.chat_room_id, chatRoomIds)
-                          : eq(message.sender_user_id, sessionUser.id),
+                          ? beforeCreatedAt
+                              ? and(
+                                    inArray(message.chat_room_id, chatRoomIds),
+                                    lt(message.created_at, beforeCreatedAt)
+                                )
+                              : inArray(message.chat_room_id, chatRoomIds)
+                          : beforeCreatedAt
+                            ? and(
+                                  eq(message.sender_user_id, sessionUser.id),
+                                  lt(message.created_at, beforeCreatedAt)
+                              )
+                            : eq(message.sender_user_id, sessionUser.id),
                   )
                   .orderBy(desc(message.created_at))
-                  .limit(limit);
+                  .limit(limit + 1);
 
         const rowIds = rows.map((row) => row.message_id);
         const recipientKeys =
@@ -458,14 +508,20 @@ export async function GET(request: Request) {
                     mediaUrl: row.media_url,
                     mediaPreviewUrl: row.media_preview_url,
                     mediaSizeBytes: row.media_size_bytes,
+                    mediaWidth: row.media_width,
+                    mediaHeight: row.media_height,
+                    mediaFileName: row.media_file_name,
                     recipientKeyCount:
                         keysByMessageId.get(row.message_id)?.length ?? 0,
                 })),
             });
         }
 
+        const hasMore = rows.length > limit;
+        const slicedRows = rows.slice(0, limit);
+
         return Response.json({
-            messages: rows.map((m) => ({
+            messages: slicedRows.map((m) => ({
                 message_id: m.message_id,
                 sender_user_id: m.sender_user_id,
                 chat_room_id: m.chat_room_id,
@@ -482,6 +538,9 @@ export async function GET(request: Request) {
                 media_url: m.media_url,
                 media_preview_url: m.media_preview_url,
                 media_size_bytes: m.media_size_bytes,
+                media_width: m.media_width,
+                media_height: m.media_height,
+                media_file_name: m.media_file_name,
                 video_thumbnail: m.video_thumbnail,
                 message_raction: m.message_raction,
                 is_forward_message: m.is_forward_message,
@@ -497,6 +556,7 @@ export async function GET(request: Request) {
                 updated_at: m.updated_at,
                 contact: m.contact,
             })),
+            hasMore,
         });
     } catch (error) {
         const url = new URL(request.url);
@@ -639,11 +699,13 @@ async function getDirectChatMessages({
     chatRoomIds,
     limit,
     sessionUserId,
+    beforeCreatedAt,
 }: {
     chatRoomId: string;
     chatRoomIds: string[];
     limit: number;
     sessionUserId: string;
+    beforeCreatedAt: Date | null;
 }) {
     const directRecipientMessageIds = await db
         .select({ messageId: messageRecipientKeys.message_id })
@@ -655,21 +717,41 @@ async function getDirectChatMessages({
         .from(message)
         .where(
             directRecipientMessageIds.length > 0
-                ? inArray(
-                      message.message_id,
-                      directRecipientMessageIds.map((row) => row.messageId)
-                  )
-                : eq(message.sender_user_id, sessionUserId)
+                ? beforeCreatedAt
+                    ? and(
+                          inArray(
+                              message.message_id,
+                              directRecipientMessageIds.map((row) => row.messageId)
+                          ),
+                          lt(message.created_at, beforeCreatedAt)
+                      )
+                    : inArray(
+                          message.message_id,
+                          directRecipientMessageIds.map((row) => row.messageId)
+                      )
+                : beforeCreatedAt
+                  ? and(
+                        eq(message.sender_user_id, sessionUserId),
+                        lt(message.created_at, beforeCreatedAt)
+                    )
+                  : eq(message.sender_user_id, sessionUserId)
         )
         .orderBy(desc(message.created_at))
-        .limit(limit * 5);
+        .limit((limit + 1) * 5);
 
     const sentRows = await db
         .select()
         .from(message)
-        .where(eq(message.sender_user_id, sessionUserId))
+        .where(
+            beforeCreatedAt
+                ? and(
+                      eq(message.sender_user_id, sessionUserId),
+                      lt(message.created_at, beforeCreatedAt)
+                  )
+                : eq(message.sender_user_id, sessionUserId)
+        )
         .orderBy(desc(message.created_at))
-        .limit(limit * 5);
+        .limit((limit + 1) * 5);
 
     const mergedById = new Map<string, (typeof candidateRows)[number]>();
     for (const row of [...candidateRows, ...sentRows]) {
@@ -683,7 +765,7 @@ async function getDirectChatMessages({
                 areDirectChatIdsEquivalent(row.chat_room_id, chatRoomId)
         )
         .sort((left, right) => right.created_at.getTime() - left.created_at.getTime())
-        .slice(0, limit);
+        .slice(0, limit + 1);
 
     return filteredRows;
 }
@@ -730,6 +812,10 @@ async function broadcastRealtimeMessage({
 
         await Promise.all(
             uniqueRecipientIds.map(async (recipientUserId) => {
+                const unreadCount = await getUnreadCountForRecipient({
+                    chatId: conversationId,
+                    userId: recipientUserId,
+                });
                 const userDO = presenceNamespace.get(
                     presenceNamespace.idFromName(recipientUserId)
                 );
@@ -744,7 +830,7 @@ async function broadcastRealtimeMessage({
                         conversationId,
                         conversationType,
                         lastMessage: message,
-                        unreadCount: 1,
+                        unreadCount,
                     }),
                 });
             })

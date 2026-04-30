@@ -36,6 +36,9 @@ export type ClientRealtimeEvent =
           mediaUrl?: string | null;
           mediaPreviewUrl?: string | null;
           mediaSizeBytes?: number | null;
+          mediaWidth?: number | null;
+          mediaHeight?: number | null;
+          mediaFileName?: string | null;
           videoThumbnail?: string | null;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;

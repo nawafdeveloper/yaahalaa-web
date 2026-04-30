@@ -20,6 +20,9 @@ type RawMessage = Omit<Message, "created_at" | "updated_at"> & {
 export function normalizeChatItem(chat: RawChatItem): ChatItemType {
     return {
         ...chat,
+        recipient_last_seen: chat.recipient_last_seen
+            ? new Date(chat.recipient_last_seen)
+            : null,
         created_at: new Date(chat.created_at),
         updated_at: new Date(chat.updated_at),
     };

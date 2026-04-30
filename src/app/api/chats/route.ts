@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import db from "@/db";
+import { getUnreadCountsByChatId } from "@/lib/chat-read-state";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import {
     chatRecipientKeys,
@@ -96,6 +97,10 @@ export async function GET(request: Request) {
         .from(chats)
         .where(inArray(chats.chat_id, chatIds))
         .orderBy(desc(chats.updated_at));
+    const unreadCountsByChatId = await getUnreadCountsByChatId({
+        chatIds: rows.map((row) => row.chat_id),
+        userId: sessionUser.id,
+    });
 
     const directPartnerPhones = sessionUser.phoneNumber
         ? rows
@@ -126,6 +131,8 @@ export async function GET(request: Request) {
                       phoneNumber: user.phoneNumber,
                       image: user.image,
                       publicKey: user.yhlaPublicKey,
+                      lastSeen: user.lastSeen,
+                      whoCanSeeStatus: user.whoCanSeeStatus,
                   })
                   .from(user)
                   .where(inArray(user.phoneNumber, directPartnerPhoneVariants))
@@ -187,6 +194,10 @@ export async function GET(request: Request) {
     return Response.json({
         chats: rows.map((chat) => ({
             ...chat,
+            is_unreaded_chat:
+                (unreadCountsByChatId.get(chat.chat_id) ?? 0) > 0,
+            unreaded_messages_length:
+                unreadCountsByChatId.get(chat.chat_id) ?? 0,
             last_message_context: "",
             ...(chat.chat_type === "single" && sessionUser.phoneNumber
                 ? (() => {
@@ -217,6 +228,13 @@ export async function GET(request: Request) {
                           recipient_user_id: partner?.id ?? null,
                           recipient_public_key: partner?.publicKey ?? null,
                           contact_phone: partner?.phoneNumber ?? partnerPhone,
+                          recipient_last_seen: partner?.lastSeen ?? null,
+                          recipient_who_can_see_status:
+                              (partner?.whoCanSeeStatus as
+                                  | "all"
+                                  | "contacts"
+                                  | "nobody"
+                                  | undefined) ?? null,
                           stored_contact: savedContact,
                       };
                   })()

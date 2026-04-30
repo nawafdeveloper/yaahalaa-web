@@ -79,6 +79,9 @@ export type Message = {
     media_url: string | null;
     media_preview_url?: string | null;
     media_size_bytes?: number | null;
+    media_width?: number | null;
+    media_height?: number | null;
+    media_file_name?: string | null;
     video_thumbnail: string | null;
     message_raction: MessageReaction | null;
     is_forward_message: boolean;

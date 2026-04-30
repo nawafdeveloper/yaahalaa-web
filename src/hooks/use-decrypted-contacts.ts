@@ -7,15 +7,15 @@ import { decryptStoredContact } from "@/lib/contact-crypto";
 import { useContactDirectoryStore } from "@/store/use-contact-directory-store";
 import type { Contact, StoredContactRecord } from "@/types/contacts.type";
 
+let contactsLoadRequestId = 0;
+let contactsLoadingForUserId: string | null = null;
+
 export function useDecryptedContacts() {
     const { isReady } = useCryptoKeys();
     const { data: session } = authClient.useSession();
     const contacts = useContactDirectoryStore((state) => state.contacts);
     const isLoading = useContactDirectoryStore((state) => state.isLoading);
     const error = useContactDirectoryStore((state) => state.error);
-    const loadedForUserId = useContactDirectoryStore(
-        (state) => state.loadedForUserId
-    );
     const setContacts = useContactDirectoryStore((state) => state.setContacts);
     const setLoading = useContactDirectoryStore((state) => state.setLoading);
     const setError = useContactDirectoryStore((state) => state.setError);
@@ -25,6 +25,8 @@ export function useDecryptedContacts() {
 
     useEffect(() => {
         if (!currentUserId) {
+            contactsLoadRequestId += 1;
+            contactsLoadingForUserId = null;
             reset();
             return;
         }
@@ -33,16 +35,22 @@ export function useDecryptedContacts() {
             return;
         }
 
-        let isActive = true;
-
         const loadContacts = async (force = false) => {
-            if (isLoading) {
+            const directoryState = useContactDirectoryStore.getState();
+
+            if (
+                directoryState.isLoading &&
+                contactsLoadingForUserId === currentUserId
+            ) {
                 return;
             }
 
-            if (!force && loadedForUserId === currentUserId && contacts.length > 0) {
+            if (!force && directoryState.loadedForUserId === currentUserId) {
                 return;
             }
+
+            const requestId = (contactsLoadRequestId += 1);
+            contactsLoadingForUserId = currentUserId;
 
             try {
                 setLoading(true);
@@ -50,6 +58,7 @@ export function useDecryptedContacts() {
 
                 const response = await fetch("/api/contacts", {
                     cache: "no-store",
+                    credentials: "same-origin",
                 });
 
                 if (!response.ok) {
@@ -70,7 +79,7 @@ export function useDecryptedContacts() {
                     })
                 );
 
-                if (!isActive) {
+                if (contactsLoadRequestId !== requestId) {
                     return;
                 }
 
@@ -81,7 +90,7 @@ export function useDecryptedContacts() {
                     )
                 );
             } catch (nextError) {
-                if (!isActive) {
+                if (contactsLoadRequestId !== requestId) {
                     return;
                 }
 
@@ -91,7 +100,8 @@ export function useDecryptedContacts() {
                         : "Failed to load contacts."
                 );
             } finally {
-                if (isActive) {
+                if (contactsLoadRequestId === requestId) {
+                    contactsLoadingForUserId = null;
                     setLoading(false);
                 }
             }
@@ -105,15 +115,11 @@ export function useDecryptedContacts() {
         window.addEventListener("contacts:changed", handleContactsChanged);
 
         return () => {
-            isActive = false;
             window.removeEventListener("contacts:changed", handleContactsChanged);
         };
     }, [
-        contacts.length,
         currentUserId,
-        isLoading,
         isReady,
-        loadedForUserId,
         reset,
         setContacts,
         setError,

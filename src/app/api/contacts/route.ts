@@ -13,6 +13,13 @@ interface UserSessionShape {
     id: string;
 }
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const noStoreHeaders = {
+    "Cache-Control": "no-store",
+};
+
 function hashPhoneNumber(value: string): string {
     return createHash("sha256").update(value).digest("hex");
 }
@@ -23,7 +30,10 @@ export async function GET(request: Request) {
     });
 
     if (!session) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
+        return Response.json(
+            { error: "Unauthorized" },
+            { status: 401, headers: noStoreHeaders }
+        );
     }
 
     const sessionUser = session.user as UserSessionShape;
@@ -48,7 +58,7 @@ export async function GET(request: Request) {
         .where(eq(contacts.owner_user_id, sessionUser.id))
         .orderBy(desc(contacts.updated_at));
 
-    return Response.json({ contacts: rows });
+    return Response.json({ contacts: rows }, { headers: noStoreHeaders });
 }
 
 export async function POST(request: Request) {
@@ -57,7 +67,10 @@ export async function POST(request: Request) {
     });
 
     if (!session) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
+        return Response.json(
+            { error: "Unauthorized" },
+            { status: 401, headers: noStoreHeaders }
+        );
     }
 
     const sessionUser = session.user as UserSessionShape;
@@ -76,7 +89,7 @@ export async function POST(request: Request) {
     ) {
         return Response.json(
             { error: "Missing required contact fields." },
-            { status: 400 }
+            { status: 400, headers: noStoreHeaders }
         );
     }
 
@@ -84,19 +97,27 @@ export async function POST(request: Request) {
         .select({
             id: user.id,
             phoneNumber: user.phoneNumber,
+            email: user.email,
         })
         .from(user)
         .where(eq(user.id, body.linkedUserId));
 
-    if (!linkedAccount?.phoneNumber) {
+    const linkedEmailPhone =
+        linkedAccount?.email.toLowerCase().endsWith("@yaahalaa.com")
+            ? linkedAccount.email.split("@")[0]
+            : "";
+    const linkedPhoneLookupSource =
+        linkedAccount?.phoneNumber || linkedEmailPhone || "";
+
+    if (!linkedAccount || !linkedPhoneLookupSource) {
         return Response.json(
             { error: "The selected account could not be found." },
-            { status: 404 }
+            { status: 404, headers: noStoreHeaders }
         );
     }
 
-    const normalizedLinkedPhone = normalizePhoneNumber(linkedAccount.phoneNumber);
-    const linkedPhoneVariants = buildPhoneLookupVariants(linkedAccount.phoneNumber);
+    const normalizedLinkedPhone = normalizePhoneNumber(linkedPhoneLookupSource);
+    const linkedPhoneVariants = buildPhoneLookupVariants(linkedPhoneLookupSource);
     const linkedPhoneHashes = new Set(
         linkedPhoneVariants.map((variant) => hashPhoneNumber(variant))
     );
@@ -107,7 +128,7 @@ export async function POST(request: Request) {
     ) {
         return Response.json(
             { error: "The encrypted contact payload does not match the account." },
-            { status: 400 }
+            { status: 400, headers: noStoreHeaders }
         );
     }
 
@@ -165,5 +186,8 @@ export async function POST(request: Request) {
             )
         );
 
-    return Response.json({ contact: savedContact }, { status: 201 });
+    return Response.json(
+        { contact: savedContact },
+        { status: 201, headers: noStoreHeaders }
+    );
 }

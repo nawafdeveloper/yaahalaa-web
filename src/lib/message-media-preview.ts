@@ -35,6 +35,52 @@ function scaleDimensions(width: number, height: number) {
     };
 }
 
+export async function getMessageMediaDimensions(
+    file: File
+): Promise<{ width: number; height: number } | null> {
+    if (file.type.startsWith("image/")) {
+        const objectUrl = URL.createObjectURL(file);
+
+        try {
+            const image = await loadImage(objectUrl);
+
+            return {
+                width: Math.max(1, image.naturalWidth || 1),
+                height: Math.max(1, image.naturalHeight || 1),
+            };
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    if (file.type.startsWith("video/")) {
+        const objectUrl = URL.createObjectURL(file);
+
+        try {
+            const video = document.createElement("video");
+            video.src = objectUrl;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = "metadata";
+
+            await new Promise<void>((resolve, reject) => {
+                video.onloadedmetadata = () => resolve();
+                video.onerror = () =>
+                    reject(new Error("Failed to load video metadata."));
+            });
+
+            return {
+                width: Math.max(1, video.videoWidth || 1),
+                height: Math.max(1, video.videoHeight || 1),
+            };
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    return null;
+}
+
 function canvasToPreviewBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     return new Promise((resolve, reject) => {
         canvas.toBlob(

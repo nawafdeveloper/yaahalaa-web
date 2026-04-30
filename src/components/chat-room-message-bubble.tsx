@@ -5,7 +5,6 @@ import type { Message } from "@/types/messages.type";
 import {
     AccessTime,
     DoneAll,
-    DownloadRounded,
     ErrorOutline,
     ImageOutlined,
     Mic,
@@ -52,6 +51,7 @@ import {
     getContactDisplayName,
 } from "@/lib/contact-display";
 import { logMediaDebug } from "@/lib/message-media-debug";
+import { getMessageMediaAutoDownload } from "@/lib/message-media";
 
 type Props = {
     message: Message;
@@ -76,29 +76,22 @@ export default function ChatRoomMessageBubble({
     const chats = useActiveChatStore((state) => state.chats);
     const { contacts } = useDecryptedContacts();
 
-    const autoDownloadMedia =
-        message.attached_media === "photo"
-            ? (
-                  (session?.user as
-                      | { imageMediaAutoDownload?: boolean }
-                      | undefined)
-                      ?.imageMediaAutoDownload ?? false
-              ) || message.sender_user_id === session?.user.id
-            : message.attached_media === "video"
-              ? (
-                    (session?.user as
-                        | { videoMediaAutoDownload?: boolean }
-                        | undefined)
-                        ?.videoMediaAutoDownload ?? false
-                ) || message.sender_user_id === session?.user.id
-              : true;
+    const autoDownloadMedia = getMessageMediaAutoDownload(
+        message,
+        session?.user as
+            | {
+                  id?: string;
+                  imageMediaAutoDownload?: boolean;
+                  videoMediaAutoDownload?: boolean;
+              }
+            | undefined
+    );
 
     const {
         decryptedUrl: decryptedMediaUrl,
         displayUrl: displayMediaUrl,
         mimeType: decryptedMediaMimeType,
         loading: decryptedMediaLoading,
-        download: downloadMedia,
     } = useDecryptedMessageMedia({
         mediaUrl: message.media_url,
         previewUrl: message.media_preview_url ?? null,
@@ -109,6 +102,7 @@ export default function ChatRoomMessageBubble({
     const [isListEnter, setIsListEnter] = useState(false);
     const [fileSize, setFileSize] = useState(0);
     const [isBubbleEnter, setIsBubbleEnter] = useState(false);
+    const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
 
     const mediaTypes = ["photo", "video"] as const;
     const mediaPrev = mediaTypes.includes(
@@ -266,16 +260,52 @@ export default function ChatRoomMessageBubble({
     const isAttachmentDecrypting =
         Boolean(message.attached_media && message.attached_media !== "contact") &&
         decryptedMediaLoading;
-    const shouldShowManualDownload =
-        mediaPrev &&
-        !decryptedMediaUrl &&
-        !isAttachmentPending &&
-        !isAttachmentDecrypting &&
-        !autoDownloadMedia;
     const shouldBlurPreview =
         mediaPrev && !decryptedMediaUrl && Boolean(message.media_preview_url);
     const mediaDisplaySource =
         message.attached_media === "photo" ? displayMediaUrl : thumbnail;
+    const storedMediaAspectRatio =
+        message.media_width && message.media_height
+            ? message.media_width / message.media_height
+            : null;
+    const mediaSizingSource =
+        message.attached_media === "photo"
+            ? decryptedMediaUrl
+            : message.attached_media === "video" && decryptedMediaUrl
+              ? thumbnail
+              : null;
+    const resolvedMediaAspectRatio =
+        storedMediaAspectRatio ?? mediaAspectRatio ?? 4 / 3;
+
+    useEffect(() => {
+        let isActive = true;
+
+        if (!mediaSizingSource) {
+            setMediaAspectRatio(null);
+            return;
+        }
+
+        const image = new window.Image();
+        image.onload = () => {
+            if (!isActive) {
+                return;
+            }
+
+            if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                setMediaAspectRatio(image.naturalWidth / image.naturalHeight);
+            }
+        };
+        image.onerror = () => {
+            if (isActive) {
+                setMediaAspectRatio(null);
+            }
+        };
+        image.src = mediaSizingSource;
+
+        return () => {
+            isActive = false;
+        };
+    }, [mediaSizingSource]);
 
     useEffect(() => {
         if (!mediaPrev) {
@@ -294,7 +324,6 @@ export default function ChatRoomMessageBubble({
             autoDownloadMedia,
             isAttachmentPending,
             isAttachmentDecrypting,
-            shouldShowManualDownload,
             shouldBlurPreview,
         });
     }, [
@@ -310,7 +339,6 @@ export default function ChatRoomMessageBubble({
         message.media_url,
         message.message_id,
         shouldBlurPreview,
-        shouldShowManualDownload,
         thumbnail,
     ]);
 
@@ -436,8 +464,8 @@ export default function ChatRoomMessageBubble({
                         <Card
                             sx={(theme) => ({
                                 maxWidth: {
-                                    lg: mediaPrev ? 250 : "100%",
-                                    xs: mediaPrev ? 200 : "100%",
+                                    lg: 320,
+                                    xs: 200,
                                 },
                                 padding: "3px",
                                 borderTopRightRadius: isSender
@@ -627,7 +655,7 @@ export default function ChatRoomMessageBubble({
                                             className="absolute -bottom-1 -right-1 text-[#25D366]"
                                         />
                                     </div>
-                                    <div className="flex min-w-64 max-w-64 flex-row items-center gap-x-2">
+                                    <div className="flex min-w-60 max-w-60 flex-row items-center gap-x-2">
                                         <AudioPlayer
                                             src={decryptedMediaUrl || ""}
                                             showJumpControls={false}
@@ -669,7 +697,7 @@ export default function ChatRoomMessageBubble({
                             )}
                             {message.attached_media === "file" && (
                                 <button
-                                    className="mb-1 flex w-full cursor-pointer flex-row items-center gap-x-3 rounded-lg bg-[#f7f5f3] p-4 dark:bg-[#1a1b1b]"
+                                    className={`mb-1 flex w-full min-w-77.5 cursor-pointer flex-row items-center gap-x-3 p-4 rounded-lg ${isSender ? 'bg-[#c9e3b5] dark:bg-[#212e26]' : 'bg-[#f7f5f3] dark:bg-[#1a1b1b]'}`}
                                     onClick={() => {
                                         if (decryptedMediaUrl) {
                                             window.open(
@@ -698,6 +726,7 @@ export default function ChatRoomMessageBubble({
                                             }}
                                         >
                                             {message.client_local_media_name ||
+                                                message.media_file_name ||
                                                 "Encrypted file"}
                                         </Typography>
                                         <Typography
@@ -719,12 +748,12 @@ export default function ChatRoomMessageBubble({
                                             openPreview(
                                                 message.attached_media,
                                                 message.media_url || "",
-                                                message.sender_user_id,
+                                                senderDisplayName,
                                                 message.created_at.toLocaleDateString()
                                             );
                                         }
                                     }}
-                                    className="relative cursor-pointer overflow-hidden"
+                                    className="relative block w-full cursor-pointer overflow-hidden rounded"
                                 >
                                     {(isAttachmentDecrypting || isAttachmentPending) && (
                                         <div className="absolute inset-0 z-10 flex items-center justify-center rounded bg-black/20">
@@ -732,21 +761,6 @@ export default function ChatRoomMessageBubble({
                                                 size={26}
                                                 sx={{ color: "#ffffff" }}
                                             />
-                                        </div>
-                                    )}
-                                    {shouldShowManualDownload && (
-                                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded bg-black/30 p-3">
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    void downloadMedia();
-                                                }}
-                                                className="flex items-center gap-x-2 rounded-full bg-black/55 px-3 py-2 text-sm text-white backdrop-blur-sm"
-                                            >
-                                                <DownloadRounded fontSize="small" />
-                                                <span>{mediaSizeLabel}</span>
-                                            </button>
                                         </div>
                                     )}
                                     {message.attached_media === "video" && (
@@ -761,30 +775,53 @@ export default function ChatRoomMessageBubble({
                                         </div>
                                     )}
                                     {mediaDisplaySource ? (
-                                        <LazyLoadImage
-                                            alt={message.message_text_content || ""}
-                                            height="auto"
-                                            effect="blur"
-                                            src={mediaDisplaySource}
-                                            width="100%"
-                                            wrapperProps={{
-                                                style: { transitionDelay: "1s" },
-                                            }}
+                                        <div
+                                            className="relative w-full max-w-full overflow-hidden rounded"
                                             style={{
-                                                borderRadius: 4,
-                                                overflow: "hidden",
-                                                filter: shouldBlurPreview
-                                                    ? "blur(12px)"
-                                                    : "none",
-                                                transform: shouldBlurPreview
-                                                    ? "scale(1.04)"
-                                                    : "none",
-                                                transition:
-                                                    "filter 180ms ease, transform 180ms ease",
+                                                maxWidth: "100%",
                                             }}
-                                        />
+                                        >
+                                            <LazyLoadImage
+                                                alt={message.message_text_content || ""}
+                                                effect="blur"
+                                                src={mediaDisplaySource}
+                                                wrapperProps={{
+                                                    style: {
+                                                        display: "block",
+                                                        height: "100%",
+                                                        width: "100%",
+                                                        maxWidth: "100%",
+                                                        transitionDelay: "1s",
+                                                    },
+                                                }}
+                                                style={{
+                                                    height: "100%",
+                                                    width: "100%",
+                                                    maxWidth: "100%",
+                                                    display: "block",
+                                                    objectFit: "cover",
+                                                    borderRadius: 4,
+                                                    overflow: "hidden",
+                                                    filter: shouldBlurPreview
+                                                        ? "blur(12px)"
+                                                        : "none",
+                                                    transform: shouldBlurPreview
+                                                        ? "scale(1.04)"
+                                                        : "none",
+                                                    transition:
+                                                        "filter 180ms ease, transform 180ms ease",
+                                                }}
+                                            />
+                                        </div>
                                     ) : (
-                                        <div className="flex min-h-44 w-48 items-center justify-center rounded bg-gradient-to-br from-[#d6d1cb] to-[#bab4ae] text-white dark:from-[#2d3131] dark:to-[#1e2222]">
+                                        <div
+                                            className="flex w-full max-w-full items-center justify-center rounded bg-linear-to-br from-[#d6d1cb] to-[#bab4ae] text-white dark:from-[#2d3131] dark:to-[#1e2222]"
+                                            style={{
+                                                aspectRatio: `${resolvedMediaAspectRatio}`,
+                                                minHeight: 176,
+                                                maxWidth: "100%",
+                                            }}
+                                        >
                                             <div className="flex flex-col items-center gap-y-2 text-center">
                                                 {message.attached_media === "video" ? (
                                                     <VideocamRounded fontSize="large" />

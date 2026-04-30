@@ -16,6 +16,17 @@ import {
 } from "@/lib/contact-display";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 
+function formatLastSeen(value: Date, locale: string | undefined) {
+    return `${value.toLocaleDateString(locale ?? undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    })} ${value.toLocaleTimeString(locale ?? undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    })}`;
+}
+
 export default function ChatRoomHeader() {
     const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
@@ -46,12 +57,37 @@ export default function ChatRoomHeader() {
             ? directContact?.contact_avatar ?? safeSelectedAvatar
             : safeSelectedAvatar;
     const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
+    const canShowDirectStatus =
+        selectedChat?.chat_type === "single" &&
+        (selectedChat.recipient_who_can_see_status === "all" ||
+            (selectedChat.recipient_who_can_see_status === "contacts" &&
+                Boolean(directContact)));
+    const isDirectRecipientOnline =
+        Boolean(
+            selectedChat?.chat_type === "single" &&
+                selectedChat.recipient_user_id &&
+                activePresence?.activeUsers.includes(selectedChat.recipient_user_id)
+        );
     const subtitle =
-        activePresence && activePresence.activeUsersCount > 0
-            ? `${activePresence.activeUsersCount} active`
-            : selectedChat?.chat_type === "group"
-                ? "Group chat"
-                : "Direct chat";
+        selectedChat?.chat_type === "single"
+            ? canShowDirectStatus
+                ? isDirectRecipientOnline
+                    ? isRTL
+                        ? "متصل"
+                        : "Online"
+                    : selectedChat.recipient_last_seen
+                      ? isRTL
+                        ? `آخر ظهور ${formatLastSeen(
+                              selectedChat.recipient_last_seen,
+                              locale ?? undefined
+                          )}`
+                        : `Last seen ${formatLastSeen(
+                              selectedChat.recipient_last_seen,
+                              locale ?? undefined
+                          )}`
+                      : ""
+                : ""
+            : "Group chat";
 
     return (
         <Box
@@ -109,9 +145,11 @@ export default function ChatRoomHeader() {
                     >
                         {headerTitle}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
-                        {subtitle}
-                    </Typography>
+                    {subtitle ? (
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
+                            {subtitle}
+                        </Typography>
+                    ) : null}
                 </Box>
             </Box>
             <div className="flex flex-row items-center gap-x-2">

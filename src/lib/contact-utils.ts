@@ -18,12 +18,27 @@ export function buildPhoneLookupVariants(value: string): string[] {
         return [];
     }
 
-    const variants = new Set<string>([normalized]);
+    const variants = new Set<string>();
+    const digits = normalized.replace(/\D/g, "");
 
-    if (normalized.startsWith("+")) {
-        const digits = normalized.slice(1);
+    const addDigitsVariant = (nextDigits: string) => {
+        if (!nextDigits) {
+            return;
+        }
 
-        for (let countryCodeLength = 1; countryCodeLength <= 3; countryCodeLength += 1) {
+        variants.add(nextDigits);
+        variants.add(`+${nextDigits}`);
+    };
+
+    variants.add(normalized);
+    addDigitsVariant(digits);
+
+    if (digits) {
+        for (
+            let countryCodeLength = 1;
+            countryCodeLength <= 3;
+            countryCodeLength += 1
+        ) {
             const countryCode = digits.slice(0, countryCodeLength);
             const subscriber = digits.slice(countryCodeLength);
 
@@ -36,12 +51,22 @@ export function buildPhoneLookupVariants(value: string): string[] {
                 continue;
             }
 
-            variants.add(`+${countryCode}${trimmedSubscriber}`);
-            variants.add(`+${countryCode}0${trimmedSubscriber}`);
+            addDigitsVariant(`${countryCode}${trimmedSubscriber}`);
+            addDigitsVariant(`${countryCode}0${trimmedSubscriber}`);
         }
     }
 
     return [...variants];
+}
+
+export function buildPhoneDigitLookupVariants(value: string): string[] {
+    return [
+        ...new Set(
+            buildPhoneLookupVariants(value)
+                .map((variant) => variant.replace(/\D/g, ""))
+                .filter(Boolean)
+        ),
+    ];
 }
 
 export function phoneValuesMatch(

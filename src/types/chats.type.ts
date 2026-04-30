@@ -12,6 +12,8 @@ export type ChatItemType = {
     recipient_user_id?: string | null;
     recipient_public_key?: string | null;
     contact_phone?: string | null;
+    recipient_last_seen?: Date | null;
+    recipient_who_can_see_status?: "all" | "contacts" | "nobody" | null;
     stored_contact?: StoredContactRecord | null;
     is_provisional?: boolean;
     last_message_id?: string | null;

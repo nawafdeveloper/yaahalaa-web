@@ -74,6 +74,7 @@ export default function CreateNewContactSection({ country }: Props) {
                     `/api/contacts/check?phone=${encodeURIComponent(fullPhoneNumber)}`,
                     {
                         cache: "no-store",
+                        credentials: "same-origin",
                     }
                 );
 
@@ -219,6 +220,7 @@ export default function CreateNewContactSection({ country }: Props) {
             const phoneHash = await sha256Hex(fullPhoneNumber);
             const response = await fetch("/api/contacts", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                     "Content-Type": "application/json",
                 },

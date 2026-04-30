@@ -200,6 +200,9 @@ export function createOptimisticMessage({
     mediaUrl = null,
     mediaPreviewUrl = null,
     mediaSizeBytes = null,
+    mediaWidth = null,
+    mediaHeight = null,
+    mediaFileName = null,
     videoThumbnail = null,
     contact = null,
     clientLocalMediaName = null,
@@ -214,6 +217,9 @@ export function createOptimisticMessage({
     mediaUrl?: string | null;
     mediaPreviewUrl?: string | null;
     mediaSizeBytes?: number | null;
+    mediaWidth?: number | null;
+    mediaHeight?: number | null;
+    mediaFileName?: string | null;
     videoThumbnail?: string | null;
     contact?: Message["contact"] | null;
     clientLocalMediaName?: string | null;
@@ -237,6 +243,9 @@ export function createOptimisticMessage({
         media_url: mediaUrl,
         media_preview_url: mediaPreviewUrl,
         media_size_bytes: mediaSizeBytes,
+        media_width: mediaWidth,
+        media_height: mediaHeight,
+        media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,

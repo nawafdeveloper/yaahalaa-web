@@ -488,12 +488,18 @@ export default function ChatRoomInputAttachButton() {
                 onClose={() => setContactDialogOpen(false)}
                 fullWidth
                 maxWidth="xs"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4,
+                        overflow: "hidden",
+                    },
+                }}
             >
                 <DialogTitle>
                     {isRTL ? "مشاركة جهة اتصال" : "Share contact"}
                 </DialogTitle>
                 <DialogContent sx={{ px: 0 }}>
-                    {contactsLoading ? (
+                    {contactsLoading && sortedContacts.length === 0 ? (
                         <div className="flex min-h-40 items-center justify-center">
                             <CircularProgress size={26} />
                         </div>

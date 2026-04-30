@@ -9,7 +9,7 @@ import {
     Send,
 } from "@mui/icons-material";
 import { IconButton, InputAdornment, TextField } from "@mui/material";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ChatRoomInputAttachButton from "./chat-room-input-attach-button";
 import ChatRoomInputEmojiButton from "./chat-room-input-emoji-button";
 import RecordTimer from "./record-timer";
@@ -34,8 +34,10 @@ export default function ChatRoomInputForm() {
         selectedChatId ? state.draftsByChatId[selectedChatId] ?? "" : ""
     );
     const setDraft = useActiveChatStore((state) => state.setDraft);
-    const { sendMessage } = useSendChatMessage();
+    const { sendAttachment, sendMessage } = useSendChatMessage();
     const { handleDraftChange, stopTyping } = useChatTyping(selectedChatId);
+    const [pendingVoiceSend, setPendingVoiceSend] = useState(false);
+    const [voiceSendInFlight, setVoiceSendInFlight] = useState(false);
 
     const handleSend = async () => {
         if (!selectedChatId) {
@@ -56,9 +58,54 @@ export default function ChatRoomInputForm() {
         togglePauseResume,
         isPausedRecording,
         isRecordingInProgress,
+        isProcessingRecordedAudio,
+        recordedBlob,
         formattedRecordingTime,
         clearCanvas,
     } = recorderControls;
+
+    useEffect(() => {
+        if (!pendingVoiceSend || !recordedBlob || !selectedChatId) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const sendRecordedVoice = async () => {
+            setVoiceSendInFlight(true);
+
+            try {
+                const extension =
+                    recordedBlob.type.split("/")[1]?.split(";")[0] ?? "webm";
+                const recordedFile = new File(
+                    [recordedBlob],
+                    `voice-message.${extension}`,
+                    {
+                        type: recordedBlob.type || "audio/webm",
+                        lastModified: Date.now(),
+                    }
+                );
+
+                await sendAttachment({
+                    file: recordedFile,
+                    attachedMedia: "voice",
+                    chatId: selectedChatId,
+                });
+            } finally {
+                if (!isCancelled) {
+                    setPendingVoiceSend(false);
+                    setVoiceSendInFlight(false);
+                    clearCanvas();
+                }
+            }
+        };
+
+        void sendRecordedVoice();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [clearCanvas, pendingVoiceSend, recordedBlob, selectedChatId, sendAttachment]);
 
     const placeholder = useMemo(
         () =>
@@ -76,10 +123,12 @@ export default function ChatRoomInputForm() {
                         <IconButton
                             type="button"
                             onClick={() => {
+                                setPendingVoiceSend(false);
                                 stopRecording();
                                 clearCanvas();
                             }}
                             size="medium"
+                            disabled={voiceSendInFlight}
                         >
                             <DeleteOutlined />
                         </IconButton>
@@ -99,16 +148,18 @@ export default function ChatRoomInputForm() {
                             type="button"
                             onClick={() => togglePauseResume()}
                             size="medium"
+                            disabled={voiceSendInFlight}
                         >
                             {isPausedRecording ? <PlayArrow /> : <Pause />}
                         </IconButton>
                         <IconButton
                             type="button"
                             onClick={() => {
+                                setPendingVoiceSend(true);
                                 stopRecording();
-                                clearCanvas();
                             }}
                             size="medium"
+                            disabled={voiceSendInFlight || isProcessingRecordedAudio}
                             sx={{
                                 backgroundColor: "#25D366",
                                 color: "#161717",

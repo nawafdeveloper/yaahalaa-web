@@ -1,5 +1,9 @@
 import db from "@/db";
 import {
+    getUnreadCountForRecipient,
+    markConversationRead,
+} from "@/lib/chat-read-state";
+import {
     chatRecipientKeys,
     chats,
     message as messageTable,
@@ -69,6 +73,9 @@ type SendMessagePayload = {
           mediaUrl?: string | null;
           mediaPreviewUrl?: string | null;
           mediaSizeBytes?: number | null;
+          mediaWidth?: number | null;
+          mediaHeight?: number | null;
+          mediaFileName?: string | null;
           videoThumbnail?: string | null;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
@@ -97,6 +104,9 @@ type StoredMessage = {
     media_url: string | null;
     media_preview_url: string | null;
     media_size_bytes: number | null;
+    media_width: number | null;
+    media_height: number | null;
+    media_file_name: string | null;
     video_thumbnail: string | null;
     message_raction: null;
     is_forward_message: boolean;
@@ -224,6 +234,13 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
 
                 case "MARK_DELIVERED":
                 case "MARK_READ": {
+                    if (data.type === "MARK_READ") {
+                        await markConversationRead({
+                            chatId: data.conversationId,
+                            userId: session.userId,
+                        });
+                    }
+
                     await this.receiveEvent({
                         type: data.type,
                         conversationId: data.conversationId,
@@ -300,6 +317,9 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 mediaUrl: data.mediaUrl ?? null,
                 mediaPreviewUrl: data.mediaPreviewUrl ?? null,
                 mediaSizeBytes: data.mediaSizeBytes ?? null,
+                mediaWidth: data.mediaWidth ?? null,
+                mediaHeight: data.mediaHeight ?? null,
+                mediaFileName: data.mediaFileName ?? null,
                 recipientEncryptionKeyCount:
                     data.recipientEncryptionKeys?.length ?? 0,
             });
@@ -365,6 +385,9 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             mediaUrl: data.mediaUrl ?? null,
             mediaPreviewUrl: data.mediaPreviewUrl ?? null,
             mediaSizeBytes: data.mediaSizeBytes ?? null,
+            mediaWidth: data.mediaWidth ?? null,
+            mediaHeight: data.mediaHeight ?? null,
+            mediaFileName: data.mediaFileName ?? null,
             videoThumbnail: data.videoThumbnail ?? null,
             encryptedContent: data.encryptedContent ?? null,
             recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
@@ -413,6 +436,10 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             });
         }
         await this.updateTypingState(session, conversationId, "stop");
+        await markConversationRead({
+            chatId: conversationId,
+            userId: senderUserId,
+        });
 
         const recipients =
             data.conversationType === "group"
@@ -421,12 +448,33 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                   ? [directRecipientId]
                   : [];
         if (recipients.length > 0) {
+            const unreadCountsByRecipient = new Map<string, number>();
+
+            await Promise.all(
+                [...new Set(recipients)]
+                    .filter(
+                        (participantId) =>
+                            participantId && participantId !== senderUserId
+                    )
+                    .map(async (participantId) => {
+                        unreadCountsByRecipient.set(
+                            participantId,
+                            await getUnreadCountForRecipient({
+                                chatId: conversationId,
+                                userId: participantId,
+                            })
+                        );
+                    })
+            );
+
             await this.notifyParticipants(recipients, senderUserId, {
                 type: "CONVERSATION_UPDATED",
                 conversationId,
                 conversationType: data.conversationType,
                 lastMessage: savedMessage,
-                unreadCount: 1,
+                unreadCountByRecipient: Object.fromEntries(
+                    unreadCountsByRecipient
+                ),
             });
         }
     }
@@ -451,7 +499,17 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                     headers: {
                         "content-type": "application/json",
                     },
-                    body: JSON.stringify(event),
+                    body: JSON.stringify({
+                        ...event,
+                        unreadCount:
+                            typeof event.unreadCountByRecipient === "object" &&
+                            event.unreadCountByRecipient !== null
+                                ? (event.unreadCountByRecipient as Record<
+                                      string,
+                                      number
+                                  >)[participantId] ?? event.unreadCount ?? 0
+                                : event.unreadCount,
+                    }),
                 });
             })
         );
@@ -546,6 +604,9 @@ async function saveMessageToDb({
     mediaUrl,
     mediaPreviewUrl,
     mediaSizeBytes,
+    mediaWidth,
+    mediaHeight,
+    mediaFileName,
     videoThumbnail,
     encryptedContent,
     recipientEncryptionKeys,
@@ -562,6 +623,9 @@ async function saveMessageToDb({
     mediaUrl: string | null;
     mediaPreviewUrl: string | null;
     mediaSizeBytes: number | null;
+    mediaWidth: number | null;
+    mediaHeight: number | null;
+    mediaFileName: string | null;
     videoThumbnail: string | null;
     encryptedContent: EncryptedContentEnvelope | null;
     recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
@@ -588,6 +652,9 @@ async function saveMessageToDb({
             mediaUrl,
             mediaPreviewUrl,
             mediaSizeBytes,
+            mediaWidth,
+            mediaHeight,
+            mediaFileName,
             recipientEncryptionKeyCount: normalizedMessageKeys.length,
         });
     }
@@ -651,6 +718,9 @@ async function saveMessageToDb({
         media_url: mediaUrl,
         media_preview_url: mediaPreviewUrl,
         media_size_bytes: mediaSizeBytes,
+        media_width: mediaWidth,
+        media_height: mediaHeight,
+        media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,
@@ -730,6 +800,9 @@ async function saveMessageToDb({
             mediaUrl,
             mediaPreviewUrl,
             mediaSizeBytes,
+            mediaWidth,
+            mediaHeight,
+            mediaFileName,
             recipientEncryptionKeyCount: normalizedMessageKeys.length,
         });
     }
@@ -751,6 +824,9 @@ async function saveMessageToDb({
         media_url: mediaUrl,
         media_preview_url: mediaPreviewUrl,
         media_size_bytes: mediaSizeBytes,
+        media_width: mediaWidth,
+        media_height: mediaHeight,
+        media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
         is_forward_message: false,

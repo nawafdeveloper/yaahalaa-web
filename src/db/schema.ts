@@ -221,6 +221,9 @@ export const message = pgTable(
         media_url: text("media_url"),
         media_preview_url: text("media_preview_url"),
         media_size_bytes: integer("media_size_bytes"),
+        media_width: integer("media_width"),
+        media_height: integer("media_height"),
+        media_file_name: text("media_file_name"),
         video_thumbnail: text("video_thumbnail"),
         message_raction: jsonb("message_raction").$type<
             MessageReaction | null
@@ -318,6 +321,33 @@ export const chatRecipientKeys = pgTable(
     ]
 );
 
+export const chatReadStates = pgTable(
+    "chat_read_states",
+    {
+        id: text("id").primaryKey(),
+        chat_id: text("chat_id")
+            .notNull()
+            .references(() => chats.chat_id, { onDelete: "cascade" }),
+        user_id: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        last_read_at: timestamp("last_read_at").defaultNow().notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at")
+            .defaultNow()
+            .$onUpdate(() => /* @__PURE__ */ new Date())
+            .notNull(),
+    },
+    (table) => [
+        index("chat_read_states_chatId_idx").on(table.chat_id),
+        index("chat_read_states_userId_idx").on(table.user_id),
+        uniqueIndex("chat_read_states_chatUser_unique").on(
+            table.chat_id,
+            table.user_id
+        ),
+    ]
+);
+
 export const contacts = pgTable(
     "contacts",
     {
@@ -359,6 +389,7 @@ export const userRelations = relations(user, ({ many }) => ({
     messages: many(message),
     messageRecipientKeys: many(messageRecipientKeys),
     chatRecipientKeys: many(chatRecipientKeys),
+    chatReadStates: many(chatReadStates),
     ownedContacts: many(contacts, {
         relationName: "contact_owner",
     }),
@@ -389,6 +420,7 @@ export const chatsRelations = relations(chats, ({ many, one }) => ({
         relationName: "chat_last_message",
     }),
     recipientKeys: many(chatRecipientKeys),
+    readStates: many(chatReadStates),
 }));
 
 export const messageRelations = relations(message, ({ many, one }) => ({
@@ -441,6 +473,17 @@ export const chatRecipientKeysRelations = relations(chatRecipientKeys, ({ one })
     }),
 }));
 
+export const chatReadStatesRelations = relations(chatReadStates, ({ one }) => ({
+    chat: one(chats, {
+        fields: [chatReadStates.chat_id],
+        references: [chats.chat_id],
+    }),
+    user: one(user, {
+        fields: [chatReadStates.user_id],
+        references: [user.id],
+    }),
+}));
+
 export const contactsRelations = relations(contacts, ({ one }) => ({
     owner: one(user, {
         fields: [contacts.owner_user_id],
@@ -486,6 +529,7 @@ export const schema = {
     message,
     messageRecipientKeys,
     chatRecipientKeys,
+    chatReadStates,
     contacts,
     encryptedMedia,
 };

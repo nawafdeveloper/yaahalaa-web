@@ -1,8 +1,14 @@
 "use client";
 
 import ContextMenu from "@/context/menu";
+import { useCryptoKeys } from "@/context/crypto";
 import { authClient } from "@/lib/auth-client";
+import { decryptMessageBatch } from "@/lib/chat-e2ee";
+import { generateVideoThumbnailFromUrl } from "@/lib/generate-thumbnail";
+import { normalizeMessage } from "@/lib/chat-utils";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { getMessageMediaAutoDownload } from "@/lib/message-media";
+import { useDecryptedMessageMedia } from "@/hooks/use-decrypted-message-media";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { Message } from "@/types/messages.type";
 import {
@@ -20,7 +26,7 @@ import {
 import Box from "@mui/material/Box";
 import List from "@mui/material/List";
 import Typography from "@mui/material/Typography";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
@@ -29,12 +35,158 @@ import ChatRoomTypingBubble from "./chat-room-typing-bubble";
 import { CircularProgress } from "@mui/material";
 
 const EMPTY_MESSAGES: Message[] = [];
+const BLOCKING_MEDIA_TYPES = new Set(["photo", "video", "voice", "file"]);
+const PAGE_SIZE = 20;
+
+type MediaStatusMap = Record<string, boolean>;
+
+async function preloadImageAsset(src: string) {
+    await new Promise<void>((resolve, reject) => {
+        const image = new window.Image();
+
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Failed to preload image asset"));
+        image.src = src;
+    });
+}
+
+function ChatRoomMessageMediaPreloader({
+    message,
+    autoDownloadMedia,
+    onStatusChange,
+}: {
+    message: Message;
+    autoDownloadMedia: boolean;
+    onStatusChange: (messageId: string, ready: boolean) => void;
+}) {
+    const { decryptedUrl, displayUrl, loading, error } = useDecryptedMessageMedia({
+        mediaUrl: message.media_url,
+        previewUrl: message.media_preview_url ?? null,
+        autoDownload: autoDownloadMedia,
+    });
+
+    useEffect(() => {
+        let isActive = true;
+        let generatedThumbnailUrl: string | null = null;
+
+        const markReady = (ready: boolean) => {
+            if (isActive) {
+                onStatusChange(message.message_id, ready);
+            }
+        };
+
+        const prepare = async () => {
+            const attachedMedia = message.attached_media;
+            const shouldBlock =
+                !message.client_status &&
+                Boolean(message.media_url) &&
+                attachedMedia !== null &&
+                BLOCKING_MEDIA_TYPES.has(attachedMedia);
+
+            if (!shouldBlock || !autoDownloadMedia) {
+                markReady(true);
+                return;
+            }
+
+            if (loading) {
+                markReady(false);
+                return;
+            }
+
+            if (error) {
+                markReady(true);
+                return;
+            }
+
+            if (message.attached_media === "photo") {
+                if (!displayUrl) {
+                    markReady(false);
+                    return;
+                }
+
+                try {
+                    await preloadImageAsset(displayUrl);
+                } catch {
+                    // Avoid blocking the whole room forever on a failed decode.
+                }
+
+                markReady(true);
+                return;
+            }
+
+            if (message.attached_media === "video") {
+                const previewSource = decryptedUrl ?? message.media_preview_url ?? null;
+
+                if (!previewSource) {
+                    markReady(false);
+                    return;
+                }
+
+                try {
+                    if (decryptedUrl) {
+                        const thumbnailBlob =
+                            await generateVideoThumbnailFromUrl(decryptedUrl);
+                        const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+                        generatedThumbnailUrl = thumbnailUrl;
+                        await preloadImageAsset(thumbnailUrl);
+                    } else {
+                        await preloadImageAsset(previewSource);
+                    }
+                } catch {
+                    // Fall back to showing the room if thumbnail generation fails.
+                }
+
+                markReady(true);
+                return;
+            }
+
+            markReady(true);
+        };
+
+        void prepare();
+
+        return () => {
+            isActive = false;
+            if (generatedThumbnailUrl) {
+                URL.revokeObjectURL(generatedThumbnailUrl);
+            }
+        };
+    }, [
+        autoDownloadMedia,
+        decryptedUrl,
+        displayUrl,
+        error,
+        loading,
+        message.attached_media,
+        message.client_status,
+        message.media_preview_url,
+        message.media_url,
+        message.message_id,
+        onStatusChange,
+    ]);
+
+    return null;
+}
 
 export default function ChatRoomContent() {
+    const { isReady } = useCryptoKeys();
     const { data: session } = authClient.useSession();
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const messagesByChatId = useActiveChatStore((state) => state.messagesByChatId);
     const messagesLoadingByChatId = useActiveChatStore((state) => state.messagesLoadingByChatId);
+    const olderMessagesLoadingByChatId = useActiveChatStore(
+        (state) => state.olderMessagesLoadingByChatId
+    );
+    const hasOlderMessagesByChatId = useActiveChatStore(
+        (state) => state.hasOlderMessagesByChatId
+    );
+    const setMessages = useActiveChatStore((state) => state.setMessages);
+    const setOlderMessagesLoading = useActiveChatStore(
+        (state) => state.setOlderMessagesLoading
+    );
+    const setHasOlderMessages = useActiveChatStore(
+        (state) => state.setHasOlderMessages
+    );
     const typingByChatId = useActiveChatStore((state) => state.typingByChatId);
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
@@ -42,8 +194,20 @@ export default function ChatRoomContent() {
 
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
+    const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
+    const [mediaReadyByMessageId, setMediaReadyByMessageId] = useState<MediaStatusMap>(
+        {}
+    );
     const containerRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLUListElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const prependScrollStateRef = useRef<{
+        chatId: string;
+        previousScrollHeight: number;
+        previousScrollTop: number;
+    } | null>(null);
+    const previousSelectedChatIdRef = useRef<string | null>(null);
+    const previousLastMessageIdRef = useRef<string | null>(null);
 
     const messages = selectedChatId
         ? messagesByChatId[selectedChatId] ?? EMPTY_MESSAGES
@@ -51,27 +215,234 @@ export default function ChatRoomContent() {
     const messagesLoading = selectedChatId
         ? messagesLoadingByChatId[selectedChatId] ?? false
         : false;
+    const olderMessagesLoading = selectedChatId
+        ? olderMessagesLoadingByChatId[selectedChatId] ?? false
+        : false;
+    const hasOlderMessages = selectedChatId
+        ? hasOlderMessagesByChatId[selectedChatId] ?? false
+        : false;
     const activeTypingUsers = selectedChatId
         ? typingByChatId[selectedChatId]?.activeTypingUsers ?? []
         : [];
+    const blockingMediaMessages = messages.filter((message) => {
+        if (message.client_status || !message.media_url || !message.attached_media) {
+            return false;
+        }
+
+        return BLOCKING_MEDIA_TYPES.has(message.attached_media);
+    });
+    const visibleMessages = messages.filter((message) => {
+        if (message.client_status || !message.media_url || !message.attached_media) {
+            return true;
+        }
+
+        if (!BLOCKING_MEDIA_TYPES.has(message.attached_media)) {
+            return true;
+        }
+
+        return mediaReadyByMessageId[message.message_id] === true;
+    });
+    const isMediaReady =
+        blockingMediaMessages.length === 0 ||
+        blockingMediaMessages.every(
+            (message) => mediaReadyByMessageId[message.message_id] === true
+        );
+    const shouldShowInitialLoader =
+        (messagesLoading && visibleMessages.length === 0) ||
+        (!isMediaReady && visibleMessages.length === 0);
+    const currentUserId = session?.user.id ?? null;
+
+    const handleMediaReadyChange = React.useCallback(
+        (messageId: string, ready: boolean) => {
+            setMediaReadyByMessageId((current) => {
+                if (current[messageId] === ready) {
+                    return current;
+                }
+
+                return {
+                    ...current,
+                    [messageId]: ready,
+                };
+            });
+        },
+        []
+    );
 
     const scrollToBottom = (behavior: ScrollBehavior) => {
         bottomRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
-        scrollToBottom("instant");
+        if (messages.length > 0) {
+            scrollToBottom("instant");
+        }
     }, []);
-
-    useEffect(() => {
-        scrollToBottom("instant");
-    }, [messages]);
 
     useEffect(() => {
         if (activeTypingUsers.length > 0) {
             scrollToBottom("smooth");
         }
     }, [activeTypingUsers.length]);
+
+    const loadOlderMessages = React.useCallback(async () => {
+        if (
+            !selectedChatId ||
+            !currentUserId ||
+            !isReady ||
+            messagesLoading ||
+            olderMessagesLoading ||
+            !hasOlderMessages ||
+            messages.length === 0
+        ) {
+            return;
+        }
+
+        const oldestMessage = messages[0];
+        if (!oldestMessage) {
+            return;
+        }
+
+        const listElement = listRef.current;
+        if (listElement) {
+            prependScrollStateRef.current = {
+                chatId: selectedChatId,
+                previousScrollHeight: listElement.scrollHeight,
+                previousScrollTop: listElement.scrollTop,
+            };
+        }
+
+        try {
+            setOlderMessagesLoading(selectedChatId, true);
+            const response = await fetch(
+                `/api/messages?chatRoomId=${encodeURIComponent(selectedChatId)}&limit=${PAGE_SIZE}&beforeCreatedAt=${encodeURIComponent(oldestMessage.created_at.toISOString())}`
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch older messages");
+            }
+
+            const payload = (await response.json()) as {
+                messages: (Omit<Message, "created_at" | "updated_at"> & {
+                    created_at: string;
+                    updated_at: string;
+                })[];
+                hasMore?: boolean;
+            };
+
+            const normalizedMessages = payload.messages.map(normalizeMessage);
+            const decryptedMessages = await decryptMessageBatch({
+                currentUserId,
+                messages: normalizedMessages,
+            });
+
+            setMessages(selectedChatId, decryptedMessages);
+            setHasOlderMessages(
+                selectedChatId,
+                payload.hasMore ?? normalizedMessages.length === PAGE_SIZE
+            );
+        } catch {
+            prependScrollStateRef.current = null;
+        } finally {
+            if (selectedChatId) {
+                setOlderMessagesLoading(selectedChatId, false);
+            }
+        }
+    }, [
+        currentUserId,
+        hasOlderMessages,
+        isReady,
+        messages,
+        messagesLoading,
+        olderMessagesLoading,
+        selectedChatId,
+        setHasOlderMessages,
+        setMessages,
+        setOlderMessagesLoading,
+    ]);
+
+    useEffect(() => {
+        const listElement = listRef.current;
+        if (!listElement) {
+            return;
+        }
+
+        const handleScroll = () => {
+            setShowScrollToBottomButton(listElement.scrollTop < -1 ? false : listElement.scrollHeight - listElement.clientHeight - listElement.scrollTop > 220);
+
+            if (listElement.scrollTop <= 96) {
+                void loadOlderMessages();
+            }
+        };
+
+        handleScroll();
+
+        listElement.addEventListener("scroll", handleScroll);
+
+        return () => {
+            listElement.removeEventListener("scroll", handleScroll);
+        };
+    }, [loadOlderMessages]);
+
+    useLayoutEffect(() => {
+        const listElement = listRef.current;
+        const pendingPrepend = prependScrollStateRef.current;
+        const currentLastMessageId = messages[messages.length - 1]?.message_id ?? null;
+        const previousSelectedChatId = previousSelectedChatIdRef.current;
+        const previousLastMessageId = previousLastMessageIdRef.current;
+
+        if (
+            listElement &&
+            pendingPrepend &&
+            pendingPrepend.chatId === selectedChatId
+        ) {
+            const scrollDelta =
+                listElement.scrollHeight - pendingPrepend.previousScrollHeight;
+            listElement.scrollTop =
+                pendingPrepend.previousScrollTop + scrollDelta;
+            prependScrollStateRef.current = null;
+        } else if (
+            messages.length > 0 &&
+            (previousSelectedChatId !== selectedChatId ||
+                (previousLastMessageId !== currentLastMessageId &&
+                    previousLastMessageId !== null))
+        ) {
+            scrollToBottom(
+                previousSelectedChatId !== selectedChatId ? "instant" : "smooth"
+            );
+        }
+
+        previousSelectedChatIdRef.current = selectedChatId;
+        previousLastMessageIdRef.current = currentLastMessageId;
+    }, [messages, selectedChatId]);
+
+    useEffect(() => {
+        setShowScrollToBottomButton(false);
+    }, [selectedChatId]);
+
+    useEffect(() => {
+        const nextStatuses = blockingMediaMessages.reduce<MediaStatusMap>(
+            (accumulator, message) => {
+                accumulator[message.message_id] =
+                    mediaReadyByMessageId[message.message_id] ?? false;
+                return accumulator;
+            },
+            {}
+        );
+
+        setMediaReadyByMessageId((current) => {
+            const currentKeys = Object.keys(current);
+            const nextKeys = Object.keys(nextStatuses);
+
+            if (
+                currentKeys.length === nextKeys.length &&
+                nextKeys.every((key) => current[key] === nextStatuses[key])
+            ) {
+                return current;
+            }
+
+            return nextStatuses;
+        });
+    }, [blockingMediaMessages, mediaReadyByMessageId]);
 
     const getWallpaper = (mode: "dark" | "light") => {
         if (!session) {
@@ -124,6 +495,7 @@ export default function ChatRoomContent() {
             })}
         >
             <List
+                ref={listRef}
                 sx={{
                     width: "100%",
                     height: "100%",
@@ -133,11 +505,40 @@ export default function ChatRoomContent() {
                     paddingBottom: 8,
                 }}
             >
-                {messagesLoading ? (
+                {blockingMediaMessages.map((message) => (
+                    <ChatRoomMessageMediaPreloader
+                        key={`preload-${message.message_id}`}
+                        message={message}
+                        autoDownloadMedia={getMessageMediaAutoDownload(
+                            message,
+                            session?.user as
+                                | {
+                                      id?: string;
+                                      imageMediaAutoDownload?: boolean;
+                                      videoMediaAutoDownload?: boolean;
+                                  }
+                                | undefined
+                        )}
+                        onStatusChange={handleMediaReadyChange}
+                    />
+                ))}
+                {!shouldShowInitialLoader &&
+                    olderMessagesLoading &&
+                    messages.length > 0 && (
+                        <div className="sticky top-0 z-10 flex justify-center py-3">
+                            <div className="rounded-full border border-neutral-300 bg-[#f7f5f3] px-3 py-2 shadow-sm dark:border-neutral-700 dark:bg-[#1d1f1f]">
+                                <CircularProgress
+                                    size={18}
+                                    aria-label="Loading older messages"
+                                />
+                            </div>
+                        </div>
+                    )}
+                {shouldShowInitialLoader ? (
                     <div className="flex justify-center items-end h-full w-full">
                         <CircularProgress aria-label="Loading…" className="p-2 rounded-full shadow-sm dark:bg-[#1d1f1f] bg-[#f7f5f3] border dark:border-neutral-700 border-neutral-300" />
                     </div>
-                ) : messages.length === 0 ? (
+                ) : visibleMessages.length === 0 ? (
                     <Box
                         sx={{
                             mx: "auto",
@@ -162,7 +563,7 @@ export default function ChatRoomContent() {
                                 : "Your messages are end-to-end encrypted."}
                         </Typography>
                     </Box>
-                ) : messages.map((item) => (
+                ) : visibleMessages.map((item) => (
                     <ChatRoomMessageBubble
                         key={item.message_id}
                         message={item}
@@ -191,11 +592,17 @@ export default function ChatRoomContent() {
             ) : (
                 <ChatRoomInputForm />
             )}
-            <div className={`absolute bottom-18 ${isRTL ? 'left-4' : 'right-4'} z-50`}>
-                <button className="p-2 rounded-full cursor-pointer bg-[#ffffff] dark:bg-[#222424] justify-center items-center">
-                    <ExpandMore className="size-4" />
-                </button>
-            </div>
+            {showScrollToBottomButton ? (
+                <div className={`absolute bottom-18 ${isRTL ? 'left-4' : 'right-4'} z-50`}>
+                    <button
+                        type="button"
+                        onClick={() => scrollToBottom("smooth")}
+                        className="flex items-center justify-center rounded-full bg-[#ffffff] p-2 shadow-sm transition hover:scale-[1.03] dark:bg-[#222424]"
+                    >
+                        <ExpandMore className="size-4" />
+                    </button>
+                </div>
+            ) : null}
             <ContextMenu
                 containerRef={containerRef}
                 items={[

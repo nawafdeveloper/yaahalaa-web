@@ -59,6 +59,9 @@ export function useChatRealtime() {
     const setMessagesLoading = useActiveChatStore(
         (state) => state.setMessagesLoading
     );
+    const setHasOlderMessages = useActiveChatStore(
+        (state) => state.setHasOlderMessages
+    );
     const setPresence = useActiveChatStore((state) => state.setPresence);
     const setTypingUsers = useActiveChatStore((state) => state.setTypingUsers);
     const markChatRead = useActiveChatStore((state) => state.markChatRead);
@@ -188,7 +191,7 @@ export function useChatRealtime() {
             try {
                 setMessagesLoading(selectedChatId, true);
                 const response = await fetch(
-                    `/api/messages?chatRoomId=${encodeURIComponent(selectedChatId)}&limit=40`
+                    `/api/messages?chatRoomId=${encodeURIComponent(selectedChatId)}&limit=20`
                 );
                 if (!response.ok) {
                     throw new Error("Failed to fetch messages");
@@ -199,6 +202,7 @@ export function useChatRealtime() {
                         created_at: string;
                         updated_at: string;
                     })[];
+                    hasMore?: boolean;
                 };
 
                 if (isCancelled) {
@@ -213,6 +217,10 @@ export function useChatRealtime() {
 
                 if (!isCancelled) {
                     setMessages(selectedChatId, decryptedMessages);
+                    setHasOlderMessages(
+                        selectedChatId,
+                        payload.hasMore ?? normalizedMessages.length === 20
+                    );
                 }
             } catch (error) {
                 if (!isCancelled) {
@@ -239,6 +247,7 @@ export function useChatRealtime() {
         isReady,
         selectedChatId,
         setChatsError,
+        setHasOlderMessages,
         setMessages,
         setMessagesLoading,
     ]);
@@ -330,6 +339,13 @@ export function useChatRealtime() {
                     );
                     if (isSelected) {
                         markChatRead(event.conversationId);
+                        if (nextMessage.sender_user_id !== currentUserId) {
+                            sendEvent({
+                                type: "MARK_READ",
+                                conversationId: event.conversationId,
+                                messageId: nextMessage.message_id,
+                            });
+                        }
                     }
                     break;
                 }
@@ -359,6 +375,16 @@ export function useChatRealtime() {
                             })
                         )
                     );
+                    if (
+                        isSelected &&
+                        nextMessage.sender_user_id !== currentUserId
+                    ) {
+                        sendEvent({
+                            type: "MARK_READ",
+                            conversationId: event.conversationId,
+                            messageId: nextMessage.message_id,
+                        });
+                    }
                     break;
                 }
 
@@ -402,6 +428,10 @@ export function useChatRealtime() {
                 if (selectedChatIdRef.current) {
                     sendEvent({
                         type: "JOIN_CONVERSATION",
+                        conversationId: selectedChatIdRef.current,
+                    });
+                    sendEvent({
+                        type: "MARK_READ",
                         conversationId: selectedChatIdRef.current,
                     });
                 }
