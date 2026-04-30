@@ -65,6 +65,9 @@ export function useChatRealtime() {
     const setPresence = useActiveChatStore((state) => state.setPresence);
     const setTypingUsers = useActiveChatStore((state) => state.setTypingUsers);
     const markChatRead = useActiveChatStore((state) => state.markChatRead);
+    const markMessagesReadByUser = useActiveChatStore(
+        (state) => state.markMessagesReadByUser
+    );
     const setRecipientPhone = useActiveChatStore((state) => state.setRecipientPhone);
     const setSocket = useRealtimeStore((state) => state.setSocket);
     const setStatus = useRealtimeStore((state) => state.setStatus);
@@ -409,6 +412,18 @@ export function useChatRealtime() {
                     break;
                 }
 
+                case "MARK_READ": {
+                    const readAt = new Date(event.readAt);
+                    if (!Number.isNaN(readAt.getTime())) {
+                        markMessagesReadByUser(
+                            event.conversationId,
+                            event.userId,
+                            readAt
+                        );
+                    }
+                    break;
+                }
+
                 case "ERROR": {
                     setChatsError(event.message);
                     break;
@@ -493,6 +508,7 @@ export function useChatRealtime() {
         currentUserId,
         isReady,
         markChatRead,
+        markMessagesReadByUser,
         sendEvent,
         setChatsError,
         setPresence,

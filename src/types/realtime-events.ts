@@ -111,6 +111,7 @@ export type ServerRealtimeEvent =
           conversationId: string;
           messageId: string | null;
           userId: string;
+          readAt: string;
       }
     | {
           type: "ERROR";

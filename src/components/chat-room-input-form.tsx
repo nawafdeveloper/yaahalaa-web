@@ -38,6 +38,9 @@ export default function ChatRoomInputForm() {
     const { handleDraftChange, stopTyping } = useChatTyping(selectedChatId);
     const [pendingVoiceSend, setPendingVoiceSend] = useState(false);
     const [voiceSendInFlight, setVoiceSendInFlight] = useState(false);
+    const voiceSendInFlightRef = useRef(false);
+    const voiceSendBlobRef = useRef<Blob | null>(null);
+    const isMountedRef = useRef(true);
 
     const handleSend = async () => {
         if (!selectedChatId) {
@@ -64,14 +67,38 @@ export default function ChatRoomInputForm() {
         clearCanvas,
     } = recorderControls;
 
+    const sendAttachmentRef = useRef(sendAttachment);
+    const clearCanvasRef = useRef(clearCanvas);
+
+    useEffect(() => {
+        sendAttachmentRef.current = sendAttachment;
+    }, [sendAttachment]);
+
+    useEffect(() => {
+        clearCanvasRef.current = clearCanvas;
+    }, [clearCanvas]);
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
     useEffect(() => {
         if (!pendingVoiceSend || !recordedBlob || !selectedChatId) {
             return;
         }
 
-        let isCancelled = false;
+        if (
+            voiceSendInFlightRef.current ||
+            voiceSendBlobRef.current === recordedBlob
+        ) {
+            return;
+        }
 
         const sendRecordedVoice = async () => {
+            voiceSendInFlightRef.current = true;
+            voiceSendBlobRef.current = recordedBlob;
             setVoiceSendInFlight(true);
 
             try {
@@ -86,26 +113,25 @@ export default function ChatRoomInputForm() {
                     }
                 );
 
-                await sendAttachment({
+                await sendAttachmentRef.current({
                     file: recordedFile,
                     attachedMedia: "voice",
                     chatId: selectedChatId,
                 });
             } finally {
-                if (!isCancelled) {
+                voiceSendInFlightRef.current = false;
+                voiceSendBlobRef.current = null;
+
+                if (isMountedRef.current) {
                     setPendingVoiceSend(false);
                     setVoiceSendInFlight(false);
-                    clearCanvas();
+                    clearCanvasRef.current();
                 }
             }
         };
 
         void sendRecordedVoice();
-
-        return () => {
-            isCancelled = true;
-        };
-    }, [clearCanvas, pendingVoiceSend, recordedBlob, selectedChatId, sendAttachment]);
+    }, [pendingVoiceSend, recordedBlob, selectedChatId]);
 
     const placeholder = useMemo(
         () =>

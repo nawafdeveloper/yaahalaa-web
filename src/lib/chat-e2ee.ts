@@ -17,18 +17,51 @@ type SharedContactMessagePayload = {
     contact: NonNullable<Message["contact"]>;
 };
 
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-    return bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength
-    ) as ArrayBuffer;
+const textEncoder = new TextEncoder();
+const MAX_DECRYPT_CACHE_ITEMS = 500;
+const MAX_CACHEABLE_CIPHERTEXT_LENGTH = 16_384;
+const publicKeyImportCache = new Map<string, Promise<CryptoKey>>();
+const decryptedTextCache = new Map<string, string>();
+
+function getImportedPublicKey(publicKeyBase64: string) {
+    const cachedKey = publicKeyImportCache.get(publicKeyBase64);
+    if (cachedKey) {
+        return cachedKey;
+    }
+
+    const keyPromise = importPublicKey(publicKeyBase64);
+    publicKeyImportCache.set(publicKeyBase64, keyPromise);
+    return keyPromise;
+}
+
+function getDecryptCacheKey({
+    ciphertext,
+    encryptedAesKey,
+    iv,
+}: {
+    ciphertext: string;
+    encryptedAesKey: string;
+    iv: string;
+}) {
+    return `${encryptedAesKey}:${iv}:${ciphertext}`;
+}
+
+function rememberDecryptedText(cacheKey: string, plaintext: string) {
+    if (decryptedTextCache.size >= MAX_DECRYPT_CACHE_ITEMS) {
+        const oldestKey = decryptedTextCache.keys().next().value;
+        if (oldestKey) {
+            decryptedTextCache.delete(oldestKey);
+        }
+    }
+
+    decryptedTextCache.set(cacheKey, plaintext);
 }
 
 async function encryptAesKeyForRecipient(
     rawAesKey: ArrayBuffer,
     publicKeyBase64: string
 ) {
-    const publicKey = await importPublicKey(publicKeyBase64);
+    const publicKey = await getImportedPublicKey(publicKeyBase64);
     const encrypted = await crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         publicKey,
@@ -55,7 +88,7 @@ export async function encryptTextForRecipients(
     const ciphertext = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv },
         aesKey,
-        new TextEncoder().encode(plaintext)
+        textEncoder.encode(plaintext)
     );
 
     const uniqueRecipients = [...new Map(
@@ -92,7 +125,13 @@ export async function decryptMessageBatch({
     currentUserId: string;
     messages: Message[];
 }): Promise<Message[]> {
-    const { decryptText } = await import("@/lib/text-encryption");
+    const { decryptTextWithPrivateKey, getSessionCryptoKeys } = await import(
+        "@/lib/text-encryption"
+    );
+    const sessionKeys = await getSessionCryptoKeys();
+    if (!sessionKeys?.privateKey) {
+        return messages;
+    }
 
     return Promise.all(
         messages.map(async (message) => {
@@ -113,11 +152,15 @@ export async function decryptMessageBatch({
             }
 
             try {
-                const decryptedText = await decryptText({
-                    ciphertext: message.encrypted_content_ciphertext,
-                    encryptedAesKey: recipientKey.encrypted_aes_key,
-                    iv: message.encrypted_content_iv,
-                });
+                const decryptedText = await decryptTextPayload(
+                    {
+                        ciphertext: message.encrypted_content_ciphertext,
+                        encryptedAesKey: recipientKey.encrypted_aes_key,
+                        iv: message.encrypted_content_iv,
+                    },
+                    sessionKeys.privateKey,
+                    decryptTextWithPrivateKey
+                );
                 const sharedContact =
                     message.attached_media === "contact"
                         ? parseSharedContactMessage(decryptedText)
@@ -146,7 +189,13 @@ export async function decryptChatPreviewBatch({
     chats: ChatItemType[];
     currentUserId: string;
 }) {
-    const { decryptText } = await import("@/lib/text-encryption");
+    const { decryptTextWithPrivateKey, getSessionCryptoKeys } = await import(
+        "@/lib/text-encryption"
+    );
+    const sessionKeys = await getSessionCryptoKeys();
+    if (!sessionKeys?.privateKey) {
+        return chats;
+    }
 
     return Promise.all(
         chats.map(async (chat) => {
@@ -167,11 +216,15 @@ export async function decryptChatPreviewBatch({
             }
 
             try {
-                const decryptedPreview = await decryptText({
-                    ciphertext: chat.encrypted_preview_ciphertext,
-                    encryptedAesKey: recipientKey.encrypted_aes_key,
-                    iv: chat.encrypted_preview_iv,
-                });
+                const decryptedPreview = await decryptTextPayload(
+                    {
+                        ciphertext: chat.encrypted_preview_ciphertext,
+                        encryptedAesKey: recipientKey.encrypted_aes_key,
+                        iv: chat.encrypted_preview_iv,
+                    },
+                    sessionKeys.privateKey,
+                    decryptTextWithPrivateKey
+                );
 
                 return {
                     ...chat,
@@ -182,6 +235,42 @@ export async function decryptChatPreviewBatch({
             }
         })
     );
+}
+
+async function decryptTextPayload(
+    payload: {
+        ciphertext: string;
+        encryptedAesKey: string;
+        iv: string;
+    },
+    privateKey: CryptoKey,
+    decryptTextWithPrivateKey: (
+        payload: {
+            ciphertext: string;
+            encryptedAesKey: string;
+            iv: string;
+        },
+        privateKey: CryptoKey
+    ) => Promise<string>
+) {
+    const cacheKey =
+        payload.ciphertext.length <= MAX_CACHEABLE_CIPHERTEXT_LENGTH
+            ? getDecryptCacheKey(payload)
+            : null;
+
+    if (cacheKey) {
+        const cachedPlaintext = decryptedTextCache.get(cacheKey);
+        if (cachedPlaintext !== undefined) {
+            return cachedPlaintext;
+        }
+    }
+
+    const plaintext = await decryptTextWithPrivateKey(payload, privateKey);
+    if (cacheKey) {
+        rememberDecryptedText(cacheKey, plaintext);
+    }
+
+    return plaintext;
 }
 
 export function buildDirectChatId(
@@ -262,6 +351,8 @@ export function createOptimisticMessage({
         contact,
         client_status: "sending",
         client_error: null,
+        is_read_by_recipient: false,
+        read_by_user_ids: [],
         encrypted_content_ciphertext: null,
         encrypted_content_iv: null,
         encrypted_content_algorithm: null,

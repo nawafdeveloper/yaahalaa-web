@@ -19,15 +19,21 @@ type StoredSessionKeys = {
     privateKey: string;
 };
 
-async function retrieveSessionKeys(): Promise<{
+type SessionCryptoKeys = {
     publicKey: CryptoKey;
     privateKey: CryptoKey;
-} | null> {
-    const stored = localStorage.getItem(SESSION_KEYS_STORAGE_KEY);
-    if (!stored) {
-        return null;
-    }
+};
 
+let sessionKeysCache:
+    | {
+          storedValue: string;
+          keysPromise: Promise<SessionCryptoKeys | null>;
+      }
+    | null = null;
+
+async function importStoredSessionKeys(
+    stored: string
+): Promise<SessionCryptoKeys | null> {
     try {
         const data = JSON.parse(stored) as StoredSessionKeys;
         const publicKey = await importPublicKey(data.publicKey);
@@ -44,6 +50,29 @@ async function retrieveSessionKeys(): Promise<{
     } catch {
         return null;
     }
+}
+
+export async function getSessionCryptoKeys(): Promise<SessionCryptoKeys | null> {
+    if (typeof window === "undefined") {
+        return null;
+    }
+
+    const stored = localStorage.getItem(SESSION_KEYS_STORAGE_KEY);
+    if (!stored) {
+        sessionKeysCache = null;
+        return null;
+    }
+
+    if (sessionKeysCache?.storedValue === stored) {
+        return sessionKeysCache.keysPromise;
+    }
+
+    sessionKeysCache = {
+        storedValue: stored,
+        keysPromise: importStoredSessionKeys(stored),
+    };
+
+    return sessionKeysCache.keysPromise;
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -145,7 +174,7 @@ export async function decryptTextWithPrivateKey(
 }
 
 export async function encryptText(plaintext: string): Promise<EncryptedTextPayload> {
-    const sessionKeys = await retrieveSessionKeys();
+    const sessionKeys = await getSessionCryptoKeys();
     if (!sessionKeys?.publicKey) {
         throw new Error("No public key found in session. Please unlock your keys again.");
     }
@@ -156,7 +185,7 @@ export async function encryptText(plaintext: string): Promise<EncryptedTextPaylo
 export async function decryptText(
     payload: Pick<EncryptedTextPayload, "ciphertext" | "encryptedAesKey" | "iv">
 ): Promise<string> {
-    const sessionKeys = await retrieveSessionKeys();
+    const sessionKeys = await getSessionCryptoKeys();
     if (!sessionKeys?.privateKey) {
         throw new Error("No private key found in session. Please unlock your keys again.");
     }

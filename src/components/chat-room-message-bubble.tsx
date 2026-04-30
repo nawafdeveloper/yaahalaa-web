@@ -632,7 +632,7 @@ export default function ChatRoomMessageBubble({
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     href={message.open_graph_data.og_url || "/"}
-                                    className="mb-1 flex cursor-pointer flex-col items-start justify-start gap-x-3 rounded-lg bg-[#f7f5f3] p-2 text-sm dark:bg-[#1a1b1b]"
+                                    className={`mb-1 flex cursor-pointer flex-col items-start justify-start gap-x-3 rounded-lg p-2 text-sm ${isSender ? 'bg-[#c9e3b5] dark:bg-[#212e26]' : 'bg-[#f7f5f3] dark:bg-[#1a1b1b]'}`}
                                 >
                                     <p className="font-semibold">
                                         {message.open_graph_data.og_title}
@@ -761,7 +761,7 @@ export default function ChatRoomMessageBubble({
                                             );
                                         }
                                     }}
-                                    className="relative block w-full cursor-pointer overflow-hidden rounded"
+                                    className="relative block w-full min-w-72.5 cursor-pointer overflow-hidden rounded"
                                     style={mediaFrameStyle}
                                 >
                                     {(isAttachmentDecrypting || isAttachmentPending) && (
@@ -849,7 +849,7 @@ export default function ChatRoomMessageBubble({
                                 </button>
                             )}
                             {message.attached_media === "contact" && (
-                                <button className="flex w-full cursor-pointer flex-row items-center gap-x-3 rounded-lg bg-[#f7f5f3] p-3 dark:bg-[#1a1b1b]">
+                                <button className={`flex w-full cursor-pointer min-w-72.5 overflow-hidden flex-row items-center gap-x-3 rounded-lg p-3 ${isSender ? 'bg-[#c9e3b5] dark:bg-[#212e26]' : 'bg-[#f7f5f3] dark:bg-[#1a1b1b]'}`}>
                                     <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full">
                                         <Avatar
                                             sx={(theme) => ({
@@ -999,7 +999,9 @@ export default function ChatRoomMessageBubble({
                                                     <DoneAll
                                                         sx={{
                                                             fontSize: 16,
-                                                            color: "#53bdeb",
+                                                            color: message.is_read_by_recipient
+                                                                ? "#53bdeb"
+                                                                : "gray",
                                                         }}
                                                     />
                                                 )}

@@ -65,6 +65,8 @@ export type Message = {
     client_status?: "sending" | "failed" | "sent";
     client_error?: string | null;
     client_received_via_realtime?: boolean;
+    is_read_by_recipient?: boolean;
+    read_by_user_ids?: string[] | null;
     client_local_media_name?: string | null;
     client_local_media_size?: number | null;
     client_local_media_mime_type?: string | null;

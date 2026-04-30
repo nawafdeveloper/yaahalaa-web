@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { buildDirectChatId } from "@/lib/chat-e2ee";
 import { sortChatsByRecent, sortMessagesChronologically } from "@/lib/chat-utils";
+import { applyMessageReadByUser } from "@/lib/message-read-receipts";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Contact } from "@/types/contacts.type";
 import type { Message } from "@/types/messages.type";
@@ -47,6 +48,11 @@ interface ActiveChatState {
     setPresence: (chatId: string, presence: PresenceState) => void;
     setTypingUsers: (chatId: string, activeTypingUsers: string[]) => void;
     markChatRead: (chatId: string) => void;
+    markMessagesReadByUser: (
+        chatId: string,
+        userId: string,
+        readAt: Date
+    ) => void;
     openDirectContactChat: (params: {
         contact: Contact;
         currentPhone: string;
@@ -226,6 +232,29 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             });
 
             return didChange ? { chats } : state;
+        }),
+    markMessagesReadByUser: (chatId, userId, readAt) =>
+        set((state) => {
+            const messages = state.messagesByChatId[chatId] ?? [];
+            let didChange = false;
+            const nextMessages = messages.map((message) => {
+                const nextMessage = applyMessageReadByUser(message, userId, readAt);
+
+                if (nextMessage !== message) {
+                    didChange = true;
+                }
+
+                return nextMessage;
+            });
+
+            return didChange
+                ? {
+                      messagesByChatId: {
+                          ...state.messagesByChatId,
+                          [chatId]: nextMessages,
+                      },
+                  }
+                : state;
         }),
     openDirectContactChat: ({ contact, currentPhone, currentUserId }) => {
         const chatId = buildDirectChatId(currentPhone, contact.contact_number);

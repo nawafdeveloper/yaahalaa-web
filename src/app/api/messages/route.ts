@@ -6,6 +6,7 @@ import {
     markConversationRead,
 } from "@/lib/chat-read-state";
 import {
+    chatReadStates,
     chatRecipientKeys,
     chats,
     message,
@@ -27,6 +28,7 @@ import {
     logMediaDebug,
     readMediaDebugTraceId,
 } from "@/lib/message-media-debug";
+import { withMessageReadReceipt } from "@/lib/message-read-receipts";
 
 /**
  * The better-auth `phoneNumber` plugin adds `phoneNumber` at runtime
@@ -350,6 +352,8 @@ export async function POST(request: Request) {
         created_at: now,
         updated_at: now,
         contact: null,
+        is_read_by_recipient: false,
+        read_by_user_ids: [],
     };
 
     if (isMediaMessage) {
@@ -494,6 +498,31 @@ export async function GET(request: Request) {
             keysByMessageId.set(key.message_id, existing);
         }
 
+        const rowChatIds = [...new Set(rows.map((row) => row.chat_room_id))];
+        const readStates =
+            rowChatIds.length > 0
+                ? await db
+                      .select({
+                          chatId: chatReadStates.chat_id,
+                          userId: chatReadStates.user_id,
+                          lastReadAt: chatReadStates.last_read_at,
+                      })
+                      .from(chatReadStates)
+                      .where(inArray(chatReadStates.chat_id, rowChatIds))
+                : [];
+        const readStatesByChatId = new Map<
+            string,
+            { userId: string; lastReadAt: Date }[]
+        >();
+        for (const readState of readStates) {
+            const existing = readStatesByChatId.get(readState.chatId) ?? [];
+            existing.push({
+                userId: readState.userId,
+                lastReadAt: readState.lastReadAt,
+            });
+            readStatesByChatId.set(readState.chatId, existing);
+        }
+
         const mediaRows = rows.filter((row) => Boolean(row.attached_media));
         if (mediaRows.length > 0) {
             logMediaDebug("server.http.messages.get.media-rows", {
@@ -521,41 +550,64 @@ export async function GET(request: Request) {
         const slicedRows = rows.slice(0, limit);
 
         return Response.json({
-            messages: slicedRows.map((m) => ({
-                message_id: m.message_id,
-                sender_user_id: m.sender_user_id,
-                chat_room_id: m.chat_room_id,
-                encrypted_content_ciphertext: m.encrypted_content_ciphertext,
-                encrypted_content_iv: m.encrypted_content_iv,
-                encrypted_content_algorithm: m.encrypted_content_algorithm,
-                message_recipient_keys:
-                    keysByMessageId.get(m.message_id) ?? null,
-                attached_media: m.attached_media,
-                event: m.event,
-                poll: m.poll,
-                reply_message: m.reply_message,
-                location: m.location,
-                media_url: m.media_url,
-                media_preview_url: m.media_preview_url,
-                media_size_bytes: m.media_size_bytes,
-                media_width: m.media_width,
-                media_height: m.media_height,
-                media_file_name: m.media_file_name,
-                video_thumbnail: m.video_thumbnail,
-                message_raction: m.message_raction,
-                is_forward_message: m.is_forward_message,
-                message_text_content: null,
-                open_graph_data: m.open_graph_data,
-                user_ids_pin_it: m.user_ids_pin_it,
-                user_ids_star_it: m.user_ids_star_it,
-                deleted: m.deleted,
-                user_id_delete_it: m.user_id_delete_it,
-                edited: m.edited,
-                user_id_edit_it: m.user_id_edit_it,
-                created_at: m.created_at,
-                updated_at: m.updated_at,
-                contact: m.contact,
-            })),
+            messages: slicedRows.map((m) => {
+                const messageRecipientKeys = keysByMessageId.get(m.message_id) ?? [];
+                const recipientUserIds = [
+                    ...new Set(
+                        messageRecipientKeys
+                            .map((key) => key.recipient_user_id)
+                            .filter((userId) => userId !== m.sender_user_id)
+                    ),
+                ];
+                const readStatesForChat =
+                    readStatesByChatId.get(m.chat_room_id) ?? [];
+                const readByUserIds = recipientUserIds.filter((userId) =>
+                    readStatesForChat.some(
+                        (readState) =>
+                            readState.userId === userId &&
+                            readState.lastReadAt >= m.created_at
+                    )
+                );
+                const responseMessage: Message = {
+                    message_id: m.message_id,
+                    sender_user_id: m.sender_user_id,
+                    chat_room_id: m.chat_room_id,
+                    encrypted_content_ciphertext: m.encrypted_content_ciphertext,
+                    encrypted_content_iv: m.encrypted_content_iv,
+                    encrypted_content_algorithm: m.encrypted_content_algorithm,
+                    message_recipient_keys:
+                        messageRecipientKeys.length > 0
+                            ? messageRecipientKeys
+                            : null,
+                    attached_media: m.attached_media,
+                    event: m.event,
+                    poll: m.poll,
+                    reply_message: m.reply_message,
+                    location: m.location,
+                    media_url: m.media_url,
+                    media_preview_url: m.media_preview_url,
+                    media_size_bytes: m.media_size_bytes,
+                    media_width: m.media_width,
+                    media_height: m.media_height,
+                    media_file_name: m.media_file_name,
+                    video_thumbnail: m.video_thumbnail,
+                    message_raction: m.message_raction,
+                    is_forward_message: m.is_forward_message,
+                    message_text_content: null,
+                    open_graph_data: m.open_graph_data,
+                    user_ids_pin_it: m.user_ids_pin_it,
+                    user_ids_star_it: m.user_ids_star_it,
+                    deleted: m.deleted,
+                    user_id_delete_it: m.user_id_delete_it,
+                    edited: m.edited,
+                    user_id_edit_it: m.user_id_edit_it,
+                    created_at: m.created_at,
+                    updated_at: m.updated_at,
+                    contact: m.contact,
+                };
+
+                return withMessageReadReceipt(responseMessage, readByUserIds);
+            }),
             hasMore,
         });
     } catch (error) {

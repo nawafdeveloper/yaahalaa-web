@@ -30,6 +30,7 @@ import type { Message } from "@/types/messages.type";
 import type { ClientRealtimeEvent } from "@/types/realtime-events";
 
 const ACK_TIMEOUT_MS = 800;
+const CHAT_PREVIEW_MAX_LENGTH = 240;
 
 type RecipientKeySource = {
     userId: string;
@@ -66,6 +67,14 @@ type ConversationContext = {
     recipientPhoneForTransport?: string;
     recipients: RecipientKeySource[];
 };
+
+function createChatPreviewText(text: string) {
+    if (text.length <= CHAT_PREVIEW_MAX_LENGTH) {
+        return text;
+    }
+
+    return `${text.slice(0, CHAT_PREVIEW_MAX_LENGTH).trimEnd()}...`;
+}
 
 export function useSendChatMessage() {
     const { data: session } = authClient.useSession();
@@ -384,10 +393,14 @@ export function useSendChatMessage() {
                 trimmed,
                 conversation.recipients
             );
-            const encryptedPreview = await encryptTextForRecipients(
-                trimmed,
-                conversation.recipients
-            );
+            const previewText = createChatPreviewText(trimmed);
+            const encryptedPreview =
+                previewText === trimmed
+                    ? encryptedMessage
+                    : await encryptTextForRecipients(
+                          previewText,
+                          conversation.recipients
+                      );
 
             await dispatchPreparedMessage({
                 chatId,
@@ -793,6 +806,14 @@ function finalizeReconciledMessage(
         message_text_content:
             persistedMessage.message_text_content ?? fallbackMessage.message_text_content,
         contact: persistedMessage.contact ?? fallbackMessage.contact,
+        is_read_by_recipient:
+            persistedMessage.is_read_by_recipient ??
+            fallbackMessage.is_read_by_recipient ??
+            false,
+        read_by_user_ids:
+            persistedMessage.read_by_user_ids ??
+            fallbackMessage.read_by_user_ids ??
+            [],
         client_status: "sent",
         client_error: null,
     };

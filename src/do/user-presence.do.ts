@@ -121,6 +121,8 @@ type StoredMessage = {
     created_at: string;
     updated_at: string;
     contact: null;
+    is_read_by_recipient: boolean;
+    read_by_user_ids: string[];
 };
 
 type DurableBindingsEnv = {
@@ -234,19 +236,30 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
 
                 case "MARK_DELIVERED":
                 case "MARK_READ": {
+                    const readAt = new Date();
                     if (data.type === "MARK_READ") {
                         await markConversationRead({
                             chatId: data.conversationId,
                             userId: session.userId,
+                            readAt,
                         });
                     }
 
-                    await this.receiveEvent({
+                    const event = {
                         type: data.type,
                         conversationId: data.conversationId,
                         messageId: data.messageId ?? null,
                         userId: session.userId,
-                    });
+                        ...(data.type === "MARK_READ"
+                            ? { readAt: readAt.toISOString() }
+                            : {}),
+                    };
+
+                    if (data.type === "MARK_READ") {
+                        await this.broadcastRoomEvent(data.conversationId, event);
+                    } else {
+                        await this.receiveEvent(event);
+                    }
                     break;
                 }
 
@@ -554,6 +567,20 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
         });
     }
 
+    private async broadcastRoomEvent(roomId: string, event: ChatEvent) {
+        const roomDO = this.env.CHAT_ROOM_DO.get(
+            this.env.CHAT_ROOM_DO.idFromName(roomId)
+        );
+
+        await roomDO.fetch("https://do/broadcast", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify(event),
+        });
+    }
+
     private async updateTypingState(
         session: SessionState,
         conversationId: string,
@@ -841,6 +868,8 @@ async function saveMessageToDb({
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
         contact: null,
+        is_read_by_recipient: false,
+        read_by_user_ids: [],
     };
 }
 
