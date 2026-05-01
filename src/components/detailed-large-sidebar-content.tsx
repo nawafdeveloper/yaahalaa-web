@@ -3,12 +3,14 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, NotificationsOutlined, Person, SearchOutlined, StarOutline } from '@mui/icons-material';
 import { Box, Divider, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Switch, TextField, Typography } from '@mui/material';
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import DecryptedProfileImage from './decrypted-profile-image';
 import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
 import { DetailedSidebarMediaItem, DetailedSidebarMediaTile } from './detailed-sidebar-item-media';
+import { useToggleChatNotifications } from '@/hooks/use-toggle-chat-notifications';
 
 type Props = {
+    chatId: string | null;
     avatar?: string | null;
     contactName: string | null;
     contactNumber: string | null;
@@ -20,6 +22,7 @@ type Props = {
 }
 
 export default function DetailedLargeSidebarContent({
+    chatId,
     avatar,
     contactName,
     contactNumber,
@@ -32,6 +35,7 @@ export default function DetailedLargeSidebarContent({
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { open } = useMediaDisplayAllStore();
+    const { isToggling, setChatNotificationsMuted } = useToggleChatNotifications();
 
     const [isMuted, setIsMuted] = useState(muteNotification || false);
     const [value, setValue] = useState("");
@@ -44,6 +48,24 @@ export default function DetailedLargeSidebarContent({
     const handleClear = () => {
         setValue("");
         inputRef.current?.blur();
+    };
+
+    useEffect(() => {
+        setIsMuted(muteNotification || false);
+    }, [muteNotification]);
+
+    const handleToggleNotifications = async () => {
+        if (!chatId || isToggling) {
+            return;
+        }
+
+        const nextMuted = !isMuted;
+        setIsMuted(nextMuted);
+        const didSave = await setChatNotificationsMuted(chatId, nextMuted);
+
+        if (!didSave) {
+            setIsMuted(!nextMuted);
+        }
     };
 
     const listItems = [
@@ -360,8 +382,9 @@ export default function DetailedLargeSidebarContent({
                     />
                     <Switch
                         edge="end"
-                        onChange={() => setIsMuted(!isMuted)}
+                        onChange={handleToggleNotifications}
                         checked={isMuted}
+                        disabled={!chatId || isToggling}
                         inputProps={{
                             'aria-labelledby': 'switch-list-label-receipt',
                         }}

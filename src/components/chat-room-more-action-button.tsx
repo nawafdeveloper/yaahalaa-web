@@ -1,7 +1,7 @@
 "use client";
 
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { ArchiveOutlined, BlockOutlined, DeleteForeverOutlined, FavoriteBorderOutlined, LogoutOutlined, MarkChatReadOutlined, MoreVertOutlined, NotificationsOffOutlined, PushPinOutlined, StarBorderOutlined } from '@mui/icons-material';
+import { ArchiveOutlined, BlockOutlined, DeleteForeverOutlined, FavoriteBorderOutlined, LogoutOutlined, MarkChatReadOutlined, MoreVertOutlined, NotificationsOffOutlined, NotificationsOutlined, PushPinOutlined } from '@mui/icons-material';
 import { Divider, Tooltip } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -9,6 +9,8 @@ import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import React from 'react'
+import { useActiveChatStore } from '@/store/use-active-chat-store';
+import { useToggleChatNotifications } from '@/hooks/use-toggle-chat-notifications';
 
 interface Props {
     chat_type: 'group' | 'single';
@@ -17,6 +19,11 @@ interface Props {
 export default function ChatRoomMoreActionButton({ chat_type }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const selectedChat = useActiveChatStore((state) =>
+        state.chats.find((chat) => chat.chat_id === state.selectedChatId)
+    );
+    const { isToggling, setChatNotificationsMuted } = useToggleChatNotifications();
 
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
@@ -29,6 +36,22 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
         event.stopPropagation();
         event.preventDefault();
         setAnchorEl(null);
+    };
+    const handleToggleNotifications = async (
+        event: React.MouseEvent<HTMLElement>
+    ) => {
+        event.stopPropagation();
+        event.preventDefault();
+        setAnchorEl(null);
+
+        if (!selectedChatId || !selectedChat) {
+            return;
+        }
+
+        await setChatNotificationsMuted(
+            selectedChatId,
+            !selectedChat.is_muted_chat_notifications
+        );
     };
 
     return (
@@ -112,10 +135,11 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                             }}
                         >
                             {isRTL ? "أرشفة المحادثة" : "Archive chat"}
-                        </ListItemText>
+                    </ListItemText>
                     </MenuItem>
                     <MenuItem
-                        onClick={handleClose}
+                        onClick={handleToggleNotifications}
+                        disabled={isToggling || !selectedChat}
                         sx={(theme) => ({
                             "&:hover": {
                                 backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
@@ -126,14 +150,32 @@ export default function ChatRoomMoreActionButton({ chat_type }: Props) {
                         })}
                     >
                         <ListItemIcon>
-                            <NotificationsOffOutlined
-                                fontSize="medium"
-                                sx={(theme) => ({
-                                    color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                                })}
-                            />
+                            {selectedChat?.is_muted_chat_notifications ? (
+                                <NotificationsOutlined
+                                    fontSize="medium"
+                                    sx={(theme) => ({
+                                        color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
+                                    })}
+                                />
+                            ) : (
+                                <NotificationsOffOutlined
+                                    fontSize="medium"
+                                    sx={(theme) => ({
+                                        color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
+                                    })}
+                                />
+                            )}
                         </ListItemIcon>
                         <ListItemText
+                            primary={
+                                selectedChat?.is_muted_chat_notifications
+                                    ? isRTL
+                                        ? "Ø¥Ù„ØºØ§Ø¡ ÙƒØªÙ… Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª"
+                                        : "Unmute notifications"
+                                    : isRTL
+                                      ? "ÙƒØªÙ… Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª"
+                                      : "Mute notifications"
+                            }
                             primaryTypographyProps={{
                                 sx: (theme) => ({
                                     color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",

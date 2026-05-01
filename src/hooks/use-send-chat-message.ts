@@ -58,6 +58,7 @@ type HttpMessagePayload = {
     recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
     encryptedChatPreview?: EncryptedContentEnvelope | null;
     chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+    replyMessage?: Message["reply_message"];
 };
 
 type ConversationContext = {
@@ -85,6 +86,7 @@ export function useSendChatMessage() {
     const updateMessage = useActiveChatStore((state) => state.updateMessage);
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
     const setDraft = useActiveChatStore((state) => state.setDraft);
+    const clearReplyDraft = useActiveChatStore((state) => state.clearReplyDraft);
     const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
 
     const resolveConversationContext = ({
@@ -143,6 +145,26 @@ export function useSendChatMessage() {
                 recipientPhone ?? selectedChat.contact_phone ?? undefined,
             recipients,
         };
+    };
+
+    const resolveReplyMessageForSend = ({
+        chatId,
+        existingMessageId,
+    }: {
+        chatId: string;
+        existingMessageId?: string;
+    }) => {
+        const state = useActiveChatStore.getState();
+
+        if (existingMessageId) {
+            return (
+                state.messagesByChatId[chatId]?.find(
+                    (message) => message.message_id === existingMessageId
+                )?.reply_message ?? null
+            );
+        }
+
+        return state.replyDraftByChatId[chatId] ?? null;
     };
 
     const dispatchPreparedMessage = async ({
@@ -216,6 +238,10 @@ export function useSendChatMessage() {
             setDraft(chatId, "");
         }
 
+        if (!existingMessageId && optimisticMessage.reply_message) {
+            clearReplyDraft(chatId);
+        }
+
         try {
             if (optimisticMessage.attached_media) {
                 logMediaDebug("client.message.dispatch.start", {
@@ -257,6 +283,7 @@ export function useSendChatMessage() {
                     recipientEncryptionKeys,
                     encryptedChatPreview,
                     chatPreviewRecipientKeys,
+                    replyMessage: optimisticMessage.reply_message,
                 };
             const httpPayload: HttpMessagePayload = {
                 debugTraceId,
@@ -279,6 +306,7 @@ export function useSendChatMessage() {
                 recipientEncryptionKeys,
                 encryptedChatPreview,
                 chatPreviewRecipientKeys,
+                replyMessage: optimisticMessage.reply_message,
             };
 
             const realtimeSent = sendRealtimeEvent(payload);
@@ -396,11 +424,16 @@ export function useSendChatMessage() {
         }
 
         const messageId = existingMessageId ?? crypto.randomUUID();
+        const replyMessage = resolveReplyMessageForSend({
+            chatId,
+            existingMessageId,
+        });
         const optimisticMessage = createOptimisticMessage({
             messageId,
             chatId,
             senderUserId: currentUserId,
             plaintext: trimmed,
+            replyMessage,
         });
 
         try {
@@ -433,7 +466,7 @@ export function useSendChatMessage() {
             });
 
             return true;
-        } catch (error) {
+        } catch {
             return false;
         }
     };
@@ -493,6 +526,7 @@ export function useSendChatMessage() {
                           conversation.recipients
                       )
                 : null;
+        const replyMessage = resolveReplyMessageForSend({ chatId });
         logMediaDebug("client.attachment.prepare", {
             debugTraceId,
             messageId,
@@ -516,6 +550,7 @@ export function useSendChatMessage() {
             mediaHeight: mediaDimensions?.height ?? null,
             mediaFileName: file.name,
             plaintext: trimmedText.length > 0 ? trimmedText : null,
+            replyMessage,
             clientLocalMediaName: file.name,
             clientLocalMediaSize: file.size,
             clientLocalMediaMimeType: file.type || null,
@@ -532,6 +567,9 @@ export function useSendChatMessage() {
                 fallbackExistingChat: conversation.selectedChat,
             })
         );
+        if (replyMessage) {
+            clearReplyDraft(chatId);
+        }
 
         try {
             const upload = await uploadEncryptedMessageMedia(
@@ -659,6 +697,7 @@ export function useSendChatMessage() {
             senderUserId: currentUserId,
             attachedMedia: "contact",
             contact: sharedContact,
+            replyMessage: resolveReplyMessageForSend({ chatId }),
         });
 
         await dispatchPreparedMessage({
@@ -841,6 +880,8 @@ function finalizeReconciledMessage(
             persistedMessage.media_file_name ?? fallbackMessage.media_file_name,
         video_thumbnail:
             persistedMessage.video_thumbnail ?? fallbackMessage.video_thumbnail,
+        reply_message:
+            persistedMessage.reply_message ?? fallbackMessage.reply_message,
         message_text_content:
             persistedMessage.message_text_content ?? fallbackMessage.message_text_content,
         contact: persistedMessage.contact ?? fallbackMessage.contact,

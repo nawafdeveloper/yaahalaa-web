@@ -216,6 +216,7 @@ export default function DetailedLargeSidebar() {
             >
                 <DetailedLargeSidebarHeader />
                 <DetailedLargeSidebarContent
+                    chatId={activeChat?.chat_id ?? null}
                     avatar={avatar}
                     contactName={contactName}
                     contactNumber={contactNumber}

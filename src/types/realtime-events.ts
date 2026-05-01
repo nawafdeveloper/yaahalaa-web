@@ -44,6 +44,7 @@ export type ClientRealtimeEvent =
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
           encryptedChatPreview?: EncryptedContentEnvelope | null;
           chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+          replyMessage?: Message["reply_message"];
       }
     | {
           type: "REACT_MESSAGE";

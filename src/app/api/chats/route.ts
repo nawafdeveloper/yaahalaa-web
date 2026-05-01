@@ -513,6 +513,62 @@ export async function GET(request: Request) {
     });
 }
 
+export async function PATCH(request: Request) {
+    const session = await auth.api.getSession({
+        headers: new Headers(request.headers),
+    });
+
+    if (!session) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await request.json()) as {
+        chatId?: string;
+        isMuted?: boolean;
+    };
+    const chatId = body.chatId?.trim();
+
+    if (!chatId || typeof body.isMuted !== "boolean") {
+        return Response.json(
+            { error: "Missing chatId or isMuted." },
+            { status: 400 }
+        );
+    }
+
+    const sessionUser = session.user as unknown as UserWithPhone;
+    const targetChat = await db.query.chats.findFirst({
+        where: eq(chats.chat_id, chatId),
+    });
+
+    if (!targetChat) {
+        return Response.json({ error: "Chat not found." }, { status: 404 });
+    }
+
+    const canUpdate = await canUserAccessChat({
+        chatId,
+        userId: sessionUser.id,
+        phoneNumber: sessionUser.phoneNumber ?? null,
+    });
+
+    if (!canUpdate) {
+        return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await db
+        .update(chats)
+        .set({
+            is_muted_chat_notifications: body.isMuted,
+            updated_at: targetChat.updated_at,
+        })
+        .where(eq(chats.chat_id, chatId));
+
+    return Response.json({
+        success: true,
+        chatId,
+        isMuted: body.isMuted,
+    });
+}
+
 function resolveAboutEncryptedAesKeyForRequester({
     storedValue,
     ownerUserId,
@@ -533,4 +589,61 @@ function resolveAboutEncryptedAesKeyForRequester({
     }
 
     return ownerUserId === requesterUserId ? storedValue : null;
+}
+
+async function canUserAccessChat({
+    chatId,
+    userId,
+    phoneNumber,
+}: {
+    chatId: string;
+    userId: string;
+    phoneNumber: string | null;
+}) {
+    if (phoneNumber && chatId.includes(phoneNumber)) {
+        return true;
+    }
+
+    const [sentMessage, chatRecipientKey, receivedMessage] = await Promise.all([
+        db
+            .select({ messageId: message.message_id })
+            .from(message)
+            .where(
+                and(
+                    eq(message.chat_room_id, chatId),
+                    eq(message.sender_user_id, userId)
+                )
+            )
+            .limit(1),
+        db
+            .select({ chatId: chatRecipientKeys.chat_id })
+            .from(chatRecipientKeys)
+            .where(
+                and(
+                    eq(chatRecipientKeys.chat_id, chatId),
+                    eq(chatRecipientKeys.recipient_user_id, userId)
+                )
+            )
+            .limit(1),
+        db
+            .select({ messageId: message.message_id })
+            .from(message)
+            .innerJoin(
+                messageRecipientKeys,
+                eq(messageRecipientKeys.message_id, message.message_id)
+            )
+            .where(
+                and(
+                    eq(message.chat_room_id, chatId),
+                    eq(messageRecipientKeys.recipient_user_id, userId)
+                )
+            )
+            .limit(1),
+    ]);
+
+    return (
+        sentMessage.length > 0 ||
+        chatRecipientKey.length > 0 ||
+        receivedMessage.length > 0
+    );
 }

@@ -27,8 +27,7 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import Typography from "@mui/material/Typography";
 import { LazyLoadImage } from "react-lazy-load-image-component";
-import React, { useEffect, useState } from "react";
-import Image from "next/image";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { formatFileSize, getFileExtension, getFileSize } from "@/lib/files";
 import AudioPlayer, { RHAP_UI } from "react-h5-audio-player";
@@ -56,6 +55,10 @@ import { getMessageMediaAutoDownload } from "@/lib/message-media";
 import FileIcon from "./file-icon";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { buildChatFromReaction } from "@/lib/chat-utils";
+import {
+    createReplyMessageFromMessage,
+    getReplyMessageLabel,
+} from "@/lib/message-reply";
 
 type Props = {
     message: Message;
@@ -64,6 +67,12 @@ type Props = {
     setSelectedMessages: (value: string[]) => void;
     isFirstInGroup?: boolean;
     onRetry?: () => void;
+};
+
+const SHOW_REPLY_TARGET_EVENT = "chat-room:show-reply-target";
+
+type ShowReplyTargetEventDetail = {
+    messageId: string;
 };
 
 export default function ChatRoomMessageBubble({
@@ -82,6 +91,7 @@ export default function ChatRoomMessageBubble({
     const chats = useActiveChatStore((state) => state.chats);
     const updateMessage = useActiveChatStore((state) => state.updateMessage);
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
+    const setReplyDraft = useActiveChatStore((state) => state.setReplyDraft);
     const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
     const { contacts } = useDecryptedContacts();
 
@@ -112,6 +122,11 @@ export default function ChatRoomMessageBubble({
     const [fileSize, setFileSize] = useState(0);
     const [isBubbleEnter, setIsBubbleEnter] = useState(false);
     const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
+    const [isReplyTargetBlinking, setIsReplyTargetBlinking] = useState(false);
+    const rowRef = useRef<HTMLDivElement | null>(null);
+    const replyTargetBlinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null
+    );
 
     const mediaTypes = ["photo", "video"] as const;
     const mediaPrev = mediaTypes.includes(
@@ -294,6 +309,30 @@ export default function ChatRoomMessageBubble({
         }
     };
 
+    const handleReplyToMessage = () => {
+        setReplyDraft(
+            message.chat_room_id,
+            createReplyMessageFromMessage(message)
+        );
+    };
+
+    const handleShowOriginalReplyMessage = (
+        event: React.MouseEvent<HTMLElement>
+    ) => {
+        event.stopPropagation();
+
+        const originalMessageId = message.reply_message?.original_message_id;
+        if (!originalMessageId) {
+            return;
+        }
+
+        window.dispatchEvent(
+            new CustomEvent<ShowReplyTargetEventDetail>(SHOW_REPLY_TARGET_EVENT, {
+                detail: { messageId: originalMessageId },
+            })
+        );
+    };
+
     const TAIL_WIDTH = 8;
 
     const getHue = (userId: string | undefined): number => {
@@ -309,21 +348,7 @@ export default function ChatRoomMessageBubble({
     };
 
     const getReplyLabel = () => {
-        const reply = message.reply_message;
-        if (!reply) return null;
-        if (reply.original_message_text) return reply.original_message_text;
-        if (reply.original_attached_media) {
-            const map: Record<string, string> = {
-                photo: "Photo",
-                video: "Video",
-                voice: "Voice message",
-                file: "Document",
-                contact: "Contact",
-                location: "Location",
-            };
-            return map[reply.original_attached_media] || "Attachment";
-        }
-        return "Message";
+        return getReplyMessageLabel(message.reply_message);
     };
 
     const fileTypeLabel =
@@ -431,9 +456,49 @@ export default function ChatRoomMessageBubble({
         thumbnail,
     ]);
 
+    useEffect(() => {
+        const handleShowReplyTarget = (event: Event) => {
+            const targetEvent = event as CustomEvent<ShowReplyTargetEventDetail>;
+
+            if (targetEvent.detail?.messageId !== message.message_id) {
+                return;
+            }
+
+            rowRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+                inline: "nearest",
+            });
+
+            setIsReplyTargetBlinking(true);
+            if (replyTargetBlinkTimeoutRef.current) {
+                clearTimeout(replyTargetBlinkTimeoutRef.current);
+            }
+
+            replyTargetBlinkTimeoutRef.current = setTimeout(() => {
+                setIsReplyTargetBlinking(false);
+            }, 900);
+        };
+
+        window.addEventListener(SHOW_REPLY_TARGET_EVENT, handleShowReplyTarget);
+
+        return () => {
+            window.removeEventListener(
+                SHOW_REPLY_TARGET_EVENT,
+                handleShowReplyTarget
+            );
+
+            if (replyTargetBlinkTimeoutRef.current) {
+                clearTimeout(replyTargetBlinkTimeoutRef.current);
+            }
+        };
+    }, [message.message_id]);
+
     return (
         <ListItem disablePadding>
             <ListItemButton
+                ref={rowRef}
+                data-message-id={message.message_id}
                 dir="ltr"
                 onClick={isSelectMode ? handleToggle(message.message_id) : () => { }}
                 dense={false}
@@ -443,7 +508,17 @@ export default function ChatRoomMessageBubble({
                 onMouseLeave={() => setIsListEnter(false)}
                 sx={{
                     cursor: isSelectMode ? "pointer" : "default",
-                    "&:hover": { backgroundColor: isSelectMode ? (theme) => theme.palette.mode === 'dark' ? "rgba(122, 124, 124, 0.1)" : "rgba(34, 36, 36, 0.1)" : "transparent"},
+                    backgroundColor: isReplyTargetBlinking
+                        ? "rgba(37, 211, 102, 0.12)"
+                        : "transparent",
+                    transition: "background-color 260ms ease",
+                    "&:hover": {
+                        backgroundColor: isReplyTargetBlinking
+                            ? "rgba(37, 211, 102, 0.12)"
+                            : isSelectMode
+                                ? (theme) => theme.palette.mode === 'dark' ? "rgba(122, 124, 124, 0.1)" : "rgba(34, 36, 36, 0.1)"
+                                : "transparent"
+                    },
                     paddingTop: isFirstInGroup ? undefined : "2px",
                     paddingBottom: isFirstInGroup ? undefined : "2px",
                     marginBottom: message.message_raction?.reaction_emoji ? 2 : 0,
@@ -596,7 +671,9 @@ export default function ChatRoomMessageBubble({
                                                 ease: "easeOut",
                                             }}
                                         >
-                                            <ChatRoomActionBubble />
+                                            <ChatRoomActionBubble
+                                                onReply={handleReplyToMessage}
+                                            />
                                         </motion.div>
                                     )
                                 }
@@ -657,6 +734,10 @@ export default function ChatRoomMessageBubble({
                             )}
                             {message.reply_message && (
                                 <Box
+                                    component="button"
+                                    type="button"
+                                    aria-label="Show original message"
+                                    onClick={handleShowOriginalReplyMessage}
                                     sx={(theme) => {
                                         const hue = getHue(
                                             message.reply_message?.original_sender_user_id
@@ -668,15 +749,27 @@ export default function ChatRoomMessageBubble({
                                             mb: 0.75,
                                             px: 1,
                                             py: 0.5,
+                                            width: "100%",
+                                            border: 0,
                                             borderLeft: `4px solid ${accent}`,
                                             borderRadius: 1.5,
                                             backgroundColor:
                                                 theme.palette.mode === "dark"
                                                     ? "rgba(255,255,255,0.04)"
                                                     : "rgba(0,0,0,0.04)",
+                                            color: "inherit",
+                                            cursor: "pointer",
                                             display: "flex",
                                             flexDirection: "column",
                                             gap: 0.2,
+                                            font: "inherit",
+                                            textAlign: "left",
+                                            "&:hover": {
+                                                backgroundColor:
+                                                    theme.palette.mode === "dark"
+                                                        ? "rgba(255,255,255,0.07)"
+                                                        : "rgba(0,0,0,0.07)",
+                                            },
                                         };
                                     }}
                                 >

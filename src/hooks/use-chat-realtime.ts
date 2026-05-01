@@ -17,6 +17,7 @@ import {
 } from "@/lib/chat-e2ee";
 import { decryptStoredContact } from "@/lib/contact-crypto";
 import { resolveDirectChatContact } from "@/lib/contact-display";
+import { emitChatMessageNotification } from "@/lib/message-notifications";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useContactDirectoryStore } from "@/store/use-contact-directory-store";
 import { useRealtimeStore } from "@/store/use-realtime-store";
@@ -81,6 +82,10 @@ export function useChatRealtime() {
     const selectedChatIdRef = useRef<string | null>(selectedChatId);
     const joinedChatIdRef = useRef<string | null>(null);
     const reconnectTimeoutRef = useRef<number | null>(null);
+    const notificationSettingsRef = useRef({
+        disableMessagesNotifications: false,
+        disableGroupsNotifications: false,
+    });
 
     const applyKnownContactOverride = (chat: ChatItemType) => {
         const directContact = resolveDirectChatContact(
@@ -95,6 +100,22 @@ export function useChatRealtime() {
     useEffect(() => {
         selectedChatIdRef.current = selectedChatId;
     }, [selectedChatId]);
+
+    useEffect(() => {
+        const user = session?.user as
+            | {
+                  disableMessagesNotifications?: boolean | null;
+                  disableGroupsNotifications?: boolean | null;
+              }
+            | undefined;
+
+        notificationSettingsRef.current = {
+            disableMessagesNotifications: Boolean(
+                user?.disableMessagesNotifications
+            ),
+            disableGroupsNotifications: Boolean(user?.disableGroupsNotifications),
+        };
+    }, [session]);
 
     useEffect(() => {
         if (!currentUserId || !isReady) {
@@ -332,18 +353,36 @@ export function useChatRealtime() {
                             ? 0
                             : (existingChat?.unreaded_messages_length ?? 0) + 1;
 
-                    upsertChat(
-                        applyKnownContactOverride(
-                            buildChatFromMessage({
-                                conversationId: event.conversationId,
-                                conversationType: event.conversationType,
-                                message: nextMessage,
-                                currentUserId,
-                                unreadCount,
-                                fallbackExistingChat: existingChat,
-                            })
-                        )
+                    const nextChat = applyKnownContactOverride(
+                        buildChatFromMessage({
+                            conversationId: event.conversationId,
+                            conversationType: event.conversationType,
+                            message: nextMessage,
+                            currentUserId,
+                            unreadCount,
+                            fallbackExistingChat: existingChat,
+                        })
                     );
+                    upsertChat(nextChat);
+                    const notificationSettings = notificationSettingsRef.current;
+                    const shouldNotify =
+                        nextMessage.sender_user_id !== currentUserId &&
+                        !nextChat.is_muted_chat_notifications &&
+                        !notificationSettings.disableMessagesNotifications &&
+                        !(
+                            event.conversationType === "group" &&
+                            notificationSettings.disableGroupsNotifications
+                        );
+
+                    if (shouldNotify) {
+                        emitChatMessageNotification({
+                            conversationId: event.conversationId,
+                            conversationType: event.conversationType,
+                            message: nextMessage,
+                            chat: nextChat,
+                            unreadCount,
+                        });
+                    }
                     if (isSelected) {
                         markChatRead(event.conversationId);
                         if (nextMessage.sender_user_id !== currentUserId) {
@@ -370,18 +409,36 @@ export function useChatRealtime() {
                         useActiveChatStore.getState().selectedChatId ===
                         event.conversationId;
 
-                    upsertChat(
-                        applyKnownContactOverride(
-                            buildChatFromMessage({
-                                conversationId: event.conversationId,
-                                conversationType: event.conversationType,
-                                message: nextMessage,
-                                currentUserId,
-                                unreadCount: isSelected ? 0 : event.unreadCount,
-                                fallbackExistingChat: existingChat,
-                            })
-                        )
+                    const nextChat = applyKnownContactOverride(
+                        buildChatFromMessage({
+                            conversationId: event.conversationId,
+                            conversationType: event.conversationType,
+                            message: nextMessage,
+                            currentUserId,
+                            unreadCount: isSelected ? 0 : event.unreadCount,
+                            fallbackExistingChat: existingChat,
+                        })
                     );
+                    upsertChat(nextChat);
+                    const notificationSettings = notificationSettingsRef.current;
+                    const shouldNotify =
+                        nextMessage.sender_user_id !== currentUserId &&
+                        !nextChat.is_muted_chat_notifications &&
+                        !notificationSettings.disableMessagesNotifications &&
+                        !(
+                            event.conversationType === "group" &&
+                            notificationSettings.disableGroupsNotifications
+                        );
+
+                    if (shouldNotify) {
+                        emitChatMessageNotification({
+                            conversationId: event.conversationId,
+                            conversationType: event.conversationType,
+                            message: nextMessage,
+                            chat: nextChat,
+                            unreadCount: isSelected ? 0 : event.unreadCount,
+                        });
+                    }
                     if (
                         isSelected &&
                         nextMessage.sender_user_id !== currentUserId

@@ -1,11 +1,15 @@
 "use client";
 
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { DeleteForeverOutlined, EmojiEmotionsOutlined, ExpandMore, PushPinOutlined, ShortcutRounded, StarOutline, ThumbDownOutlined, TurnLeftOutlined } from '@mui/icons-material';
+import { DeleteForeverOutlined, ExpandMore, PushPinOutlined, ShortcutRounded, StarOutline, TurnLeftOutlined } from '@mui/icons-material';
 import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
 import React, { useState } from 'react'
 
-export default function ChatRoomActionBubble() {
+type Props = {
+    onReply?: () => void;
+};
+
+export default function ChatRoomActionBubble({ onReply }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -16,6 +20,11 @@ export default function ChatRoomActionBubble() {
     };
     const handleClose = () => {
         setAnchorEl(null);
+    };
+    const handleReply = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        onReply?.();
+        handleClose();
     };
 
     return (
@@ -64,7 +73,7 @@ export default function ChatRoomActionBubble() {
                 }}
             >
                 <MenuItem
-                    onClick={handleClose}
+                    onClick={handleReply}
                     sx={(theme) => ({
                         "&:hover": {
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",

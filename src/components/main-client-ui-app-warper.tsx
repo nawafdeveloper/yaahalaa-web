@@ -17,6 +17,7 @@ import { useChatRealtime } from '@/hooks/use-chat-realtime';
 import { useSyncProfileImageRecipients } from '@/hooks/use-sync-profile-image-recipients';
 import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
 import MediaDisplayAllChatRoom from './media-display-all-chat-room';
+import Notification from './test/notification';
 
 export default function MainClientUIAppWrapper({ children, country }: { children: React.ReactNode, country: string | null; }) {
     const { isOpen } = useMediaPreviewStore();
@@ -50,6 +51,7 @@ export default function MainClientUIAppWrapper({ children, country }: { children
 
     return (
         <>
+            <Notification />
             {isOpen && <MediaPreviewWarper />}
             <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}

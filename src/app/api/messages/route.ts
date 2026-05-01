@@ -22,7 +22,7 @@ import type {
     RecipientEncryptedAesKey,
     RecipientEncryptedAesKeyInput,
 } from "@/types/crypto";
-import type { Message } from "@/types/messages.type";
+import type { Message, ReplyMessage } from "@/types/messages.type";
 import {
     applyMessageReactionToDb,
     MessageReactionError,
@@ -34,6 +34,7 @@ import {
     readMediaDebugTraceId,
 } from "@/lib/message-media-debug";
 import { withMessageReadReceipt } from "@/lib/message-read-receipts";
+import { normalizeReplyMessage } from "@/lib/message-reply";
 
 /**
  * The better-auth `phoneNumber` plugin adds `phoneNumber` at runtime
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
         recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
         encryptedChatPreview?: EncryptedContentEnvelope | null;
         chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+        replyMessage?: ReplyMessage | null;
     };
 
     const sessionUser = session.user as unknown as UserWithPhone;
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
         recipientEncryptionKeys,
         encryptedChatPreview,
         chatPreviewRecipientKeys,
+        replyMessage,
     } = body;
     const effectiveDebugTraceId = bodyDebugTraceId ?? debugTraceId ?? null;
     const finalSenderUserId = senderUserId ?? sessionUser.id;
@@ -174,6 +177,7 @@ export async function POST(request: Request) {
     const normalizedChatPreviewKeys = normalizeRecipientKeys(
         chatPreviewRecipientKeys
     );
+    const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
     const isMediaMessage = Boolean(attachedMedia);
 
     if (isMediaMessage) {
@@ -249,7 +253,7 @@ export async function POST(request: Request) {
         attached_media: attachedMedia ?? null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: normalizedReplyMessage,
         location: null,
         media_url: mediaUrl ?? null,
         media_preview_url: mediaPreviewUrl ?? null,
@@ -335,7 +339,7 @@ export async function POST(request: Request) {
         attached_media: attachedMedia ?? null,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: normalizedReplyMessage,
         location: null,
         media_url: mediaUrl ?? null,
         media_preview_url: mediaPreviewUrl ?? null,
@@ -661,9 +665,7 @@ export async function GET(request: Request) {
             }),
             hasMore,
         });
-    } catch (error) {
-        const url = new URL(request.url);
-
+    } catch {
         return Response.json(
             { error: "Failed to load messages." },
             { status: 500 }

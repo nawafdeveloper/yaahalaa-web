@@ -15,11 +15,12 @@ import type {
     RecipientEncryptedAesKeyInput,
     TextEncryptionAlgorithm,
 } from "@/types/crypto";
-import type { Message } from "@/types/messages.type";
+import type { Message, ReplyMessage } from "@/types/messages.type";
 import { applyMessageReactionToDb } from "@/lib/message-reactions";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
+import { normalizeReplyMessage } from "@/lib/message-reply";
 
 type SessionState = {
     userId: string;
@@ -89,6 +90,7 @@ type SendMessagePayload = {
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
           encryptedChatPreview?: EncryptedContentEnvelope | null;
           chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+          replyMessage?: ReplyMessage | null;
       };
 
 type ChatEvent = {
@@ -107,7 +109,7 @@ type StoredMessage = {
     attached_media: Message["attached_media"];
     event: null;
     poll: null;
-    reply_message: null;
+    reply_message: Message["reply_message"];
     location: null;
     media_url: string | null;
     media_preview_url: string | null;
@@ -419,6 +421,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
             encryptedChatPreview: data.encryptedChatPreview ?? null,
             chatPreviewRecipientKeys: data.chatPreviewRecipientKeys ?? null,
+            replyMessage: data.replyMessage ?? null,
         });
 
         ws.send(
@@ -703,6 +706,7 @@ async function saveMessageToDb({
     recipientEncryptionKeys,
     encryptedChatPreview,
     chatPreviewRecipientKeys,
+    replyMessage,
 }: {
     debugTraceId?: string;
     messageId?: string;
@@ -722,6 +726,7 @@ async function saveMessageToDb({
     recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
     encryptedChatPreview: EncryptedContentEnvelope | null;
     chatPreviewRecipientKeys: RecipientEncryptedAesKeyInput[] | null;
+    replyMessage: ReplyMessage | null;
 }): Promise<StoredMessage> {
     const finalMessageId = messageId ?? crypto.randomUUID();
     const now = new Date();
@@ -731,6 +736,7 @@ async function saveMessageToDb({
     const normalizedChatPreviewKeys = normalizeRecipientKeys(
         chatPreviewRecipientKeys
     );
+    const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
     const isMediaMessage = Boolean(attachedMedia);
 
     if (isMediaMessage) {
@@ -804,7 +810,7 @@ async function saveMessageToDb({
         attached_media: attachedMedia,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: normalizedReplyMessage,
         location: null,
         media_url: mediaUrl,
         media_preview_url: mediaPreviewUrl,
@@ -910,7 +916,7 @@ async function saveMessageToDb({
         attached_media: attachedMedia,
         event: null,
         poll: null,
-        reply_message: null,
+        reply_message: normalizedReplyMessage,
         location: null,
         media_url: mediaUrl,
         media_preview_url: mediaPreviewUrl,

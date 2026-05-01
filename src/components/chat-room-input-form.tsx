@@ -1,6 +1,7 @@
 "use client";
 
 import {
+    CloseOutlined,
     DeleteOutlined,
     Mic,
     MicNoneOutlined,
@@ -8,7 +9,7 @@ import {
     PlayArrow,
     Send,
 } from "@mui/icons-material";
-import { IconButton, InputAdornment, TextField } from "@mui/material";
+import { Box, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ChatRoomInputAttachButton from "./chat-room-input-attach-button";
 import ChatRoomInputEmojiButton from "./chat-room-input-emoji-button";
@@ -21,8 +22,27 @@ import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 import { useChatTyping } from "@/hooks/use-chat-typing";
+import { authClient } from "@/lib/auth-client";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import { findContactByUserId, getContactDisplayName } from "@/lib/contact-display";
+import { getReplyMessageLabel } from "@/lib/message-reply";
+
+const getHue = (userId: string | undefined): number => {
+    if (!userId) {
+        return 0;
+    }
+
+    let hash = 0;
+    for (let index = 0; index < userId.length; index++) {
+        hash = (hash << 5) - hash + userId.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash) % 360;
+};
 
 export default function ChatRoomInputForm() {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -33,9 +53,14 @@ export default function ChatRoomInputForm() {
     const draftValue = useActiveChatStore((state) =>
         selectedChatId ? state.draftsByChatId[selectedChatId] ?? "" : ""
     );
+    const replyDraft = useActiveChatStore((state) =>
+        selectedChatId ? state.replyDraftByChatId[selectedChatId] ?? null : null
+    );
     const setDraft = useActiveChatStore((state) => state.setDraft);
+    const clearReplyDraft = useActiveChatStore((state) => state.clearReplyDraft);
     const { sendAttachment, sendMessage } = useSendChatMessage();
     const { handleDraftChange, stopTyping } = useChatTyping(selectedChatId);
+    const { contacts } = useDecryptedContacts();
     const [pendingVoiceSend, setPendingVoiceSend] = useState(false);
     const [voiceSendInFlight, setVoiceSendInFlight] = useState(false);
     const voiceSendInFlightRef = useRef(false);
@@ -83,6 +108,24 @@ export default function ChatRoomInputForm() {
             isMountedRef.current = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (replyDraft) {
+            inputRef.current?.focus();
+        }
+    }, [replyDraft]);
+
+    const replySenderContact = findContactByUserId(
+        contacts,
+        replyDraft?.original_sender_user_id
+    );
+    const replySenderDisplayName =
+        replyDraft?.original_sender_user_id === session?.user.id
+            ? "You"
+            : replySenderContact
+              ? getContactDisplayName(replySenderContact)
+              : replyDraft?.original_sender_user_id ?? "";
+    const replyPreview = getReplyMessageLabel(replyDraft);
 
     useEffect(() => {
         if (!pendingVoiceSend || !recordedBlob || !selectedChatId) {
@@ -200,112 +243,199 @@ export default function ChatRoomInputForm() {
                     </div>
                 </div>
             ) : (
-                <TextField
-                    hiddenLabel
-                    id="filled-chat-input-bar"
-                    variant="filled"
-                    size="small"
-                    placeholder={placeholder}
-                    fullWidth
-                    value={draftValue}
-                    onChange={(event) => {
-                        if (!selectedChatId) {
-                            return;
-                        }
-                        setDraft(selectedChatId, event.target.value);
-                        handleDraftChange(event.target.value);
-                    }}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            void handleSend();
-                        }
-                    }}
-                    inputRef={inputRef}
+                <Box
                     sx={(theme) => ({
-                        "& .MuiFilledInput-root": {
-                            borderRadius: 8,
-                            boxShadow: "0px 2px 2px rgba(0,0,0,0.08)",
-                            paddingY: "5px",
-                            paddingX: "5px",
-                            backgroundColor:
-                                theme.palette.mode === "dark"
-                                    ? "#242626"
-                                    : "#ffffff",
-                            "&.Mui-focused": {
-                                outline: "none",
-                                backgroundColor:
-                                    theme.palette.mode === "dark"
-                                        ? "#242626"
-                                        : "#ffffff",
-                            },
-                            "&:hover": {
-                                backgroundColor:
-                                    theme.palette.mode === "dark"
-                                        ? "#242626"
-                                        : "#ffffff",
-                            },
-                            "&::before": { display: "none" },
-                            "&::after": { display: "none" },
-                        },
+                        overflow: "hidden",
+                        borderRadius: replyDraft ? "18px" : 8,
+                        boxShadow: "0px 2px 2px rgba(0,0,0,0.08)",
+                        backgroundColor:
+                            theme.palette.mode === "dark" ? "#242626" : "#ffffff",
                     })}
-                    InputProps={{
-                        disableUnderline: true,
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <ChatRoomInputAttachButton />
-                                <ChatRoomInputEmojiButton
-                                    messageInput={draftValue}
-                                    setMessageInput={(value) => {
-                                        if (!selectedChatId) {
-                                            return;
+                >
+                    {replyDraft && (
+                        <Box sx={{ px: 1.25, pt: 1, pb: 0.25 }}>
+                            <Box
+                                sx={(theme) => {
+                                    const hue = getHue(
+                                        replyDraft.original_sender_user_id
+                                    );
+                                    const accent = `hsl(${hue}, 80%, ${
+                                        theme.palette.mode === "dark" ? "60%" : "35%"
+                                    })`;
+
+                                    return {
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                        minWidth: 0,
+                                        px: 1,
+                                        py: 0.65,
+                                        borderLeft: `4px solid ${accent}`,
+                                        borderRadius: 1.5,
+                                        backgroundColor:
+                                            theme.palette.mode === "dark"
+                                                ? "rgba(255,255,255,0.04)"
+                                                : "rgba(0,0,0,0.04)",
+                                    };
+                                }}
+                            >
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Typography
+                                        variant="caption"
+                                        sx={(theme) => {
+                                            const hue = getHue(
+                                                replyDraft.original_sender_user_id
+                                            );
+
+                                            return {
+                                                display: "block",
+                                                fontWeight: 600,
+                                                lineHeight: 1.35,
+                                                color: `hsl(${hue}, 80%, ${
+                                                    theme.palette.mode === "dark"
+                                                        ? "60%"
+                                                        : "35%"
+                                                })`,
+                                            };
+                                        }}
+                                    >
+                                        {replySenderDisplayName}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: "text.secondary",
+                                            display: "block",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {replyPreview}
+                                    </Typography>
+                                </Box>
+                                <IconButton
+                                    type="button"
+                                    size="small"
+                                    aria-label="Cancel reply"
+                                    onClick={() => {
+                                        if (selectedChatId) {
+                                            clearReplyDraft(selectedChatId);
                                         }
-                                        setDraft(selectedChatId, value);
-                                        handleDraftChange(value);
                                     }}
-                                />
-                            </InputAdornment>
-                        ),
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                {draftValue.trim().length > 0 ? (
-                                    <IconButton
-                                        type="button"
-                                        onClick={() => void handleSend()}
-                                        size="medium"
-                                        sx={{
-                                            backgroundColor: "#25D366",
-                                            color: "#161717",
-                                            "&:hover": {
+                                >
+                                    <CloseOutlined sx={{ fontSize: 18 }} />
+                                </IconButton>
+                            </Box>
+                        </Box>
+                    )}
+                    <TextField
+                        hiddenLabel
+                        id="filled-chat-input-bar"
+                        variant="filled"
+                        size="small"
+                        placeholder={placeholder}
+                        fullWidth
+                        value={draftValue}
+                        onChange={(event) => {
+                            if (!selectedChatId) {
+                                return;
+                            }
+                            setDraft(selectedChatId, event.target.value);
+                            handleDraftChange(event.target.value);
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                void handleSend();
+                            }
+                        }}
+                        inputRef={inputRef}
+                        sx={(theme) => ({
+                            "& .MuiFilledInput-root": {
+                                borderRadius: replyDraft ? "0 0 18px 18px" : 8,
+                                boxShadow: "none",
+                                paddingY: "5px",
+                                paddingX: "5px",
+                                backgroundColor:
+                                    theme.palette.mode === "dark"
+                                        ? "#242626"
+                                        : "#ffffff",
+                                "&.Mui-focused": {
+                                    outline: "none",
+                                    backgroundColor:
+                                        theme.palette.mode === "dark"
+                                            ? "#242626"
+                                            : "#ffffff",
+                                },
+                                "&:hover": {
+                                    backgroundColor:
+                                        theme.palette.mode === "dark"
+                                            ? "#242626"
+                                            : "#ffffff",
+                                },
+                                "&::before": { display: "none" },
+                                "&::after": { display: "none" },
+                            },
+                        })}
+                        InputProps={{
+                            disableUnderline: true,
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <ChatRoomInputAttachButton />
+                                    <ChatRoomInputEmojiButton
+                                        messageInput={draftValue}
+                                        setMessageInput={(value) => {
+                                            if (!selectedChatId) {
+                                                return;
+                                            }
+                                            setDraft(selectedChatId, value);
+                                            handleDraftChange(value);
+                                        }}
+                                    />
+                                </InputAdornment>
+                            ),
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    {draftValue.trim().length > 0 ? (
+                                        <IconButton
+                                            type="button"
+                                            onClick={() => void handleSend()}
+                                            size="medium"
+                                            sx={{
                                                 backgroundColor: "#25D366",
                                                 color: "#161717",
-                                            },
-                                        }}
-                                    >
-                                        <Send className={isRTL ? "rotate-180" : ""} />
-                                    </IconButton>
-                                ) : (
-                                    <IconButton
-                                        type="button"
-                                        onClick={() => startRecording()}
-                                        size="medium"
-                                        onMouseEnter={() => setMicHover(true)}
-                                        onMouseLeave={() => setMicHover(false)}
-                                        sx={{
-                                            transition: "background-color 0.2s ease",
-                                            "&:hover": {
-                                                backgroundColor: "#25D366",
-                                                color: "#161717",
-                                            },
-                                        }}
-                                    >
-                                        {micHover ? <Mic /> : <MicNoneOutlined />}
-                                    </IconButton>
-                                )}
-                            </InputAdornment>
-                        ),
-                    }}
-                />
+                                                "&:hover": {
+                                                    backgroundColor: "#25D366",
+                                                    color: "#161717",
+                                                },
+                                            }}
+                                        >
+                                            <Send className={isRTL ? "rotate-180" : ""} />
+                                        </IconButton>
+                                    ) : (
+                                        <IconButton
+                                            type="button"
+                                            onClick={() => startRecording()}
+                                            size="medium"
+                                            onMouseEnter={() => setMicHover(true)}
+                                            onMouseLeave={() => setMicHover(false)}
+                                            sx={{
+                                                transition: "background-color 0.2s ease",
+                                                "&:hover": {
+                                                    backgroundColor: "#25D366",
+                                                    color: "#161717",
+                                                },
+                                            }}
+                                        >
+                                            {micHover ? <Mic /> : <MicNoneOutlined />}
+                                        </IconButton>
+                                    )}
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Box>
             )}
         </div>
     );

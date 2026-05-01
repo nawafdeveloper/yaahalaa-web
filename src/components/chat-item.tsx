@@ -4,7 +4,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
 import React from 'react'
-import { AttachFileOutlined, DoneAll, Group, ImageOutlined, KeyboardVoiceOutlined, Person, SlowMotionVideoOutlined } from '@mui/icons-material';
+import { AttachFileOutlined, DoneAll, Group, ImageOutlined, KeyboardVoiceOutlined, NotificationsOffOutlined, Person, SlowMotionVideoOutlined } from '@mui/icons-material';
 import Badge from '@mui/material/Badge';
 import ChatItemMoreButtonMenu from './chat-item-more-button-menu';
 import { ChatItemType } from '@/types/chats.type';
@@ -84,11 +84,14 @@ export default function ChatItem({ chat_item }: Props) {
             }}
         >
             <span
-                className={`text-[13px] font-light ${chat_item.is_unreaded_chat
+                className={`flex items-center gap-1 text-[13px] font-light ${chat_item.is_unreaded_chat
                     ? "text-[#25D366]"
                     : "dark:text-[#A5A5A5] text-[#636261]"
                     }`}
             >
+                {chat_item.is_muted_chat_notifications && (
+                    <NotificationsOffOutlined sx={{ fontSize: 14 }} />
+                )}
                 {formatRelativeDate(chat_item.updated_at, locale)}
             </span>
             <div
@@ -115,7 +118,13 @@ export default function ChatItem({ chat_item }: Props) {
                         },
                     })}
                 />
-                <ChatItemMoreButtonMenu chat_type={chat_item.chat_type} />
+                <ChatItemMoreButtonMenu
+                    chat_id={chat_item.chat_id}
+                    chat_type={chat_item.chat_type}
+                    is_muted_chat_notifications={
+                        chat_item.is_muted_chat_notifications
+                    }
+                />
             </div>
         </div>
     );
@@ -231,13 +240,12 @@ export default function ChatItem({ chat_item }: Props) {
                                             ? "#53bdeb"
                                             : "gray",
                                         fontSize: 16,
-                                        verticalAlign: "text-bottom",
-                                        marginInlineEnd: 0.5,
+                                        lineHeight: 15,
                                     }}
                                 />
                             )}
                             {isReactionPreview ? (
-                                `${reactionSenderLabel} reacted to your message ${chat_item.last_message_context}`
+                                isRTL ? `${reactionSenderLabel} تفاعل مع المحادثة بـ ${chat_item.last_message_context}` : `${reactionSenderLabel} reacted to message with ${chat_item.last_message_context}`
                             ) : (
                                 <>
                             {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${groupSenderLabel}:`}

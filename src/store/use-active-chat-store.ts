@@ -5,7 +5,7 @@ import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { applyMessageReadByUser } from "@/lib/message-read-receipts";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Contact } from "@/types/contacts.type";
-import type { Message } from "@/types/messages.type";
+import type { Message, ReplyMessage } from "@/types/messages.type";
 
 type PresenceState = {
     activeUsers: string[];
@@ -23,6 +23,7 @@ interface ActiveChatState {
     selectedChatId: string | null;
     recipientPhone: string | null;
     draftsByChatId: Record<string, string>;
+    replyDraftByChatId: Record<string, ReplyMessage>;
     messagesByChatId: Record<string, Message[]>;
     messagesLoadingByChatId: Record<string, boolean>;
     olderMessagesLoadingByChatId: Record<string, boolean>;
@@ -36,6 +37,8 @@ interface ActiveChatState {
     setSelectedChatId: (chatId: string | null) => void;
     setRecipientPhone: (phone: string | null) => void;
     setDraft: (chatId: string, draft: string) => void;
+    setReplyDraft: (chatId: string, replyMessage: ReplyMessage) => void;
+    clearReplyDraft: (chatId: string) => void;
     setMessages: (chatId: string, messages: Message[]) => void;
     appendMessage: (chatId: string, message: Message) => void;
     updateMessage: (
@@ -69,6 +72,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     selectedChatId: null,
     recipientPhone: null,
     draftsByChatId: {},
+    replyDraftByChatId: {},
     messagesByChatId: {},
     messagesLoadingByChatId: {},
     olderMessagesLoadingByChatId: {},
@@ -110,6 +114,20 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 [chatId]: draft,
             },
         })),
+    setReplyDraft: (chatId, replyMessage) =>
+        set((state) => ({
+            replyDraftByChatId: {
+                ...state.replyDraftByChatId,
+                [chatId]: replyMessage,
+            },
+        })),
+    clearReplyDraft: (chatId) =>
+        set((state) => {
+            const replyDraftByChatId = { ...state.replyDraftByChatId };
+            delete replyDraftByChatId[chatId];
+
+            return { replyDraftByChatId };
+        }),
     setMessages: (chatId, messages) =>
         set((state) => {
             const existingMessages = state.messagesByChatId[chatId] ?? [];
@@ -408,6 +426,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             selectedChatId: null,
             recipientPhone: null,
             draftsByChatId: {},
+            replyDraftByChatId: {},
             messagesByChatId: {},
             messagesLoadingByChatId: {},
             olderMessagesLoadingByChatId: {},
