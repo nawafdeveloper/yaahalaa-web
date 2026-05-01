@@ -133,7 +133,7 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
         >
             <div
                 ref={imageWrapperRef}
-                style={{ lineHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ lineHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}
             >
                 {mediaType === 'photo' && (
                     <LazyLoadImage
@@ -163,8 +163,8 @@ export default function MediaPreviewContent({ zoom, maxZoom, minZoom, onZoomChan
                         style={{
                             maxWidth: "100%",
                             maxHeight: "calc(100dvh - 64px)",
-                            width: "auto",
-                            height: "auto",
+                            width: "100%",
+                            height: "100%",
                             display: "block",
                             pointerEvents: zoom > MIN_ZOOM ? 'none' : 'auto',
                             ...mediaTransform

@@ -3,6 +3,7 @@ import {
     toContactDisplayName,
     phoneValuesMatch,
 } from "@/lib/contact-utils";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Contact } from "@/types/contacts.type";
 import type { Message } from "@/types/messages.type";
@@ -146,7 +147,11 @@ export function applyContactToSingleChat(
     }
 
     const nextDisplayName = toContactDisplayName(contact);
-    const nextAvatar = contact.contact_avatar ?? chat.avatar;
+    const nextContactAvatar =
+        contact.contact_avatar && !isManagedProfileImageUrl(contact.contact_avatar)
+            ? contact.contact_avatar
+            : "";
+    const nextAvatar = nextContactAvatar || chat.avatar;
     const nextRecipientUserId = contact.linked_user_id ?? chat.recipient_user_id ?? null;
     const nextRecipientPublicKey =
         contact.linked_user_public_key ?? chat.recipient_public_key ?? null;
@@ -195,6 +200,13 @@ export function buildChatFromMessage({
         recipient_user_id: fallbackExistingChat?.recipient_user_id ?? null,
         recipient_public_key: fallbackExistingChat?.recipient_public_key ?? null,
         contact_phone: fallbackExistingChat?.contact_phone ?? null,
+        recipient_last_seen: fallbackExistingChat?.recipient_last_seen ?? null,
+        recipient_who_can_see_status:
+            fallbackExistingChat?.recipient_who_can_see_status ?? null,
+        recipient_who_can_see_profile_picture:
+            fallbackExistingChat?.recipient_who_can_see_profile_picture ?? null,
+        recipient_profile_picture_visible:
+            fallbackExistingChat?.recipient_profile_picture_visible ?? null,
         stored_contact: fallbackExistingChat?.stored_contact ?? null,
         is_provisional: false,
         last_message_id: message.message_id,

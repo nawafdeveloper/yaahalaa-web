@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { buildDirectChatId } from "@/lib/chat-e2ee";
 import { sortChatsByRecent, sortMessagesChronologically } from "@/lib/chat-utils";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { applyMessageReadByUser } from "@/lib/message-read-receipts";
 import type { ChatItemType } from "@/types/chats.type";
 import type { Contact } from "@/types/contacts.type";
@@ -258,6 +259,10 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
         }),
     openDirectContactChat: ({ contact, currentPhone, currentUserId }) => {
         const chatId = buildDirectChatId(currentPhone, contact.contact_number);
+        const contactAvatar =
+            contact.contact_avatar && !isManagedProfileImageUrl(contact.contact_avatar)
+                ? contact.contact_avatar
+                : "";
 
         set((state) => {
             const existingChat = state.chats.find((chat) => chat.chat_id === chatId);
@@ -265,13 +270,20 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
             const nextChat: ChatItemType = {
                 chat_id: chatId,
                 chat_type: "single",
-                avatar: contact.contact_avatar ?? existingChat?.avatar ?? "",
+                avatar: contactAvatar || existingChat?.avatar || "",
                 display_name:
                     `${contact.contact_first_name ?? ""} ${contact.contact_second_name ?? ""}`
                         .trim() || contact.contact_number,
                 recipient_user_id: contact.linked_user_id,
                 recipient_public_key: contact.linked_user_public_key ?? null,
                 contact_phone: contact.contact_number,
+                recipient_last_seen: existingChat?.recipient_last_seen ?? null,
+                recipient_who_can_see_status:
+                    existingChat?.recipient_who_can_see_status ?? null,
+                recipient_who_can_see_profile_picture:
+                    existingChat?.recipient_who_can_see_profile_picture ?? null,
+                recipient_profile_picture_visible:
+                    existingChat?.recipient_profile_picture_visible ?? null,
                 stored_contact: existingChat?.stored_contact ?? null,
                 is_provisional: !existingChat,
                 last_message_id: existingChat?.last_message_id ?? null,

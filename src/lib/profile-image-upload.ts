@@ -1,60 +1,63 @@
 "use client";
 
-import { importPrivateKey, importPublicKey } from "./crypto-keys";
+import { importPublicKey } from "./crypto-keys";
 import { base64ToBuffer, bufferToBase64 } from "./crypto-pin";
+import { logMediaDebug } from "./message-media-debug";
 import { decryptFileWithAes, encryptFileWithAes } from "./profile-image-encryption";
-
-const SESSION_KEYS_STORAGE_KEY = "yhla_session_keys";
+import { parseManagedProfileImageUrl } from "./profile-image-url";
+import { getSessionCryptoKeys } from "./text-encryption";
 
 export interface ProfileImageUploadResult {
     imageUrl: string;
     mediaId: string;
 }
 
-type StoredSessionKeys = {
-    publicKey: string;
-    privateKey: string;
+export type ProfileImageRecipientPublicKeyInput = {
+    recipientUserId: string;
+    publicKey: string | CryptoKey;
 };
 
-async function retrieveSessionKeys(): Promise<{
-    publicKey: CryptoKey;
-    privateKey: CryptoKey;
-} | null> {
-    const stored = localStorage.getItem(SESSION_KEYS_STORAGE_KEY);
-    if (!stored) {
-        return null;
-    }
-
-    try {
-        const data = JSON.parse(stored) as StoredSessionKeys;
-        const publicKey = await importPublicKey(data.publicKey);
-        const privateKeyBytes = base64ToBuffer(data.privateKey);
-        const privateKey = await importPrivateKey(
-            privateKeyBytes.buffer.slice(
-                privateKeyBytes.byteOffset,
-                privateKeyBytes.byteOffset + privateKeyBytes.byteLength
-            ) as ArrayBuffer,
-            true
-        );
-
-        return { publicKey, privateKey };
-    } catch {
-        return null;
-    }
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    return bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength
+    ) as ArrayBuffer;
 }
 
 async function encryptAesKeyWithPublicKey(
     aesKeyBase64: string,
     publicKey: CryptoKey
 ): Promise<string> {
-    const aesKeyBytes = Uint8Array.from(atob(aesKeyBase64), (char) => char.charCodeAt(0));
+    const aesKeyBytes = base64ToBuffer(aesKeyBase64);
     const encrypted = await crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         publicKey,
-        aesKeyBytes
+        toArrayBuffer(aesKeyBytes)
     );
 
     return bufferToBase64(encrypted);
+}
+
+async function normalizeRecipientPublicKeys(
+    recipients: ProfileImageRecipientPublicKeyInput[]
+) {
+    const uniqueRecipients = [
+        ...new Map(
+            recipients
+                .filter((recipient) => recipient.recipientUserId && recipient.publicKey)
+                .map((recipient) => [recipient.recipientUserId, recipient])
+        ).values(),
+    ];
+
+    return Promise.all(
+        uniqueRecipients.map(async (recipient) => ({
+            recipientUserId: recipient.recipientUserId,
+            publicKey:
+                typeof recipient.publicKey === "string"
+                    ? await importPublicKey(recipient.publicKey)
+                    : recipient.publicKey,
+        }))
+    );
 }
 
 async function decryptAesKeyWithPrivateKey(
@@ -65,10 +68,7 @@ async function decryptAesKeyWithPrivateKey(
     const decrypted = await crypto.subtle.decrypt(
         { name: "RSA-OAEP" },
         privateKey,
-        encryptedBytes.buffer.slice(
-            encryptedBytes.byteOffset,
-            encryptedBytes.byteOffset + encryptedBytes.byteLength
-        ) as ArrayBuffer
+        toArrayBuffer(encryptedBytes)
     );
 
     return bufferToBase64(decrypted);
@@ -90,15 +90,27 @@ function cloneUint8Array(data: Uint8Array): ArrayBuffer {
  * The AES key is sent to the server for authorized access.
  */
 export async function uploadEncryptedProfileImage(
-    file: File
+    file: File,
+    recipientPublicKeys: ProfileImageRecipientPublicKeyInput[] = []
 ): Promise<ProfileImageUploadResult> {
-    const sessionKeys = await retrieveSessionKeys();
+    const sessionKeys = await getSessionCryptoKeys();
     if (!sessionKeys?.publicKey) {
         throw new Error("No public key found in session. Please unlock your keys again.");
     }
 
     const { encryptedData, aesKey, iv } = await encryptFileWithAes(file);
     const encryptedAesKey = await encryptAesKeyWithPublicKey(aesKey, sessionKeys.publicKey);
+    const normalizedRecipientPublicKeys =
+        await normalizeRecipientPublicKeys(recipientPublicKeys);
+    const recipientKeys = await Promise.all(
+        normalizedRecipientPublicKeys.map(async (recipient) => ({
+            recipientUserId: recipient.recipientUserId,
+            encryptedAesKey: await encryptAesKeyWithPublicKey(
+                aesKey,
+                recipient.publicKey
+            ),
+        }))
+    );
 
     const encryptedFile = new File([cloneUint8Array(encryptedData)], file.name, {
         type: file.type,
@@ -108,6 +120,7 @@ export async function uploadEncryptedProfileImage(
     formData.append("file", encryptedFile);
     formData.append("aesKey", encryptedAesKey);
     formData.append("iv", iv);
+    formData.append("recipientKeys", JSON.stringify(recipientKeys));
 
     const response = await fetch("/api/profile-image", {
         method: "POST",
@@ -122,35 +135,143 @@ export async function uploadEncryptedProfileImage(
     return response.json();
 }
 
+export async function shareEncryptedProfileImageWithRecipients(
+    imageUrl: string | null | undefined,
+    recipientPublicKeys: ProfileImageRecipientPublicKeyInput[]
+): Promise<boolean> {
+    const parsed = parseManagedProfileImageUrl(imageUrl);
+    if (!parsed || recipientPublicKeys.length === 0) {
+        return false;
+    }
+
+    const sessionKeys = await getSessionCryptoKeys();
+    if (!sessionKeys?.privateKey) {
+        throw new Error("No private key found in session. Please unlock your keys again.");
+    }
+
+    const keyResponse = await fetch(`/api/profile-image/key/${parsed.objectKey}`);
+    if (!keyResponse.ok) {
+        return false;
+    }
+
+    const keyData = await keyResponse.json() as { aesKey: string };
+    const aesKeyBase64 = await decryptAesKeyWithPrivateKey(
+        keyData.aesKey,
+        sessionKeys.privateKey
+    );
+    const normalizedRecipientPublicKeys =
+        await normalizeRecipientPublicKeys(recipientPublicKeys);
+    const recipientKeys = await Promise.all(
+        normalizedRecipientPublicKeys.map(async (recipient) => ({
+            recipientUserId: recipient.recipientUserId,
+            encryptedAesKey: await encryptAesKeyWithPublicKey(
+                aesKeyBase64,
+                recipient.publicKey
+            ),
+        }))
+    );
+
+    if (recipientKeys.length === 0) {
+        return false;
+    }
+
+    const response = await fetch(`/api/profile-image/key/${parsed.objectKey}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ recipientKeys }),
+    });
+
+    return response.ok;
+}
+
 /**
  * Fetch and decrypt a profile image.
  * The client fetches the encrypted image and AES key separately.
  * Note: objectKey already includes the full path (e.g., p/d11921a8f40f4ec2/1776464818936.enc)
  */
 export async function fetchAndDecryptProfileImage(objectKey: string): Promise<Blob> {
-    const sessionKeys = await retrieveSessionKeys();
+    logMediaDebug("client.profile-image.decrypt.start", {
+        objectKey,
+    });
+
+    const sessionKeys = await getSessionCryptoKeys();
     if (!sessionKeys?.privateKey) {
+        logMediaDebug("client.profile-image.decrypt.no-private-key", {
+            objectKey,
+        });
         throw new Error("No private key found in session. Please unlock your keys again.");
     }
 
     const keyResponse = await fetch(`/api/profile-image/key/${objectKey}`);
     if (!keyResponse.ok) {
+        logMediaDebug("client.profile-image.decrypt.key-failed", {
+            objectKey,
+            status: keyResponse.status,
+        });
         throw new Error("Failed to fetch encryption key");
     }
 
     const keyData = await keyResponse.json() as { aesKey: string; iv: string; mimeType: string };
     const { aesKey: encryptedAesKeyBase64, iv: ivBase64, mimeType } = keyData;
-    const aesKeyBase64 = await decryptAesKeyWithPrivateKey(
-        encryptedAesKeyBase64,
-        sessionKeys.privateKey
-    );
+    let aesKeyBase64: string;
+
+    try {
+        aesKeyBase64 = await decryptAesKeyWithPrivateKey(
+            encryptedAesKeyBase64,
+            sessionKeys.privateKey
+        );
+        logMediaDebug("client.profile-image.decrypt.key-unwrapped", {
+            objectKey,
+            mimeType,
+        });
+    } catch (error) {
+        logMediaDebug("client.profile-image.decrypt.key-unwrap-failed", {
+            objectKey,
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "Failed to decrypt profile image key",
+        });
+        throw new Error("Failed to decrypt profile image key.");
+    }
 
     const imageResponse = await fetch(`/api/profile-image/${objectKey}`);
     if (!imageResponse.ok) {
+        logMediaDebug("client.profile-image.decrypt.image-failed", {
+            objectKey,
+            status: imageResponse.status,
+        });
         throw new Error("Failed to fetch encrypted image");
     }
 
     const encryptedData = await imageResponse.arrayBuffer();
-    const decryptedData = await decryptFileWithAes(encryptedData, aesKeyBase64, ivBase64);
-    return new Blob([cloneUint8Array(decryptedData)], { type: mimeType });
+    let decryptedData: Uint8Array;
+
+    try {
+        decryptedData = await decryptFileWithAes(
+            encryptedData,
+            aesKeyBase64,
+            ivBase64
+        );
+    } catch (error) {
+        logMediaDebug("client.profile-image.decrypt.aes-failed", {
+            objectKey,
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "Failed to decrypt profile image bytes",
+        });
+        throw new Error("Failed to decrypt profile image bytes.");
+    }
+
+    const blob = new Blob([cloneUint8Array(decryptedData)], { type: mimeType });
+    logMediaDebug("client.profile-image.decrypt.success", {
+        objectKey,
+        mimeType: blob.type || null,
+        size: blob.size,
+    });
+
+    return blob;
 }

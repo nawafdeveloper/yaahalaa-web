@@ -5,6 +5,7 @@ import {
     createContactSearchValue,
     deriveContactLetterGroup,
 } from "@/lib/contact-utils";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import type {
     Contact,
     ContactPayload,
@@ -35,7 +36,7 @@ export async function decryptStoredContact(
             record.linked_user_phone_number || parsed.contact_number,
         contact_avatar:
             record.linked_user_image &&
-            !record.linked_user_image.startsWith("/api/profile-image/")
+            !isManagedProfileImageUrl(record.linked_user_image)
                 ? record.linked_user_image
                 : parsed.contact_avatar,
         contact_bio: parsed.contact_bio?.trim() || undefined,

@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import { getProfileImageRuntimeConfig } from "@/lib/profile-image-runtime-config";
-import db from "@/db";
-import { encryptedMedia } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import {
+    authorizeProfileImageAccess,
+    findProfileImageMediaRecord,
+} from "@/lib/profile-image-access";
 
 // ---------------------------------------------------------------------------
 // GET  /api/profile-image/:objectKey
@@ -35,19 +36,18 @@ export async function GET(
         return new Response("Missing object key.", { status: 400 });
     }
 
-    // Verify the media exists and user has access
-    const mediaRecord = await db.query.encryptedMedia.findFirst({
-        where: eq(encryptedMedia.objectKey, objectKey),
-    });
+    const mediaRecord = await findProfileImageMediaRecord(objectKey);
 
     if (!mediaRecord) {
         return new Response("Profile image not found.", { status: 404 });
     }
 
-    // Check if user is authorized (owner or contact)
-    // For now, only the owner can access their own profile image
-    // TODO: Implement contact checking logic
-    if (mediaRecord.ownerId !== session.user.id) {
+    const access = await authorizeProfileImageAccess({
+        mediaRecord,
+        requesterUserId: session.user.id,
+    });
+
+    if (!access.canAccess) {
         return new Response("Unauthorized to access this media.", { status: 403 });
     }
 

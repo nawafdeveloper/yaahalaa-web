@@ -8,7 +8,7 @@ type SerializedRecipientMediaKeys = {
     keys: Record<string, string>;
 };
 
-function parseRecipientMediaKeyMap(
+export function parseRecipientMediaKeyMap(
     storedValue: string
 ): SerializedRecipientMediaKeys | null {
     if (!storedValue) {

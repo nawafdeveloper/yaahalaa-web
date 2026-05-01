@@ -20,15 +20,26 @@ import {
     Zoom,
 } from "@mui/material";
 import { AnimatePresence, motion } from "framer-motion";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { authClient } from "@/lib/auth-client";
-import { getChatDisplayName } from "@/lib/chat-utils";
+import {
+    getChatDisplayName,
+    resolveDirectChatPartner,
+} from "@/lib/chat-utils";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import {
+    getContactDisplayName,
+    resolveDirectChatContact,
+} from "@/lib/contact-display";
+import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
+import DecryptedProfileImage from "./decrypted-profile-image";
 
 export default function ChatRoomForwardButton() {
     const { data: session } = authClient.useSession();
     const chats = useActiveChatStore((state) => state.chats);
+    const { contacts } = useDecryptedContacts();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
@@ -43,6 +54,85 @@ export default function ChatRoomForwardButton() {
         setSearchQuery("");
         inputRef.current?.blur();
     };
+    const chatItems = useMemo(
+        () =>
+            chats.map((chat) => {
+                const directContact = resolveDirectChatContact(
+                    chat,
+                    contacts,
+                    currentPhone
+                );
+                const contactPhone =
+                    chat.chat_type === "single"
+                        ? directContact?.contact_number ??
+                          chat.contact_phone ??
+                          resolveDirectChatPartner(chat.chat_id, currentPhone) ??
+                          chat.chat_id
+                        : "";
+                const title =
+                    chat.chat_type === "single" && directContact
+                        ? getContactDisplayName(directContact)
+                        : getChatDisplayName(chat, currentPhone);
+                const canShowDirectAvatar =
+                    chat.chat_type === "single" &&
+                    (chat.recipient_profile_picture_visible ??
+                        canViewProfilePicture(
+                            chat.recipient_who_can_see_profile_picture,
+                            Boolean(directContact)
+                        ));
+                const directContactAvatar =
+                    directContact?.contact_avatar &&
+                    !isManagedProfileImageUrl(directContact.contact_avatar)
+                        ? directContact.contact_avatar
+                        : "";
+                const avatarSrc =
+                    chat.chat_type === "single"
+                        ? canShowDirectAvatar
+                            ? chat.avatar || directContactAvatar
+                            : ""
+                        : isManagedProfileImageUrl(chat.avatar)
+                          ? ""
+                          : chat.avatar;
+                const footerLabel =
+                    chat.chat_type === "single"
+                        ? directContact
+                            ? getContactDisplayName(directContact)
+                            : contactPhone
+                        : title;
+
+                return {
+                    chat,
+                    title,
+                    contactPhone,
+                    avatarSrc,
+                    footerLabel,
+                };
+            }),
+        [chats, contacts, currentPhone]
+    );
+    const visibleChatItems = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+
+        if (!query) {
+            return chatItems;
+        }
+
+        return chatItems.filter(({ chat, title, contactPhone }) =>
+            [title, contactPhone, chat.chat_id]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(query))
+        );
+    }, [chatItems, searchQuery]);
+    const footerLabelByChatId = useMemo(
+        () =>
+            new Map(
+                chatItems.map((item) => [item.chat.chat_id, item.footerLabel])
+            ),
+        [chatItems]
+    );
+    const selectedChatLabels = selectedChatsToForward.map(
+        (chatId) => footerLabelByChatId.get(chatId) ?? chatId
+    );
 
     return (
         <>
@@ -144,11 +234,7 @@ export default function ChatRoomForwardButton() {
                             </Typography>
                         </div>
                         <List sx={{ bgcolor: 'transparent', overflowY: "scroll", height: "83%", paddingX: '20px' }}>
-                            {chats.map((item) => {
-                                const avatarSrc = isManagedProfileImageUrl(item.avatar)
-                                    ? ""
-                                    : item.avatar;
-
+                            {visibleChatItems.map(({ chat: item, title, contactPhone, avatarSrc }) => {
                                 return (
                                 <ListItem
                                     disablePadding
@@ -197,20 +283,33 @@ export default function ChatRoomForwardButton() {
                                         </ListItemIcon>
                                         <div className='flex flex-row items-center'>
                                             <ListItemAvatar>
-                                                <Avatar
-                                                    sx={(theme) => ({
-                                                        width: 45,
-                                                        height: 45,
-                                                        backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
-                                                        color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
-                                                    })}
-                                                    src={avatarSrc || ""}
-                                                >
-                                                    {item.chat_type === 'group' ? <Group /> : <Person />}
-                                                </Avatar>
+                                                {item.chat_type === "single" ? (
+                                                    <DecryptedProfileImage
+                                                        imageUrl={avatarSrc}
+                                                        fallback={<Person />}
+                                                        sx={(theme) => ({
+                                                            width: 45,
+                                                            height: 45,
+                                                            backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                                            color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                                                        })}
+                                                    />
+                                                ) : (
+                                                    <Avatar
+                                                        sx={(theme) => ({
+                                                            width: 45,
+                                                            height: 45,
+                                                            backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                                            color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                                                        })}
+                                                        src={avatarSrc || ""}
+                                                    >
+                                                        <Group />
+                                                    </Avatar>
+                                                )}
                                             </ListItemAvatar>
                                             <ListItemText
-                                                primary={getChatDisplayName(item, currentPhone)}
+                                                primary={title}
                                                 sx={{
                                                     "& .MuiListItemText-secondary": {
                                                         color: (theme) => theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
@@ -218,7 +317,9 @@ export default function ChatRoomForwardButton() {
                                                     overflow: "hidden",
                                                 }}
                                                 secondary={
-                                                    item.last_message_context
+                                                    item.chat_type === "single"
+                                                        ? contactPhone
+                                                        : item.last_message_context
                                                 }
                                                 secondaryTypographyProps={{
                                                     noWrap: true,
@@ -254,7 +355,7 @@ export default function ChatRoomForwardButton() {
                                             textOverflow: 'ellipsis',
                                         }}
                                     >
-                                        {selectedChatsToForward.join(', ')}
+                                        {selectedChatLabels.join(', ')}
                                     </span>
 
                                     <IconButton

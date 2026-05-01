@@ -16,6 +16,8 @@ import { useActiveChatStore } from '@/store/use-active-chat-store';
 import { authClient } from '@/lib/auth-client';
 import { getChatDisplayName } from '@/lib/chat-utils';
 import { useDecryptedContacts } from '@/hooks/use-decrypted-contacts';
+import DecryptedProfileImage from './decrypted-profile-image';
+import { canViewProfilePicture } from '@/lib/profile-picture-privacy';
 import { isManagedProfileImageUrl } from '@/lib/profile-image-url';
 import {
     findContactByUserId,
@@ -42,13 +44,24 @@ export default function ChatItem({ chat_item }: Props) {
         chat_item.chat_type === "single" && directContact
             ? getContactDisplayName(directContact)
             : getChatDisplayName(chat_item, currentPhone);
-    const fallbackAvatarSrc = isManagedProfileImageUrl(chat_item.avatar)
-        ? ""
-        : chat_item.avatar;
+    const canShowDirectAvatar =
+        chat_item.chat_type === "single" &&
+        (chat_item.recipient_profile_picture_visible ??
+            canViewProfilePicture(
+                chat_item.recipient_who_can_see_profile_picture,
+                Boolean(directContact)
+            ));
+    const directContactAvatar =
+        directContact?.contact_avatar &&
+        !isManagedProfileImageUrl(directContact.contact_avatar)
+            ? directContact.contact_avatar
+            : "";
     const avatarSrc =
         chat_item.chat_type === "single"
-            ? directContact?.contact_avatar ?? fallbackAvatarSrc
-            : fallbackAvatarSrc;
+            ? canShowDirectAvatar
+                ? chat_item.avatar || directContactAvatar
+                : ""
+            : chat_item.avatar;
     const groupSenderContact = findContactByUserId(
         contacts,
         chat_item.last_message_sender_nickname
@@ -154,17 +167,34 @@ export default function ChatItem({ chat_item }: Props) {
                         marginLeft: isRTL ? 2 : 0,
                     }}
                 >
-                    <Avatar
-                        sx={(theme) => ({
-                            width: 45,
-                            height: 45,
-                            backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
-                            color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
-                        })}
-                        src={avatarSrc || ""}
-                    >
-                        {chat_item.chat_type === 'group' ? <Group /> : <Person />}
-                    </Avatar>
+                    {chat_item.chat_type === "single" ? (
+                        <DecryptedProfileImage
+                            imageUrl={avatarSrc}
+                            fallback={<Person />}
+                            sx={(theme) => ({
+                                width: 45,
+                                height: 45,
+                                backgroundColor:
+                                    theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                color:
+                                    theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                            })}
+                        />
+                    ) : (
+                        <Avatar
+                            sx={(theme) => ({
+                                width: 45,
+                                height: 45,
+                                backgroundColor:
+                                    theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
+                                color:
+                                    theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                            })}
+                            src={avatarSrc || ""}
+                        >
+                            <Group />
+                        </Avatar>
+                    )}
                 </ListItemAvatar>
                 <ListItemText
                     primary={chatTitle}
@@ -174,6 +204,7 @@ export default function ChatItem({ chat_item }: Props) {
                         textAlign: isRTL ? 'right' : 'left',
                         "& .MuiListItemText-primary": {
                             textAlign: isRTL ? 'right' : 'left',
+                            direction: 'ltr'
                         },
                         "& .MuiListItemText-secondary": {
                             color: (theme) =>
@@ -211,11 +242,11 @@ export default function ChatItem({ chat_item }: Props) {
                             )}
                             {'  '}
                             {chat_item.last_message_media ?
-                                chat_item.last_message_media === 'photo' ? 'Image' :
-                                    chat_item.last_message_media === 'video' ? 'Video' :
-                                        chat_item.last_message_media === 'voice' ? 'Voice' :
-                                            chat_item.last_message_media === 'contact' ? 'Contact' :
-                                                'File' :
+                                chat_item.last_message_media === 'photo' ? (isRTL ? 'صورة' : 'Image') :
+                                    chat_item.last_message_media === 'video' ? (isRTL ? 'فيديو' : 'Video') :
+                                        chat_item.last_message_media === 'voice' ? (isRTL ? 'رسالة صوتية' : 'Voice') :
+                                            chat_item.last_message_media === 'contact' ? (isRTL ? 'جهة اتصال' : 'Contact') :
+                                                (isRTL ? 'ملف' : 'File') :
                                 chat_item.last_message_context
                             }
                         </React.Fragment>

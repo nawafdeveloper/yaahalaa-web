@@ -427,6 +427,7 @@ export function useSendChatMessage() {
         file,
         attachedMedia,
         chatId = selectedChatId,
+        text = null,
     }: {
         file: File;
         attachedMedia: Extract<
@@ -434,6 +435,7 @@ export function useSendChatMessage() {
             "photo" | "video" | "voice" | "file"
         >;
         chatId?: string | null;
+        text?: string | null;
     }) => {
         const currentUserId = session?.user.id;
         const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
@@ -462,6 +464,20 @@ export function useSendChatMessage() {
         const localPreviewBlob = await createMessageMediaPreview(file);
         const localPreviewUrl =
             localPreviewBlob ? URL.createObjectURL(localPreviewBlob) : localMediaUrl;
+        const trimmedText = text?.trim() ?? "";
+        const encryptedMessage =
+            trimmedText.length > 0
+                ? await encryptTextForRecipients(trimmedText, conversation.recipients)
+                : null;
+        const encryptedPreview =
+            encryptedMessage && trimmedText.length > 0
+                ? createChatPreviewText(trimmedText) === trimmedText
+                    ? encryptedMessage
+                    : await encryptTextForRecipients(
+                          createChatPreviewText(trimmedText),
+                          conversation.recipients
+                      )
+                : null;
         logMediaDebug("client.attachment.prepare", {
             debugTraceId,
             messageId,
@@ -484,6 +500,7 @@ export function useSendChatMessage() {
             mediaWidth: mediaDimensions?.width ?? null,
             mediaHeight: mediaDimensions?.height ?? null,
             mediaFileName: file.name,
+            plaintext: trimmedText.length > 0 ? trimmedText : null,
             clientLocalMediaName: file.name,
             clientLocalMediaSize: file.size,
             clientLocalMediaMimeType: file.type || null,
@@ -551,7 +568,13 @@ export function useSendChatMessage() {
                 conversation,
                 existingMessageId: messageId,
                 debugTraceId,
-                recipientEncryptionKeys: upload.recipientEncryptionKeys,
+                encryptedContent: encryptedMessage?.encryptedContent ?? null,
+                recipientEncryptionKeys:
+                    encryptedMessage?.recipientEncryptionKeys ??
+                    upload.recipientEncryptionKeys,
+                encryptedChatPreview: encryptedPreview?.encryptedContent ?? null,
+                chatPreviewRecipientKeys:
+                    encryptedPreview?.recipientEncryptionKeys ?? null,
             });
         } catch (error) {
             logMediaDebug("client.attachment.failed", {

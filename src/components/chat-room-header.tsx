@@ -1,20 +1,22 @@
 "use client";
 
-import { ArrowBack, ArrowForward, Search } from "@mui/icons-material";
+import { ArrowBack, ArrowForward, Group, Search } from "@mui/icons-material";
 import Person from "@mui/icons-material/Person";
 import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import React from "react";
 import ChatRoomMoreActionButton from "./chat-room-more-action-button";
+import DecryptedProfileImage from "./decrypted-profile-image";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { authClient } from "@/lib/auth-client";
 import { getChatDisplayName } from "@/lib/chat-utils";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
-import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
+import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
 import {
     getContactDisplayName,
     resolveDirectChatContact,
 } from "@/lib/contact-display";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 
 function formatLastSeen(value: Date, locale: string | undefined) {
     return `${value.toLocaleDateString(locale ?? undefined, {
@@ -48,14 +50,24 @@ export default function ChatRoomHeader() {
             : selectedChat
                 ? getChatDisplayName(selectedChat, currentPhone)
                 : "Chat";
-    const safeSelectedAvatar =
-        selectedChat?.avatar && !isManagedProfileImageUrl(selectedChat.avatar)
-            ? selectedChat.avatar
+    const canShowHeaderAvatar =
+        selectedChat?.chat_type === "single" &&
+        (selectedChat.recipient_profile_picture_visible ??
+            canViewProfilePicture(
+                selectedChat.recipient_who_can_see_profile_picture,
+                Boolean(directContact)
+            ));
+    const directContactAvatar =
+        directContact?.contact_avatar &&
+        !isManagedProfileImageUrl(directContact.contact_avatar)
+            ? directContact.contact_avatar
             : "";
     const headerAvatar =
         selectedChat?.chat_type === "single"
-            ? directContact?.contact_avatar ?? safeSelectedAvatar
-            : safeSelectedAvatar;
+            ? canShowHeaderAvatar
+                ? selectedChat.avatar || directContactAvatar
+                : ""
+            : selectedChat?.avatar ?? "";
     const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
     const canShowDirectStatus =
         selectedChat?.chat_type === "single" &&
@@ -120,21 +132,38 @@ export default function ChatRoomHeader() {
                 >
                     {isRTL ? <ArrowForward /> : <ArrowBack />}
                 </IconButton>
-                <Avatar
-                    src={headerAvatar}
-                    sx={(theme) => ({
-                        width: 40,
-                        height: 40,
-                        backgroundColor:
-                            theme.palette.mode === "dark" ? "#1d1f1f" : "#f7f5f3",
-                        border: "1px solid",
-                        borderColor:
-                            theme.palette.mode === "dark" ? "#404040" : "#d4d4d4",
-                        color: theme.palette.mode === "dark" ? "#fff" : "#000",
-                    })}
-                >
-                    <Person />
-                </Avatar>
+                {selectedChat?.chat_type === "single" ? (
+                    <DecryptedProfileImage
+                        imageUrl={headerAvatar}
+                        fallback={<Person />}
+                        sx={(theme) => ({
+                            width: 40,
+                            height: 40,
+                            backgroundColor:
+                                theme.palette.mode === "dark" ? "#1d1f1f" : "#f7f5f3",
+                            border: "1px solid",
+                            borderColor:
+                                theme.palette.mode === "dark" ? "#404040" : "#d4d4d4",
+                            color: theme.palette.mode === "dark" ? "#fff" : "#000",
+                        })}
+                    />
+                ) : (
+                    <Avatar
+                        src={headerAvatar}
+                        sx={(theme) => ({
+                            width: 40,
+                            height: 40,
+                            backgroundColor:
+                                theme.palette.mode === "dark" ? "#1d1f1f" : "#f7f5f3",
+                            border: "1px solid",
+                            borderColor:
+                                theme.palette.mode === "dark" ? "#404040" : "#d4d4d4",
+                            color: theme.palette.mode === "dark" ? "#fff" : "#000",
+                        })}
+                    >
+                        <Group />
+                    </Avatar>
+                )}
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
                     <Typography
                         variant="body1"

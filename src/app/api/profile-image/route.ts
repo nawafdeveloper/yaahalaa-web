@@ -4,6 +4,7 @@ import {
     buildProfileImageObjectKey,
     buildProfileImageUrl,
 } from "@/lib/profile-image-url";
+import { serializeRecipientMediaKeys } from "@/lib/message-media-access";
 import db from "@/db";
 import { encryptedMedia } from "@/db/schema";
 import { nanoid } from "nanoid";
@@ -16,6 +17,11 @@ const PROFILE_IMAGE_ACCEPTED_MIME_TYPES = [
     "image/gif",
     "image/avif",
 ];
+
+type RecipientKeyInput = {
+    recipientUserId: string;
+    encryptedAesKey: string;
+};
 
 function jsonError(message: string, status: number): Response {
     return Response.json(
@@ -51,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         const file = formData.get("file");
         const aesKey = formData.get("aesKey") as string;
         const iv = formData.get("iv") as string;
+        const rawRecipientKeys = formData.get("recipientKeys");
 
         if (!(file instanceof File)) {
             return jsonError("Missing profile image file.", 400);
@@ -59,6 +66,16 @@ export async function POST(request: Request): Promise<Response> {
         if (!aesKey || !iv) {
             return jsonError("Missing encryption parameters (aesKey or iv).", 400);
         }
+
+        const parsedRecipientKeys = JSON.parse(
+            typeof rawRecipientKeys === "string" ? rawRecipientKeys : "[]"
+        ) as RecipientKeyInput[];
+        const recipientKeyMap = Object.fromEntries(
+            parsedRecipientKeys
+                .filter((key) => key.recipientUserId && key.encryptedAesKey)
+                .map((key) => [key.recipientUserId, key.encryptedAesKey])
+        );
+        recipientKeyMap[session.user.id] = aesKey;
 
         if (file.size > PROFILE_IMAGE_MAX_SIZE_BYTES) {
             return jsonError("Profile image exceeds 5 MB limit.", 400);
@@ -88,7 +105,10 @@ export async function POST(request: Request): Promise<Response> {
             id: mediaId,
             ownerId: session.user.id,
             objectKey,
-            aesKey,
+            aesKey:
+                Object.keys(recipientKeyMap).length > 1
+                    ? serializeRecipientMediaKeys(recipientKeyMap)
+                    : aesKey,
             iv,
             mimeType: file.type,
         });

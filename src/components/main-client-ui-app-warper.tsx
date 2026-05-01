@@ -14,6 +14,7 @@ import { useLogout } from '@/hooks/use-logout';
 import { Snackbar } from '@mui/material';
 import { Info } from '@mui/icons-material';
 import { useChatRealtime } from '@/hooks/use-chat-realtime';
+import { useSyncProfileImageRecipients } from '@/hooks/use-sync-profile-image-recipients';
 
 export default function MainClientUIAppWrapper({ children, country }: { children: React.ReactNode, country: string | null; }) {
     const { isOpen } = useMediaPreviewStore();
@@ -28,6 +29,7 @@ export default function MainClientUIAppWrapper({ children, country }: { children
         logout
     } = useLogout(isRTL);
     useChatRealtime();
+    useSyncProfileImageRecipients();
 
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 

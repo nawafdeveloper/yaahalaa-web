@@ -5,34 +5,41 @@ import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import { useSendChatMessage } from "@/hooks/use-send-chat-message";
 import { getContactDisplayName } from "@/lib/contact-display";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { useMediaAttachmentStore } from "@/store/media-attachment-store";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import {
     AddOutlined,
     CalendarMonth,
     CameraAlt,
+    Close,
+    CloseOutlined,
     Collections,
     Description,
     Headphones,
     Person,
     Poll,
+    SearchOutlined,
 } from "@mui/icons-material";
 import {
     Alert,
     Avatar,
+    Box,
     CircularProgress,
-    Dialog,
-    DialogContent,
-    DialogTitle,
     IconButton,
+    InputAdornment,
     List,
+    ListItem,
     ListItemAvatar,
     ListItemButton,
     ListItemIcon,
     ListItemText,
     Menu,
     MenuItem,
+    Modal,
     Snackbar,
+    TextField,
     Typography,
+    Zoom,
 } from "@mui/material";
 import React, { useMemo, useRef, useState } from "react";
 
@@ -43,15 +50,20 @@ export default function ChatRoomInputAttachButton() {
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const { contacts, isLoading: contactsLoading } = useDecryptedContacts();
     const { sendAttachment, sendContact } = useSendChatMessage();
+    const openMediaAttachment = useMediaAttachmentStore(
+        (state) => state.openMediaAttachment
+    );
 
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [contactDialogOpen, setContactDialogOpen] = useState(false);
+    const [contactSearchQuery, setContactSearchQuery] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const open = Boolean(anchorEl);
     const documentInputRef = useRef<HTMLInputElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
+    const contactSearchInputRef = useRef<HTMLInputElement>(null);
 
     const sortedContacts = useMemo(
         () =>
@@ -63,6 +75,25 @@ export default function ChatRoomInputAttachButton() {
             ),
         [contacts, locale]
     );
+    const visibleContacts = useMemo(() => {
+        const query = contactSearchQuery.trim().toLowerCase();
+
+        if (!query) {
+            return sortedContacts;
+        }
+
+        return sortedContacts.filter((contact) => {
+            const contactName = getContactDisplayName(contact).toLowerCase();
+            const contactNumber = contact.contact_number.toLowerCase();
+
+            return contactName.includes(query) || contactNumber.includes(query);
+        });
+    }, [contactSearchQuery, sortedContacts]);
+
+    const handleClearContactSearch = () => {
+        setContactSearchQuery("");
+        contactSearchInputRef.current?.blur();
+    };
 
     const handleClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
@@ -144,6 +175,31 @@ export default function ChatRoomInputAttachButton() {
         } finally {
             setIsSending(false);
         }
+    };
+
+    const previewSelectedMedia = (files: FileList | null) => {
+        if (!files?.length || !selectedChatId || !ensureAttachmentReady()) {
+            return;
+        }
+
+        const file = Array.from(files).find(
+            (item) => item.type.startsWith("image/") || item.type.startsWith("video/")
+        );
+
+        if (!file) {
+            setErrorMessage(
+                isRTL
+                    ? "\u0627\u062e\u062a\u0631 \u0635\u0648\u0631\u0629 \u0623\u0648 \u0641\u064a\u062f\u064a\u0648."
+                    : "Choose an image or video."
+            );
+            return;
+        }
+
+        openMediaAttachment({
+            chatId: selectedChatId,
+            file,
+            mediaType: file.type.startsWith("video/") ? "video" : "photo",
+        });
     };
 
     const handleContactShare = async (contactId: string) => {
@@ -458,14 +514,9 @@ export default function ChatRoomInputAttachButton() {
                 ref={mediaInputRef}
                 type="file"
                 hidden
-                multiple
                 accept="image/*,video/*"
-                onChange={async (event) => {
-                    await sendSelectedFiles({
-                        files: event.target.files,
-                        resolveAttachedMedia: (file) =>
-                            file.type.startsWith("video/") ? "video" : "photo",
-                    });
+                onChange={(event) => {
+                    previewSelectedMedia(event.target.files);
                     event.target.value = "";
                 }}
             />
@@ -483,55 +534,230 @@ export default function ChatRoomInputAttachButton() {
                     event.target.value = "";
                 }}
             />
-            <Dialog
+            <Modal
                 open={contactDialogOpen}
                 onClose={() => setContactDialogOpen(false)}
-                fullWidth
-                maxWidth="xs"
-                PaperProps={{
-                    sx: {
-                        borderRadius: 4,
-                        overflow: "hidden",
-                    },
+                closeAfterTransition
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }}
             >
-                <DialogTitle>
-                    {isRTL ? "مشاركة جهة اتصال" : "Share contact"}
-                </DialogTitle>
-                <DialogContent sx={{ px: 0 }}>
+                <Zoom in={contactDialogOpen} timeout={300}>
+                    <Box
+                        sx={(theme) => ({
+                            backgroundColor:
+                                theme.palette.mode === "dark" ? "#161717" : "#FFFFFF",
+                            boxShadow: 0,
+                            p: 0,
+                            borderRadius: "18px",
+                            width: "440px",
+                            marginY: "auto",
+                            height: "100%",
+                            maxHeight: "calc(100vh - 200px)",
+                            overflow: "hidden",
+                            position: "relative",
+                        })}
+                    >
+                        <div className="flex flex-row items-center gap-x-3 p-2">
+                            <IconButton
+                                type="button"
+                                onClick={() => setContactDialogOpen(false)}
+                                disabled={isSending}
+                            >
+                                <Close />
+                            </IconButton>
+                            <Typography>
+                                {isRTL ? "مشاركة جهة اتصال" : "Share contact"}
+                            </Typography>
+                        </div>
+                        <div className="px-5">
+                            <TextField
+                                hiddenLabel
+                                id="filled-contact-search-bar"
+                                variant="filled"
+                                size="small"
+                                placeholder={
+                                    isRTL
+                                        ? "\u0627\u0628\u062d\u062b \u0639\u0646 \u0631\u0642\u0645 \u0623\u0648 \u062c\u0647\u0629 \u0627\u062a\u0635\u0627\u0644"
+                                        : "Search name or number"
+                                }
+                                fullWidth
+                                value={contactSearchQuery}
+                                onChange={(event) =>
+                                    setContactSearchQuery(event.target.value)
+                                }
+                                inputRef={contactSearchInputRef}
+                                sx={(theme) => ({
+                                    "& .MuiFilledInput-root": {
+                                        borderRadius: 8,
+                                        "&.Mui-focused": {
+                                            outline: "2px solid #25D366",
+                                            backgroundColor:
+                                                theme.palette.mode === "dark"
+                                                    ? "#2B2C2C"
+                                                    : "#ffffff",
+                                        },
+                                    },
+                                    width: "100%",
+                                })}
+                                InputProps={{
+                                    disableUnderline: true,
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchOutlined
+                                                sx={{
+                                                    color: (theme) =>
+                                                        theme.palette.mode === "dark"
+                                                            ? "#A5A5A5"
+                                                            : "#636261",
+                                                    width: 20,
+                                                    height: 20,
+                                                }}
+                                            />
+                                        </InputAdornment>
+                                    ),
+                                    endAdornment: contactSearchQuery ? (
+                                        <InputAdornment position="end">
+                                            <IconButton
+                                                onClick={handleClearContactSearch}
+                                                size="small"
+                                            >
+                                                <CloseOutlined
+                                                    sx={{
+                                                        color: (theme) =>
+                                                            theme.palette.mode === "dark"
+                                                                ? "#A5A5A5"
+                                                                : "#636261",
+                                                        width: 18,
+                                                        height: 18,
+                                                    }}
+                                                />
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ) : null,
+                                }}
+                            />
+                        </div>
+                        <div className="my-5 px-6">
+                            <Typography
+                                variant="caption"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: (theme) =>
+                                        theme.palette.mode === "dark"
+                                            ? "#A5A5A5"
+                                            : "#636261",
+                                    fontSize: 14,
+                                }}
+                            >
+                                {isRTL
+                                    ? "\u062c\u0647\u0627\u062a \u0627\u0644\u0627\u062a\u0635\u0627\u0644"
+                                    : "Contacts"}
+                            </Typography>
+                        </div>
+                        <>
                     {contactsLoading && sortedContacts.length === 0 ? (
-                        <div className="flex min-h-40 items-center justify-center">
+                        <div className="flex h-[83%] items-center justify-center px-5">
                             <CircularProgress size={26} />
                         </div>
-                    ) : sortedContacts.length === 0 ? (
+                    ) : visibleContacts.length === 0 ? (
                         <Typography sx={{ px: 3, py: 2, color: "text.secondary" }}>
                             {isRTL
                                 ? "لا توجد جهات اتصال متاحة للمشاركة"
-                                : "No contacts available to share."}
+                                : "No contacts available."}
                         </Typography>
                     ) : (
-                        <List disablePadding>
-                            {sortedContacts.map((contact) => (
-                                <ListItemButton
-                                    key={contact.contact_id}
-                                    disabled={isSending}
-                                    onClick={() => void handleContactShare(contact.contact_id)}
-                                >
-                                    <ListItemAvatar>
-                                        <Avatar src={contact.contact_avatar ?? ""}>
-                                            <Person />
-                                        </Avatar>
-                                    </ListItemAvatar>
-                                    <ListItemText
-                                        primary={getContactDisplayName(contact)}
-                                        secondary={contact.contact_number}
-                                    />
-                                </ListItemButton>
+                        <List
+                            sx={{
+                                bgcolor: "transparent",
+                                overflowY: "scroll",
+                                height: "83%",
+                                paddingX: "20px",
+                            }}
+                        >
+                            {visibleContacts.map((contact) => (
+                                <ListItem disablePadding key={contact.contact_id}>
+                                    <ListItemButton
+                                        disabled={isSending}
+                                        onClick={() =>
+                                            void handleContactShare(contact.contact_id)
+                                        }
+                                        sx={(theme) => ({
+                                            display: "flex",
+                                            flexDirection: isRTL ? "row-reverse" : "row",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            borderRadius: 3,
+                                            backgroundColor: "transparent",
+                                            boxShadow: "0px 4px 20px rgba(0,0,0,0)",
+                                            textTransform: "inherit",
+                                            color:
+                                                theme.palette.mode === "dark"
+                                                    ? "#ffffff"
+                                                    : "#000000",
+                                            "&:hover": {
+                                                boxShadow:
+                                                    "0px 4px 20px rgba(0,0,0,0)",
+                                                backgroundColor:
+                                                    theme.palette.mode === "dark"
+                                                        ? "#333"
+                                                        : "#eee",
+                                            },
+                                        })}
+                                    >
+                                        <div className="flex flex-row items-center">
+                                            <ListItemAvatar>
+                                                <Avatar
+                                                    sx={(theme) => ({
+                                                        width: 45,
+                                                        height: 45,
+                                                        backgroundColor:
+                                                            theme.palette.mode === "dark"
+                                                                ? "#103529"
+                                                                : "#D9FDD3",
+                                                        color:
+                                                            theme.palette.mode === "dark"
+                                                                ? "#25D366"
+                                                                : "#1F4E2E",
+                                                    })}
+                                                    src={contact.contact_avatar ?? ""}
+                                                >
+                                                    <Person />
+                                                </Avatar>
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={getContactDisplayName(contact)}
+                                                secondary={contact.contact_number}
+                                                sx={{
+                                                    "& .MuiListItemText-secondary": {
+                                                        color: (theme) =>
+                                                            theme.palette.mode === "dark"
+                                                                ? "#A5A5A5"
+                                                                : "#636261",
+                                                    },
+                                                    overflow: "hidden",
+                                                }}
+                                                secondaryTypographyProps={{
+                                                    noWrap: true,
+                                                    sx: {
+                                                        overflow: "hidden",
+                                                        display: "block",
+                                                        maxWidth: "100%",
+                                                    },
+                                                }}
+                                            />
+                                        </div>
+                                    </ListItemButton>
+                                </ListItem>
                             ))}
                         </List>
                     )}
-                </DialogContent>
-            </Dialog>
+                        </>
+                    </Box>
+                </Zoom>
+            </Modal>
             <Snackbar
                 open={Boolean(errorMessage)}
                 autoHideDuration={4000}

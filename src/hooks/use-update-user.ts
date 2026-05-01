@@ -3,7 +3,9 @@
 import { authClient } from "@/lib/auth-client";
 import { uploadEncryptedProfileImage } from "@/lib/profile-image-upload";
 import { decryptText, encryptText } from "@/lib/text-encryption";
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const PROFILE_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const ABOUT_MAX_LENGTH = 99;
@@ -44,6 +46,9 @@ export const useUpdateUser = ({
     aboutIv,
     isRTL,
 }: UseUpdateUserOptions) => {
+    const { data: session } = authClient.useSession();
+    const { contacts } = useDecryptedContacts();
+    const chats = useActiveChatStore((state) => state.chats);
     const [committedName, setCommittedName] = useState(name);
     const [committedImage, setCommittedImage] = useState(image ?? "");
     const [committedAbout, setCommittedAbout] = useState("");
@@ -59,6 +64,36 @@ export const useUpdateUser = ({
 
     const nameInputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const currentUserId = session?.user.id ?? null;
+    const profileImageRecipientPublicKeys = useMemo(() => {
+        const recipients = new Map<string, string>();
+
+        for (const contact of contacts) {
+            if (
+                contact.linked_user_id &&
+                contact.linked_user_id !== currentUserId &&
+                contact.linked_user_public_key
+            ) {
+                recipients.set(contact.linked_user_id, contact.linked_user_public_key);
+            }
+        }
+
+        for (const chat of chats) {
+            if (
+                chat.chat_type === "single" &&
+                chat.recipient_user_id &&
+                chat.recipient_user_id !== currentUserId &&
+                chat.recipient_public_key
+            ) {
+                recipients.set(chat.recipient_user_id, chat.recipient_public_key);
+            }
+        }
+
+        return [...recipients].map(([recipientUserId, publicKey]) => ({
+            recipientUserId,
+            publicKey,
+        }));
+    }, [chats, contacts, currentUserId]);
 
     useEffect(() => {
         setCommittedName(name);
@@ -233,7 +268,10 @@ export const useUpdateUser = ({
             let nextAboutIv = aboutIv ?? "";
 
             if (selectedProfileImage) {
-                const uploadResult = await uploadEncryptedProfileImage(selectedProfileImage);
+                const uploadResult = await uploadEncryptedProfileImage(
+                    selectedProfileImage,
+                    profileImageRecipientPublicKeys
+                );
                 nextImage = uploadResult.imageUrl;
             }
 

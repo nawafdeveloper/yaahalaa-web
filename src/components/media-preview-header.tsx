@@ -1,6 +1,7 @@
 "use client";
 
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
+import { authClient } from '@/lib/auth-client';
 import useMediaPreviewStore from '@/store/media-preview-store';
 import { CloseOutlined, FileDownloadOutlined, KeyboardDoubleArrowRight, MoodOutlined, Person, PushPinOutlined, Shortcut, StarOutline, StartOutlined, ZoomIn, ZoomOut } from '@mui/icons-material'
 import { Avatar, Box, IconButton, Tooltip, Typography } from '@mui/material'
@@ -23,10 +24,17 @@ type ActionButton = {
 }
 
 export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom, minZoom }: Props) {
+    const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
-    const { closePreview, mediaUrl, senderUserId, createdAt } = useMediaPreviewStore();
+    const { closePreview, senderUserId, senderDisplayName, createdAt } = useMediaPreviewStore();
+    const senderLabel =
+        senderUserId && senderUserId === session?.user.id
+            ? isRTL
+                ? "أنت"
+                : "You"
+            : senderDisplayName ?? senderUserId;
 
     const actionButtons: ActionButton[] = [
         {
@@ -136,7 +144,7 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
                             fontWeight: "600"
                         }}
                     >
-                        {senderUserId}
+                        {senderLabel}
                     </Typography>
                     <Typography
                         variant="caption"

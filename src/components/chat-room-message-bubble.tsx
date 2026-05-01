@@ -756,8 +756,9 @@ export default function ChatRoomMessageBubble({
                                             openPreview(
                                                 message.attached_media,
                                                 message.media_url || "",
-                                                senderDisplayName,
-                                                message.created_at.toLocaleDateString()
+                                                message.sender_user_id,
+                                                message.created_at.toLocaleDateString(),
+                                                senderDisplayName
                                             );
                                         }
                                     }}

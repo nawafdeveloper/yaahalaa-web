@@ -6,6 +6,7 @@ import {
     chatRecipientKeys,
     chats,
     contacts,
+    encryptedMedia,
     message,
     messageRecipientKeys,
     user,
@@ -14,6 +15,9 @@ import {
     buildPhoneLookupVariants,
     phoneValuesMatch,
 } from "@/lib/contact-utils";
+import { userHasDirectMediaRecipientKey } from "@/lib/message-media-access";
+import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
+import { parseManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { and, desc, eq, inArray, like } from "drizzle-orm";
 import type { RecipientEncryptedAesKey } from "@/types/crypto";
 
@@ -133,6 +137,7 @@ export async function GET(request: Request) {
                       publicKey: user.yhlaPublicKey,
                       lastSeen: user.lastSeen,
                       whoCanSeeStatus: user.whoCanSeeStatus,
+                      whoCanSeeProfilePicture: user.whoCanSeeProfilePicture,
                   })
                   .from(user)
                   .where(inArray(user.phoneNumber, directPartnerPhoneVariants))
@@ -144,6 +149,33 @@ export async function GET(request: Request) {
         }
     }
     const partnerUserIds = [...new Set(partnerUsers.map((partner) => partner.id))];
+    const partnerProfileImageObjectKeys = [
+        ...new Set(
+            partnerUsers
+                .map((partner) => parseManagedProfileImageUrl(partner.image ?? ""))
+                .map((parsed) => parsed?.objectKey)
+                .filter((objectKey): objectKey is string => Boolean(objectKey))
+        ),
+    ];
+    const partnerProfileImageRecords =
+        partnerProfileImageObjectKeys.length > 0
+            ? await db
+                  .select({
+                      objectKey: encryptedMedia.objectKey,
+                      ownerId: encryptedMedia.ownerId,
+                      aesKey: encryptedMedia.aesKey,
+                  })
+                  .from(encryptedMedia)
+                  .where(
+                      inArray(
+                          encryptedMedia.objectKey,
+                          partnerProfileImageObjectKeys
+                      )
+                  )
+            : [];
+    const partnerProfileImageRecordByObjectKey = new Map(
+        partnerProfileImageRecords.map((record) => [record.objectKey, record])
+    );
     const savedContacts =
         partnerUserIds.length > 0
             ? await db
@@ -174,6 +206,23 @@ export async function GET(request: Request) {
             : [];
     const savedContactsByLinkedUserId = new Map(
         savedContacts.map((contact) => [contact.linked_user_id, contact])
+    );
+    const ownerContactRows =
+        partnerUserIds.length > 0
+            ? await db
+                  .select({
+                      owner_user_id: contacts.owner_user_id,
+                  })
+                  .from(contacts)
+                  .where(
+                      and(
+                          inArray(contacts.owner_user_id, partnerUserIds),
+                          eq(contacts.linked_user_id, sessionUser.id)
+                      )
+                  )
+            : [];
+    const ownerContactUserIds = new Set(
+        ownerContactRows.map((contact) => contact.owner_user_id)
     );
 
     const recipientKeys = await db
@@ -220,11 +269,45 @@ export async function GET(request: Request) {
                       const savedContact = partner?.id
                           ? savedContactsByLinkedUserId.get(partner.id) ?? null
                           : null;
+                      const profilePictureVisibility =
+                          (partner?.whoCanSeeProfilePicture as
+                              | "all"
+                              | "contacts"
+                              | "nobody"
+                              | undefined) ?? null;
+                      const canShowProfilePicture = canViewProfilePicture(
+                          profilePictureVisibility,
+                          partner?.id ? ownerContactUserIds.has(partner.id) : false
+                      );
+                      const managedPartnerImage = parseManagedProfileImageUrl(
+                          partner?.image ?? ""
+                      );
+                      const managedPartnerImageRecord = managedPartnerImage
+                          ? partnerProfileImageRecordByObjectKey.get(
+                                managedPartnerImage.objectKey
+                            ) ?? null
+                          : null;
+                      const canDecryptPartnerImage = managedPartnerImage
+                          ? Boolean(
+                                managedPartnerImageRecord &&
+                                    (managedPartnerImageRecord.ownerId ===
+                                        sessionUser.id ||
+                                        userHasDirectMediaRecipientKey(
+                                            managedPartnerImageRecord.aesKey,
+                                            sessionUser.id
+                                        ))
+                            )
+                          : Boolean(partner?.image);
 
                       return {
                           avatar:
-                              getSafeAvatarUrl(partner?.image) ||
-                              getSafeAvatarUrl(chat.avatar),
+                              canShowProfilePicture &&
+                              partner?.image &&
+                              canDecryptPartnerImage
+                                  ? partner.image
+                                  : canShowProfilePicture
+                                    ? getSafeAvatarUrl(chat.avatar)
+                                    : "",
                           recipient_user_id: partner?.id ?? null,
                           recipient_public_key: partner?.publicKey ?? null,
                           contact_phone: partner?.phoneNumber ?? partnerPhone,
@@ -235,6 +318,10 @@ export async function GET(request: Request) {
                                   | "contacts"
                                   | "nobody"
                                   | undefined) ?? null,
+                          recipient_who_can_see_profile_picture:
+                              profilePictureVisibility,
+                          recipient_profile_picture_visible:
+                              canShowProfilePicture,
                           stored_contact: savedContact,
                       };
                   })()
