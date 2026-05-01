@@ -3,7 +3,6 @@
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { Close, CloseOutlined, Group, Person, SearchOutlined, Send, ShortcutRounded } from "@mui/icons-material";
 import {
-    Avatar,
     Box,
     Checkbox,
     IconButton,
@@ -250,7 +249,7 @@ export default function ChatRoomForwardButton() {
                                         }
                                         sx={(theme) => ({
                                             display: 'flex',
-                                            flexDirection: isRTL ? 'row-reverse' : 'row',
+                                            flexDirection: 'row-reverse',
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
                                             borderRadius: 3,
@@ -295,17 +294,16 @@ export default function ChatRoomForwardButton() {
                                                         })}
                                                     />
                                                 ) : (
-                                                    <Avatar
+                                                    <DecryptedProfileImage
+                                                        imageUrl={avatarSrc || ""}
+                                                        fallback={<Group />}
                                                         sx={(theme) => ({
                                                             width: 45,
                                                             height: 45,
                                                             backgroundColor: theme.palette.mode === "dark" ? "#103529" : "#D9FDD3",
-                                                            color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
+                                                                color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                                                         })}
-                                                        src={avatarSrc || ""}
-                                                    >
-                                                        <Group />
-                                                    </Avatar>
+                                                    />
                                                 )}
                                             </ListItemAvatar>
                                             <ListItemText

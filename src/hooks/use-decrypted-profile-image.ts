@@ -2,9 +2,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useCryptoKeys } from "@/context/crypto";
+import {
+    cacheAvatarImage,
+    getCachedAvatarImage,
+} from "@/lib/avatar-image-cache";
 import { fetchAndDecryptProfileImage } from "@/lib/profile-image-upload";
 import { parseManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { logMediaDebug } from "@/lib/message-media-debug";
+
+function isImmediateAvatarUrl(imageUrl: string) {
+    return imageUrl.startsWith("blob:") || imageUrl.startsWith("data:");
+}
+
+function getAvatarUrlCacheKey(imageUrl: string) {
+    if (typeof window === "undefined") {
+        return `url:${imageUrl}`;
+    }
+
+    try {
+        return `url:${new URL(imageUrl, window.location.origin).toString()}`;
+    } catch {
+        return `url:${imageUrl}`;
+    }
+}
 
 export function useDecryptedProfileImage(imageUrl?: string | null) {
     const { isHydrated, isReady } = useCryptoKeys();
@@ -19,6 +39,22 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
     useEffect(() => {
         let isActive = true;
         let objectUrl: string | null = null;
+        const cleanup = () => {
+            isActive = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+        const setBlobUrl = (blob: Blob) => {
+            const nextObjectUrl = URL.createObjectURL(blob);
+
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+
+            objectUrl = nextObjectUrl;
+            setDecryptedUrl(nextObjectUrl);
+        };
 
         if (!imageUrl) {
             setDecryptedUrl(null);
@@ -27,18 +63,102 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
             return;
         }
 
-        if (!parsedManagedImage) {
+        if (isImmediateAvatarUrl(imageUrl)) {
             setDecryptedUrl(imageUrl);
             setLoading(false);
             setError(null);
             return;
         }
 
-        if (!isHydrated) {
-            setDecryptedUrl(null);
-            setLoading(true);
+        if (!parsedManagedImage) {
+            const cacheKey = getAvatarUrlCacheKey(imageUrl);
+
+            const loadPlainAvatar = async () => {
+                try {
+                    setLoading(false);
+                    setError(null);
+
+                    const cachedBlob = await getCachedAvatarImage(cacheKey);
+                    if (!isActive) {
+                        return;
+                    }
+
+                    if (cachedBlob) {
+                        setBlobUrl(cachedBlob);
+                        return;
+                    }
+
+                    setDecryptedUrl(imageUrl);
+
+                    const response = await fetch(imageUrl, {
+                        cache: "force-cache",
+                        credentials: "same-origin",
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const blob = await response.blob();
+                    if (!blob.type.startsWith("image/")) {
+                        return;
+                    }
+
+                    await cacheAvatarImage(cacheKey, blob);
+                    if (isActive) {
+                        setBlobUrl(blob);
+                    }
+                } catch (err) {
+                    if (!isActive) {
+                        return;
+                    }
+
+                    setDecryptedUrl(imageUrl);
+                    setError(
+                        err instanceof Error
+                            ? err
+                            : new Error("Failed to cache avatar image")
+                    );
+                }
+            };
+
+            void loadPlainAvatar();
+            return cleanup;
+        }
+
+        const managedCacheKey = `profile:${parsedManagedImage.objectKey}`;
+
+        const loadManagedAvatar = async () => {
+            const cachedBlob = await getCachedAvatarImage(managedCacheKey);
+            if (!isActive) {
+                return false;
+            }
+
+            if (!cachedBlob) {
+                return false;
+            }
+
+            setBlobUrl(cachedBlob);
+            setLoading(false);
             setError(null);
-            return;
+            logMediaDebug("client.profile-image.hook.cache-hit", {
+                objectKey: parsedManagedImage.objectKey,
+                mimeType: cachedBlob.type || null,
+                size: cachedBlob.size,
+            });
+            return true;
+        };
+
+        if (!isHydrated) {
+            void loadManagedAvatar().then((hasCachedAvatar) => {
+                if (!isActive || hasCachedAvatar) {
+                    return;
+                }
+
+                setDecryptedUrl(null);
+                setLoading(true);
+                setError(null);
+            });
+            return cleanup;
         }
 
         if (!isReady) {
@@ -53,6 +173,10 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
 
         const fetchAndDecrypt = async () => {
             try {
+                if (await loadManagedAvatar()) {
+                    return;
+                }
+
                 setLoading(true);
                 setError(null);
                 logMediaDebug("client.profile-image.hook.load-start", {
@@ -66,8 +190,12 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
                     return;
                 }
 
-                objectUrl = URL.createObjectURL(blob);
-                setDecryptedUrl(objectUrl);
+                await cacheAvatarImage(managedCacheKey, blob);
+                if (!isActive) {
+                    return;
+                }
+
+                setBlobUrl(blob);
                 logMediaDebug("client.profile-image.hook.load-success", {
                     objectKey: parsedManagedImage.objectKey,
                     mimeType: blob.type || null,
@@ -96,13 +224,17 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
 
         void fetchAndDecrypt();
 
-        return () => {
-            isActive = false;
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-            }
-        };
+        return cleanup;
     }, [imageUrl, isHydrated, isReady, parsedManagedImage]);
 
-    return { decryptedUrl, loading, error };
+    const directDisplayUrl =
+        imageUrl && (!parsedManagedImage || isImmediateAvatarUrl(imageUrl))
+            ? imageUrl
+            : null;
+
+    return {
+        decryptedUrl: decryptedUrl ?? directDisplayUrl,
+        loading: directDisplayUrl ? false : loading,
+        error,
+    };
 }

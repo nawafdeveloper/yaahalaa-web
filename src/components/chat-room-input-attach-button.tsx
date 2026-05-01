@@ -22,7 +22,6 @@ import {
 } from "@mui/icons-material";
 import {
     Alert,
-    Avatar,
     Box,
     CircularProgress,
     IconButton,
@@ -42,6 +41,7 @@ import {
     Zoom,
 } from "@mui/material";
 import React, { useMemo, useRef, useState } from "react";
+import DecryptedProfileImage from "./decrypted-profile-image";
 
 export default function ChatRoomInputAttachButton() {
     const locale = getLocaleFromCookie();
@@ -335,36 +335,6 @@ export default function ChatRoomInputAttachButton() {
                     </ListItemText>
                 </MenuItem>
                 <MenuItem
-                    onClick={handleClose}
-                    sx={(theme) => ({
-                        "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                        },
-                        borderRadius: 2,
-                        paddingY: 1,
-                        paddingX: 1,
-                    })}
-                >
-                    <ListItemIcon>
-                        <CameraAlt
-                            fontSize="medium"
-                            sx={{
-                                color: "#007BFC",
-                            }}
-                        />
-                    </ListItemIcon>
-                    <ListItemText
-                        primaryTypographyProps={{
-                            sx: {
-                                fontWeight: 500,
-                                fontSize: "15px",
-                            },
-                        }}
-                    >
-                        {isRTL ? "الكاميرا" : "Camera"}
-                    </ListItemText>
-                </MenuItem>
-                <MenuItem
                     onClick={(event) => openPicker(event, audioInputRef)}
                     sx={(theme) => ({
                         "&:hover": {
@@ -433,66 +403,6 @@ export default function ChatRoomInputAttachButton() {
                         }}
                     >
                         {isRTL ? "جهة إتصال" : "Contact"}
-                    </ListItemText>
-                </MenuItem>
-                <MenuItem
-                    onClick={handleClose}
-                    sx={(theme) => ({
-                        "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                        },
-                        borderRadius: 2,
-                        paddingY: 1,
-                        paddingX: 1,
-                    })}
-                >
-                    <ListItemIcon>
-                        <Poll
-                            fontSize="medium"
-                            sx={{
-                                color: "#FFB938",
-                            }}
-                        />
-                    </ListItemIcon>
-                    <ListItemText
-                        primaryTypographyProps={{
-                            sx: {
-                                fontWeight: 500,
-                                fontSize: "15px",
-                            },
-                        }}
-                    >
-                        {isRTL ? "استطلاع رأي" : "Poll"}
-                    </ListItemText>
-                </MenuItem>
-                <MenuItem
-                    onClick={handleClose}
-                    sx={(theme) => ({
-                        "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                        },
-                        borderRadius: 2,
-                        paddingY: 1,
-                        paddingX: 1,
-                    })}
-                >
-                    <ListItemIcon>
-                        <CalendarMonth
-                            fontSize="medium"
-                            sx={{
-                                color: "#FF2E74",
-                            }}
-                        />
-                    </ListItemIcon>
-                    <ListItemText
-                        primaryTypographyProps={{
-                            sx: {
-                                fontWeight: 500,
-                                fontSize: "15px",
-                            },
-                        }}
-                    >
-                        {isRTL ? "حدث" : "Event"}
                     </ListItemText>
                 </MenuItem>
             </Menu>
@@ -580,7 +490,7 @@ export default function ChatRoomInputAttachButton() {
                                 size="small"
                                 placeholder={
                                     isRTL
-                                        ? "\u0627\u0628\u062d\u062b \u0639\u0646 \u0631\u0642\u0645 \u0623\u0648 \u062c\u0647\u0629 \u0627\u062a\u0635\u0627\u0644"
+                                        ? "إبحث عن إسم أو رقم هاتف"
                                         : "Search name or number"
                                 }
                                 fullWidth
@@ -653,7 +563,7 @@ export default function ChatRoomInputAttachButton() {
                                 }}
                             >
                                 {isRTL
-                                    ? "\u062c\u0647\u0627\u062a \u0627\u0644\u0627\u062a\u0635\u0627\u0644"
+                                    ? "جهات الإتصال"
                                     : "Contacts"}
                             </Typography>
                         </div>
@@ -709,7 +619,9 @@ export default function ChatRoomInputAttachButton() {
                                     >
                                         <div className="flex flex-row items-center">
                                             <ListItemAvatar>
-                                                <Avatar
+                                                <DecryptedProfileImage
+                                                    imageUrl={contact.contact_avatar ?? ""}
+                                                    fallback={<Person />}
                                                     sx={(theme) => ({
                                                         width: 45,
                                                         height: 45,
@@ -722,10 +634,7 @@ export default function ChatRoomInputAttachButton() {
                                                                 ? "#25D366"
                                                                 : "#1F4E2E",
                                                     })}
-                                                    src={contact.contact_avatar ?? ""}
-                                                >
-                                                    <Person />
-                                                </Avatar>
+                                                />
                                             </ListItemAvatar>
                                             <ListItemText
                                                 primary={getContactDisplayName(contact)}

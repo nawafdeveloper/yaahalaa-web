@@ -5,6 +5,7 @@ import { useCryptoKeys } from "@/context/crypto";
 import { authClient } from "@/lib/auth-client";
 import {
     applyContactToSingleChat,
+    buildChatFromReaction,
     buildChatFromMessage,
     normalizeChatItem,
     normalizeMessage,
@@ -390,6 +391,51 @@ export function useChatRealtime() {
                             conversationId: event.conversationId,
                             messageId: nextMessage.message_id,
                         });
+                    }
+                    break;
+                }
+
+                case "MESSAGE_REACTION_UPDATED": {
+                    const updatedAt = new Date(event.updatedAt);
+                    const safeUpdatedAt = Number.isNaN(updatedAt.getTime())
+                        ? new Date()
+                        : updatedAt;
+
+                    useActiveChatStore.getState().updateMessage(
+                        event.conversationId,
+                        event.messageId,
+                        (message) => ({
+                            ...message,
+                            message_raction: event.reaction,
+                            updated_at: safeUpdatedAt,
+                        })
+                    );
+
+                    const existingChat = useActiveChatStore
+                        .getState()
+                        .chats.find((chat) => chat.chat_id === event.conversationId);
+                    const isSelected =
+                        useActiveChatStore.getState().selectedChatId ===
+                        event.conversationId;
+
+                    upsertChat(
+                        applyKnownContactOverride(
+                            buildChatFromReaction({
+                                conversationId: event.conversationId,
+                                conversationType: event.conversationType,
+                                messageId: event.messageId,
+                                reaction: event.reaction,
+                                updatedAt: safeUpdatedAt,
+                                currentUserId,
+                                unreadCount: isSelected
+                                    ? 0
+                                    : event.unreadCount,
+                                fallbackExistingChat: existingChat,
+                            })
+                        )
+                    );
+                    if (isSelected) {
+                        markChatRead(event.conversationId);
                     }
                     break;
                 }

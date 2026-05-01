@@ -136,7 +136,7 @@ export default function ChatRoomInputForm() {
     const placeholder = useMemo(
         () =>
             isRTL
-                ? "\u0627\u0628\u062f\u0623 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629"
+                ? "أكتب رسالة"
                 : "Type a message",
         [isRTL]
     );

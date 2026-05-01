@@ -2,7 +2,7 @@
 
 import { authClient } from "@/lib/auth-client";
 import { uploadEncryptedProfileImage } from "@/lib/profile-image-upload";
-import { decryptText, encryptText } from "@/lib/text-encryption";
+import { decryptText, encryptTextForRecipients } from "@/lib/text-encryption";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -256,6 +256,12 @@ export const useUpdateUser = ({
             return;
         }
 
+        if (!currentUserId) {
+            setIsError(true);
+            setErrorMsg(getGenericErrorMessage(isRTL));
+            return;
+        }
+
         try {
             setLoading(true);
             setIsError(false);
@@ -279,7 +285,11 @@ export const useUpdateUser = ({
                 nextAbout = trimmedAbout;
 
                 if (trimmedAbout) {
-                    const encryptedAbout = await encryptText(trimmedAbout);
+                    const encryptedAbout = await encryptTextForRecipients(
+                        trimmedAbout,
+                        currentUserId,
+                        profileImageRecipientPublicKeys
+                    );
                     nextAboutCiphertext = encryptedAbout.ciphertext;
                     nextAboutEncryptedAesKey = encryptedAbout.encryptedAesKey;
                     nextAboutIv = encryptedAbout.iv;

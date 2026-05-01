@@ -16,6 +16,7 @@ import type {
     TextEncryptionAlgorithm,
 } from "@/types/crypto";
 import type { Message } from "@/types/messages.type";
+import { applyMessageReactionToDb } from "@/lib/message-reactions";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
@@ -36,6 +37,13 @@ type PresenceIncomingMessage =
           conversationId?: string;
       }
     | SendMessagePayload
+    | {
+          type: "REACT_MESSAGE";
+          conversationId: string;
+          conversationType: "direct" | "group";
+          messageId: string;
+          reactionEmoji: string;
+      }
     | {
           type: "MARK_READ";
           conversationId: string;
@@ -213,6 +221,11 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
 
                 case "SEND_MESSAGE": {
                     await this.handleSendMessage(ws, session, data);
+                    break;
+                }
+
+                case "REACT_MESSAGE": {
+                    await this.handleReactMessage(session, data);
                     break;
                 }
 
@@ -490,6 +503,57 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 ),
             });
         }
+    }
+
+    private async handleReactMessage(
+        session: SessionState,
+        data: Extract<PresenceIncomingMessage, { type: "REACT_MESSAGE" }>
+    ) {
+        const appliedReaction = await applyMessageReactionToDb({
+            chatRoomId: data.conversationId,
+            messageId: data.messageId,
+            reactorUserId: session.userId,
+            reactionEmoji: data.reactionEmoji,
+        });
+        const event = {
+            type: "MESSAGE_REACTION_UPDATED",
+            conversationId: appliedReaction.conversationId,
+            conversationType: appliedReaction.conversationType,
+            messageId: appliedReaction.messageId,
+            targetSenderUserId: appliedReaction.targetSenderUserId,
+            reaction: appliedReaction.reaction,
+            updatedAt: appliedReaction.updatedAt.toISOString(),
+        };
+
+        await this.broadcastRoomEvent(appliedReaction.conversationId, event);
+
+        await Promise.all(
+            appliedReaction.participantUserIds
+                .filter(
+                    (participantId) =>
+                        participantId && participantId !== session.userId
+                )
+                .map(async (participantId) => {
+                    const userDO = this.env.USER_PRESENCE_DO.get(
+                        this.env.USER_PRESENCE_DO.idFromName(participantId)
+                    );
+                    const unreadCount = await getUnreadCountForRecipient({
+                        chatId: appliedReaction.conversationId,
+                        userId: participantId,
+                    });
+
+                    await userDO.fetch("https://do/event", {
+                        method: "POST",
+                        headers: {
+                            "content-type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            ...event,
+                            unreadCount,
+                        }),
+                    });
+                })
+        );
     }
 
     private async notifyParticipants(

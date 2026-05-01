@@ -248,14 +248,70 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 return nextMessage;
             });
 
-            return didChange
-                ? {
-                      messagesByChatId: {
-                          ...state.messagesByChatId,
-                          [chatId]: nextMessages,
-                      },
-                  }
-                : state;
+            let didChatChange = false;
+            const nextChats = state.chats.map((chat) => {
+                if (
+                    chat.chat_id !== chatId ||
+                    !chat.last_message_sender_is_me ||
+                    !chat.last_message_id ||
+                    chat.updated_at > readAt
+                ) {
+                    return chat;
+                }
+
+                const recipientUserIds =
+                    chat.last_message_recipient_user_ids ?? [];
+                if (
+                    recipientUserIds.length > 0 &&
+                    !recipientUserIds.includes(userId)
+                ) {
+                    return chat;
+                }
+
+                const readByUserIds = [
+                    ...new Set([
+                        ...(chat.last_message_read_by_user_ids ?? []),
+                        userId,
+                    ]),
+                ];
+                const isReadByRecipient =
+                    recipientUserIds.length > 0 &&
+                    recipientUserIds.every((recipientUserId) =>
+                        readByUserIds.includes(recipientUserId)
+                    );
+
+                if (
+                    chat.last_message_is_read_by_recipient === isReadByRecipient &&
+                    (chat.last_message_read_by_user_ids ?? []).length ===
+                        readByUserIds.length
+                ) {
+                    return chat;
+                }
+
+                didChatChange = true;
+
+                return {
+                    ...chat,
+                    last_message_is_read_by_recipient: isReadByRecipient,
+                    last_message_read_by_user_ids: readByUserIds,
+                };
+            });
+
+            if (!didChange && !didChatChange) {
+                return state;
+            }
+
+            return {
+                ...(didChange
+                    ? {
+                          messagesByChatId: {
+                              ...state.messagesByChatId,
+                              [chatId]: nextMessages,
+                          },
+                      }
+                    : {}),
+                ...(didChatChange ? { chats: nextChats } : {}),
+            };
         }),
     openDirectContactChat: ({ contact, currentPhone, currentUserId }) => {
         const chatId = buildDirectChatId(currentPhone, contact.contact_number);
@@ -278,12 +334,26 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 recipient_public_key: contact.linked_user_public_key ?? null,
                 contact_phone: contact.contact_number,
                 recipient_last_seen: existingChat?.recipient_last_seen ?? null,
+                recipient_who_can_see_last_seen:
+                    existingChat?.recipient_who_can_see_last_seen ?? null,
+                recipient_last_seen_visible:
+                    existingChat?.recipient_last_seen_visible ?? null,
                 recipient_who_can_see_status:
                     existingChat?.recipient_who_can_see_status ?? null,
                 recipient_who_can_see_profile_picture:
                     existingChat?.recipient_who_can_see_profile_picture ?? null,
                 recipient_profile_picture_visible:
                     existingChat?.recipient_profile_picture_visible ?? null,
+                recipient_about_ciphertext:
+                    existingChat?.recipient_about_ciphertext ?? null,
+                recipient_about_encrypted_aes_key:
+                    existingChat?.recipient_about_encrypted_aes_key ?? null,
+                recipient_about_iv:
+                    existingChat?.recipient_about_iv ?? null,
+                recipient_who_can_see_about:
+                    existingChat?.recipient_who_can_see_about ?? null,
+                recipient_about_visible:
+                    existingChat?.recipient_about_visible ?? null,
                 stored_contact: existingChat?.stored_contact ?? null,
                 is_provisional: !existingChat,
                 last_message_id: existingChat?.last_message_id ?? null,
@@ -299,6 +369,12 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                     existingChat?.last_message_sender_is_me ?? false,
                 last_message_sender_nickname:
                     existingChat?.last_message_sender_nickname ?? currentUserId,
+                last_message_is_read_by_recipient:
+                    existingChat?.last_message_is_read_by_recipient ?? null,
+                last_message_read_by_user_ids:
+                    existingChat?.last_message_read_by_user_ids ?? null,
+                last_message_recipient_user_ids:
+                    existingChat?.last_message_recipient_user_ids ?? null,
                 is_unreaded_chat: existingChat?.is_unreaded_chat ?? false,
                 unreaded_messages_length:
                     existingChat?.unreaded_messages_length ?? 0,

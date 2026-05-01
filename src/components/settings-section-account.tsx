@@ -15,18 +15,12 @@ export default function SettingsSectionAccount() {
     const subItemList = [
         {
             id: '1',
-            title: isRTL ? 'حماية الإشعارات' : 'Security notifications',
-            icon: Security,
-            href: 'settings-account-security',
-        },
-        {
-            id: '2',
             title: isRTL ? 'طلب بيانات الحساب' : 'Request account information',
             icon: DescriptionOutlined,
             href: 'settings-account-information',
         },
         {
-            id: '3',
+            id: '2',
             title: isRTL ? 'كيف أقوم بحذف حسابي' : 'How to delete my account',
             icon: InfoOutline,
             href: 'settings-account-delete',

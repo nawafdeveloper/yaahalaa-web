@@ -48,7 +48,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items, containerRef }) => {
             anchorPosition={anchorPosition ? { top: anchorPosition.top, left: anchorPosition.left } : undefined}
             PaperProps={{
                 sx: (theme) => ({
-                    backgroundColor: theme.palette.mode === "dark" ? "rgba(2,5,5,1)" : "#fff",
+                    backgroundColor: theme.palette.mode === "dark" ? "#222424" : "#fff",
                     borderRadius: 3,
                     boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                 }),

@@ -1,6 +1,5 @@
 "use client";
 
-import Avatar from '@mui/material/Avatar';
 import ListItem from '@mui/material/ListItem';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
@@ -69,6 +68,12 @@ export default function ChatItem({ chat_item }: Props) {
     const groupSenderLabel = groupSenderContact
         ? getContactDisplayName(groupSenderContact)
         : chat_item.last_message_sender_nickname;
+    const isReactionPreview = chat_item.last_message_media === "reaction";
+    const reactionSenderLabel = chat_item.last_message_sender_is_me
+        ? "You"
+        : chat_item.chat_type === "single"
+          ? chatTitle
+          : groupSenderLabel;
 
     const secondaryActionContent = (
         <div
@@ -181,7 +186,9 @@ export default function ChatItem({ chat_item }: Props) {
                             })}
                         />
                     ) : (
-                        <Avatar
+                        <DecryptedProfileImage
+                            imageUrl={avatarSrc || ""}
+                            fallback={<Group />}
                             sx={(theme) => ({
                                 width: 45,
                                 height: 45,
@@ -190,10 +197,7 @@ export default function ChatItem({ chat_item }: Props) {
                                 color:
                                     theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                             })}
-                            src={avatarSrc || ""}
-                        >
-                            <Group />
-                        </Avatar>
+                        />
                     )}
                 </ListItemAvatar>
                 <ListItemText
@@ -219,7 +223,23 @@ export default function ChatItem({ chat_item }: Props) {
                     }}
                     secondary={
                         <React.Fragment>
-                            {chat_item.chat_type === 'group' && chat_item.last_message_sender_is_me && <DoneAll fontSize="small" />}
+                            {chat_item.last_message_sender_is_me && !isReactionPreview && (
+                                <DoneAll
+                                    fontSize="small"
+                                    sx={{
+                                        color: chat_item.last_message_is_read_by_recipient
+                                            ? "#53bdeb"
+                                            : "gray",
+                                        fontSize: 16,
+                                        verticalAlign: "text-bottom",
+                                        marginInlineEnd: 0.5,
+                                    }}
+                                />
+                            )}
+                            {isReactionPreview ? (
+                                `${reactionSenderLabel} reacted to your message ${chat_item.last_message_context}`
+                            ) : (
+                                <>
                             {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${groupSenderLabel}:`}
                             {chat_item.last_message_media && (
                                 <>
@@ -249,6 +269,8 @@ export default function ChatItem({ chat_item }: Props) {
                                                 (isRTL ? 'ملف' : 'File') :
                                 chat_item.last_message_context
                             }
+                                </>
+                            )}
                         </React.Fragment>
                     }
                     secondaryTypographyProps={{

@@ -34,13 +34,7 @@ export default function SettingsSectionChats() {
             primary: isRTL ? 'جودة تحميل الوسائط' : 'Media upload quality',
             secondary: isRTL ? 'تعديل جودة تحميل الوسائط' : 'Adjust the quality of media upload',
             href: 'media-quality-upload'
-        },
-        {
-            id: '2',
-            primary: isRTL ? 'تنزيل الوسائط تلقائيا' : 'Media auto download',
-            secondary: isRTL ? 'تعديل خيار تنزيل الوسائط التلقائي' : 'Adjust the media auto download',
-            href: 'media-auto-download'
-        },
+        }
     ];
 
     return (

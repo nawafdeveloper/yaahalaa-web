@@ -1,7 +1,12 @@
+"use client";
+
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, DoNotDisturbOnOutlined, FavoriteBorderOutlined, NotificationsOutlined, Person, SearchOutlined, SecurityOutlined, SlowMotionVideoOutlined, StarOutline, ThumbDownOutlined } from '@mui/icons-material';
-import { Avatar, Box, Divider, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Switch, TextField, Typography } from '@mui/material';
+import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, NotificationsOutlined, Person, SearchOutlined, StarOutline } from '@mui/icons-material';
+import { Box, Divider, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Switch, TextField, Typography } from '@mui/material';
 import React, { useRef, useState } from 'react'
+import DecryptedProfileImage from './decrypted-profile-image';
+import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
+import { DetailedSidebarMediaItem, DetailedSidebarMediaTile } from './detailed-sidebar-item-media';
 
 type Props = {
     avatar?: string | null;
@@ -9,10 +14,8 @@ type Props = {
     contactNumber: string | null;
     biography?: string | null;
     mediaCount: number;
-    mediaUrls: string[] | null;
+    mediaItems: DetailedSidebarMediaItem[];
     muteNotification: boolean;
-    dissappearingMessages: 'off' | '24h' | '7d' | '90d';
-    isFavorite: boolean;
     isBlocked: boolean;
 }
 
@@ -22,18 +25,21 @@ export default function DetailedLargeSidebarContent({
     contactNumber,
     biography,
     mediaCount,
-    mediaUrls,
+    mediaItems,
     muteNotification,
-    dissappearingMessages,
-    isFavorite,
     isBlocked
 }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const { open } = useMediaDisplayAllStore();
 
     const [isMuted, setIsMuted] = useState(muteNotification || false);
     const [value, setValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
+    const displayContactName =
+        contactName?.trim() ||
+        contactNumber ||
+        (isRTL ? "جهة الإتصال" : "contact");
 
     const handleClear = () => {
         setValue("");
@@ -48,50 +54,15 @@ export default function DetailedLargeSidebarContent({
             icon: StarOutline,
             href: 'detailed-starred'
         },
-        {
-            id: '2',
-            primary: isRTL ? 'إخفاء الرسائل المرسلة' : 'Dissappearing messages',
-            secondary: isRTL ? 'كم من الوقت لإخفاء الرسائل' : 'How many time to dissappearing messages',
-            icon: SlowMotionVideoOutlined,
-            href: 'detailed-disMessages'
-        },
-        {
-            id: '3',
-            primary: isRTL ? 'خصوصية المحادثة المتقدمة' : 'Advanced chats privacy',
-            secondary: isRTL ? 'إعدادات خصوصية إضافية للمحادثة' : 'Additional privacy settings for the conversation',
-            icon: SecurityOutlined,
-            href: 'detailed-privacy'
-        },
     ];
 
     const secondListItems = [
         {
-            id: '1',
-            primary: isRTL ? 'إضافة للمفضلة' : 'Add to favourites',
-            icon: FavoriteBorderOutlined,
-            distructive: false,
-            href: 'detailed-starred'
-        },
-        {
-            id: '2',
-            primary: isRTL ? 'حذف الدردشات' : 'Clear chat',
-            icon: DoNotDisturbOnOutlined,
-            distructive: true,
-            href: 'detailed-disMessages'
-        },
-        {
             id: '3',
-            primary: isRTL ? `حضر ${contactName}` : `Block ${contactName}`,
+            primary: isRTL ? `حضر ${displayContactName}` : `Block ${displayContactName}`,
             icon: BlockOutlined,
             distructive: true,
             href: 'detailed-privacy'
-        },
-        {
-            id: '4',
-            primary: isRTL ? `إبلاغ ${contactName}` : `Report ${contactName}`,
-            icon: ThumbDownOutlined,
-            distructive: true,
-            href: 'detailed-report'
         },
         {
             id: '5',
@@ -167,7 +138,9 @@ export default function DetailedLargeSidebarContent({
                 }}
             >
                 <button className='cursor-pointer'>
-                    <Avatar
+                    <DecryptedProfileImage
+                        imageUrl={avatar || ""}
+                        fallback={<Person className='size-16!' />}
                         sx={(theme) => ({
                             width: 120,
                             height: 120,
@@ -175,13 +148,10 @@ export default function DetailedLargeSidebarContent({
                             color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                             border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                         })}
-                        src={avatar || ""}
-                    >
-                        <Person className='size-16!' />
-                    </Avatar>
+                    />
                 </button>
                 <Typography variant='h6'>
-                    {contactName}
+                    {displayContactName}
                 </Typography>
                 <Typography
                     variant='body1'
@@ -217,6 +187,7 @@ export default function DetailedLargeSidebarContent({
                 }}
             >
                 <ListItemButton
+                    onClick={open}
                     sx={(theme) => ({
                         width: "100%",
                         borderRadius: 3,
@@ -283,30 +254,24 @@ export default function DetailedLargeSidebarContent({
                         />
                     </ListItem>
                 </ListItemButton>
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
-                        gap: 1,
-                        width: '100%',
-                        mt: 1,
-                    }}
-                >
-                    {mediaUrls?.slice(0, 4).map((url, index) => (
-                        <Box
-                            key={index}
-                            component="img"
-                            src={url}
-                            sx={{
-                                width: '100%',
-                                aspectRatio: '1 / 1',
-                                objectFit: 'cover',
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                            }}
-                        />
-                    ))}
-                </Box>
+                {mediaItems.length > 0 ? (
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                            gap: 1,
+                            width: '100%',
+                            mt: 1,
+                        }}
+                    >
+                        {mediaItems.map((item) => (
+                            <DetailedSidebarMediaTile
+                                key={item.id}
+                                item={item}
+                            />
+                        ))}
+                    </Box>
+                ) : null}
                 <Divider />
             </Stack>
             <Stack

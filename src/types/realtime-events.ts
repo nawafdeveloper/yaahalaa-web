@@ -1,4 +1,4 @@
-import type { Message } from "./messages.type";
+import type { Message, MessageReaction } from "./messages.type";
 import type {
     EncryptedContentEnvelope,
     RecipientEncryptedAesKeyInput,
@@ -46,6 +46,13 @@ export type ClientRealtimeEvent =
           chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
       }
     | {
+          type: "REACT_MESSAGE";
+          conversationId: string;
+          conversationType: "direct" | "group";
+          messageId: string;
+          reactionEmoji: string;
+      }
+    | {
           type: "MARK_DELIVERED";
           conversationId: string;
           messageId?: string;
@@ -84,6 +91,16 @@ export type ServerRealtimeEvent =
           conversationType: "direct" | "group";
           lastMessage: RealtimeMessage;
           unreadCount: number;
+      }
+    | {
+          type: "MESSAGE_REACTION_UPDATED";
+          conversationId: string;
+          conversationType: "direct" | "group";
+          messageId: string;
+          targetSenderUserId: string;
+          reaction: MessageReaction;
+          updatedAt: string;
+          unreadCount?: number;
       }
     | {
           type: "CONVERSATION_PRESENCE";

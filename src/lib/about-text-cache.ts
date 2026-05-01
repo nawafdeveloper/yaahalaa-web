@@ -1,16 +1,16 @@
 "use client";
 
-const DB_NAME = "yhla-message-media-cache";
-const STORE_NAME = "media";
+const DB_NAME = "yhla-about-text-cache";
+const STORE_NAME = "about";
 const DB_VERSION = 1;
-const memoryCache = new Map<string, Blob>();
 
-type CachedMediaRecord = {
-    objectKey: string;
-    blob: Blob;
-    mimeType: string;
+type CachedAboutTextRecord = {
+    cacheKey: string;
+    plaintext: string;
     updatedAt: number;
 };
+
+const memoryCache = new Map<string, string>();
 
 function openCacheDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -21,7 +21,7 @@ function openCacheDatabase(): Promise<IDBDatabase> {
 
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 db.createObjectStore(STORE_NAME, {
-                    keyPath: "objectKey",
+                    keyPath: "cacheKey",
                 });
             }
         };
@@ -54,32 +54,45 @@ async function withStore<T>(
     }
 }
 
-export async function getCachedMessageMedia(
-    objectKey: string
-): Promise<Blob | null> {
-    if (!objectKey) {
+export function buildAboutTextCacheKey({
+    ciphertext,
+    encryptedAesKey,
+    iv,
+}: {
+    ciphertext: string;
+    encryptedAesKey: string;
+    iv: string;
+}) {
+    return `${ciphertext}:${encryptedAesKey}:${iv}`;
+}
+
+export async function getCachedAboutText(
+    cacheKey: string
+): Promise<string | null> {
+    if (!cacheKey) {
         return null;
     }
 
-    const memoryBlob = memoryCache.get(objectKey);
-    if (memoryBlob) {
-        return memoryBlob;
+    const memoryValue = memoryCache.get(cacheKey);
+    if (memoryValue !== undefined) {
+        return memoryValue;
     }
 
     try {
         return await withStore("readonly", async (store) => {
-            const request = store.get(objectKey);
+            const request = store.get(cacheKey);
 
-            return new Promise<Blob | null>((resolve, reject) => {
+            return new Promise<string | null>((resolve, reject) => {
                 request.onsuccess = () => {
-                    const result = request.result as CachedMediaRecord | undefined;
-                    const blob = result?.blob ?? null;
+                    const result =
+                        request.result as CachedAboutTextRecord | undefined;
+                    const plaintext = result?.plaintext ?? null;
 
-                    if (blob) {
-                        memoryCache.set(objectKey, blob);
+                    if (plaintext !== null) {
+                        memoryCache.set(cacheKey, plaintext);
                     }
 
-                    resolve(blob);
+                    resolve(plaintext);
                 };
                 request.onerror = () => reject(request.error);
             });
@@ -89,24 +102,23 @@ export async function getCachedMessageMedia(
     }
 }
 
-export async function cacheMessageMedia(
-    objectKey: string,
-    blob: Blob
+export async function cacheAboutText(
+    cacheKey: string,
+    plaintext: string
 ): Promise<void> {
-    if (!objectKey) {
+    if (!cacheKey) {
         return;
     }
 
-    memoryCache.set(objectKey, blob);
+    memoryCache.set(cacheKey, plaintext);
 
     try {
         await withStore("readwrite", async (store) => {
             const request = store.put({
-                objectKey,
-                blob,
-                mimeType: blob.type || "application/octet-stream",
+                cacheKey,
+                plaintext,
                 updatedAt: Date.now(),
-            } satisfies CachedMediaRecord);
+            } satisfies CachedAboutTextRecord);
 
             await new Promise<void>((resolve, reject) => {
                 request.onsuccess = () => resolve();

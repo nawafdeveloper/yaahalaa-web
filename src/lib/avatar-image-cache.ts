@@ -1,16 +1,17 @@
 "use client";
 
-const DB_NAME = "yhla-message-media-cache";
-const STORE_NAME = "media";
+const DB_NAME = "yhla-avatar-image-cache";
+const STORE_NAME = "avatars";
 const DB_VERSION = 1;
-const memoryCache = new Map<string, Blob>();
 
-type CachedMediaRecord = {
-    objectKey: string;
+type CachedAvatarRecord = {
+    cacheKey: string;
     blob: Blob;
     mimeType: string;
     updatedAt: number;
 };
+
+const memoryCache = new Map<string, Blob>();
 
 function openCacheDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -21,7 +22,7 @@ function openCacheDatabase(): Promise<IDBDatabase> {
 
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 db.createObjectStore(STORE_NAME, {
-                    keyPath: "objectKey",
+                    keyPath: "cacheKey",
                 });
             }
         };
@@ -54,29 +55,27 @@ async function withStore<T>(
     }
 }
 
-export async function getCachedMessageMedia(
-    objectKey: string
-): Promise<Blob | null> {
-    if (!objectKey) {
+export async function getCachedAvatarImage(cacheKey: string): Promise<Blob | null> {
+    if (!cacheKey) {
         return null;
     }
 
-    const memoryBlob = memoryCache.get(objectKey);
+    const memoryBlob = memoryCache.get(cacheKey);
     if (memoryBlob) {
         return memoryBlob;
     }
 
     try {
         return await withStore("readonly", async (store) => {
-            const request = store.get(objectKey);
+            const request = store.get(cacheKey);
 
             return new Promise<Blob | null>((resolve, reject) => {
                 request.onsuccess = () => {
-                    const result = request.result as CachedMediaRecord | undefined;
+                    const result = request.result as CachedAvatarRecord | undefined;
                     const blob = result?.blob ?? null;
 
                     if (blob) {
-                        memoryCache.set(objectKey, blob);
+                        memoryCache.set(cacheKey, blob);
                     }
 
                     resolve(blob);
@@ -89,24 +88,24 @@ export async function getCachedMessageMedia(
     }
 }
 
-export async function cacheMessageMedia(
-    objectKey: string,
+export async function cacheAvatarImage(
+    cacheKey: string,
     blob: Blob
 ): Promise<void> {
-    if (!objectKey) {
+    if (!cacheKey || blob.size === 0) {
         return;
     }
 
-    memoryCache.set(objectKey, blob);
+    memoryCache.set(cacheKey, blob);
 
     try {
         await withStore("readwrite", async (store) => {
             const request = store.put({
-                objectKey,
+                cacheKey,
                 blob,
                 mimeType: blob.type || "application/octet-stream",
                 updatedAt: Date.now(),
-            } satisfies CachedMediaRecord);
+            } satisfies CachedAvatarRecord);
 
             await new Promise<void>((resolve, reject) => {
                 request.onsuccess = () => resolve();

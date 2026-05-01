@@ -16,14 +16,12 @@ export default function SettingsSubsectionAboutSeen() {
             title: 'About me seen',
             subtitle: 'Who can see my about context',
             everyone: 'Everyone',
-            myContacts: 'My contacts',
             nobody: 'Nobody'
         },
         ar: {
             title: 'مشاهدة نبذتي',
             subtitle: 'من يمكنه مشاهدة نبذة عني',
             everyone: 'الجميع',
-            myContacts: 'جهات إتصالي',
             nobody: 'لا أحد'
         }
     };
@@ -32,7 +30,6 @@ export default function SettingsSubsectionAboutSeen() {
 
     const listSelection = [
         { key: 'all', label: t.everyone, value: 'all' },
-        { key: 'contacts', label: t.myContacts, value: 'contacts' },
         { key: 'nobody', label: t.nobody, value: 'nobody' }
     ];
 

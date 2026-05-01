@@ -1,13 +1,13 @@
 "use client";
 
 import { CheckCircle, CheckOutlined, ContentCopy, EditOutlined, Person, Phone, PhotoCameraOutlined } from "@mui/icons-material";
-import { Avatar, IconButton, ListItem, ListItemIcon, ListItemText, Snackbar, Stack, TextField, Typography } from "@mui/material";
+import { IconButton, ListItem, ListItemIcon, ListItemText, Snackbar, Stack, TextField, Typography } from "@mui/material";
 import { ABOUT_MAX_LENGTH, useUpdateUser } from "@/hooks/use-update-user";
-import { useDecryptedProfileImage } from "@/hooks/use-decrypted-profile-image";
 import { authClient } from "@/lib/auth-client";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import SettingsHeader from "./settings-header";
 import { useState } from "react";
+import DecryptedProfileImage from "./decrypted-profile-image";
 
 export default function SettingsSectionProfile() {
     const { data: session } = authClient.useSession();
@@ -37,8 +37,6 @@ export default function SettingsSectionProfile() {
         aboutIv: session?.user.aboutIv,
         isRTL,
     });
-
-    const { decryptedUrl: decryptedProfileImageSrc } = useDecryptedProfileImage(originalProfileImageSrc);
 
     const [isCopied, setIsCopied] = useState(false);
 
@@ -105,7 +103,9 @@ export default function SettingsSectionProfile() {
                     onClick={handleOpenProfileImagePicker}
                     type="button"
                 >
-                    <Avatar
+                    <DecryptedProfileImage
+                        imageUrl={originalProfileImageSrc}
+                        fallback={<Person className="size-16!" />}
                         sx={(theme) => ({
                             width: 120,
                             height: 120,
@@ -113,10 +113,7 @@ export default function SettingsSectionProfile() {
                             color: theme.palette.mode === "dark" ? "#25D366" : "#1F4E2E",
                             border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                         })}
-                        src={decryptedProfileImageSrc || undefined}
-                    >
-                        <Person className="size-16!" />
-                    </Avatar>
+                    />
                     <span className="absolute left-1/2 -translate-x-1/2 gap-x-2 flex flex-row items-center -bottom-3 dark:bg-background bg-white border dark:border-neutral-700 border-neutral-300 px-5 py-2.5 rounded-full dark:text-[#25D366] text-[#15603E]">
                         <PhotoCameraOutlined className="size-5!" />
                         <p className="text-sm">{isRTL ? "تعديل" : "Edit"}</p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import GlobalLoading from './global-loading';
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import SmallSideBar from './small-sidebar';
 import LargeSideBar from './large-sidebar';
 import useMediaPreviewStore from '@/store/media-preview-store';
@@ -15,6 +15,8 @@ import { Snackbar } from '@mui/material';
 import { Info } from '@mui/icons-material';
 import { useChatRealtime } from '@/hooks/use-chat-realtime';
 import { useSyncProfileImageRecipients } from '@/hooks/use-sync-profile-image-recipients';
+import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
+import MediaDisplayAllChatRoom from './media-display-all-chat-room';
 
 export default function MainClientUIAppWrapper({ children, country }: { children: React.ReactNode, country: string | null; }) {
     const { isOpen } = useMediaPreviewStore();
@@ -30,6 +32,7 @@ export default function MainClientUIAppWrapper({ children, country }: { children
     } = useLogout(isRTL);
     useChatRealtime();
     useSyncProfileImageRecipients();
+    const { isOpen: isMediaAllOpen } = useMediaDisplayAllStore();
 
     const customEasing: [number, number, number, number] = [0.32, 0, 0.67, 0];
 
@@ -80,6 +83,19 @@ export default function MainClientUIAppWrapper({ children, country }: { children
                         }}
                     >
                         <DetailedLargeSidebar />
+                        <AnimatePresence mode="wait">
+                            {isMediaAllOpen && (
+                                <motion.div
+                                    initial={{ x: isRTL ? '-100%' : '100%', opacity: 1 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: isRTL ? '-100%' : '100%', opacity: 1 }}
+                                    transition={{ duration: 0.15, ease: customEasing }}
+                                    className="absolute inset-0 bg-white dark:bg-[#161717] z-20"
+                                >
+                                    <MediaDisplayAllChatRoom />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </motion.div>
                 </main>
             </motion.div>

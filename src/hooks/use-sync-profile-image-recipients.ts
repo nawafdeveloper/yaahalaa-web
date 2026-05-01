@@ -4,11 +4,13 @@ import { useEffect, useMemo } from "react";
 import { useCryptoKeys } from "@/context/crypto";
 import { authClient } from "@/lib/auth-client";
 import { shareEncryptedProfileImageWithRecipients } from "@/lib/profile-image-upload";
+import { shareEncryptedTextWithRecipients } from "@/lib/text-encryption";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 
 const syncedProfileImageKeys = new Set<string>();
+const syncedAboutKeys = new Set<string>();
 
 export function useSyncProfileImageRecipients() {
     const { isReady } = useCryptoKeys();
@@ -17,6 +19,12 @@ export function useSyncProfileImageRecipients() {
     const chats = useActiveChatStore((state) => state.chats);
     const currentUserId = session?.user.id ?? null;
     const profileImageUrl = session?.user.image ?? "";
+    const aboutCiphertext =
+        (session?.user as { aboutCiphertext?: string | null } | undefined)
+            ?.aboutCiphertext ?? "";
+    const aboutEncryptedAesKey =
+        (session?.user as { aboutEncryptedAesKey?: string | null } | undefined)
+            ?.aboutEncryptedAesKey ?? "";
     const recipients = useMemo(() => {
         const recipientPublicKeys = new Map<string, string>();
 
@@ -78,4 +86,53 @@ export function useSyncProfileImageRecipients() {
             }
         );
     }, [currentUserId, isReady, profileImageUrl, recipients]);
+
+    useEffect(() => {
+        if (
+            !isReady ||
+            !currentUserId ||
+            !aboutCiphertext ||
+            !aboutEncryptedAesKey ||
+            recipients.length === 0
+        ) {
+            return;
+        }
+
+        const syncKey = `${aboutCiphertext}:${aboutEncryptedAesKey}:${recipients
+            .map((recipient) => recipient.recipientUserId)
+            .sort()
+            .join(",")}`;
+        if (syncedAboutKeys.has(syncKey)) {
+            return;
+        }
+
+        syncedAboutKeys.add(syncKey);
+        void shareEncryptedTextWithRecipients({
+            ownerUserId: currentUserId,
+            encryptedAesKey: aboutEncryptedAesKey,
+            recipients,
+        })
+            .then(async (nextEncryptedAesKey) => {
+                if (!nextEncryptedAesKey) {
+                    return;
+                }
+
+                const { error } = await authClient.updateUser({
+                    aboutEncryptedAesKey: nextEncryptedAesKey,
+                });
+
+                if (error) {
+                    syncedAboutKeys.delete(syncKey);
+                }
+            })
+            .catch(() => {
+                syncedAboutKeys.delete(syncKey);
+            });
+    }, [
+        aboutCiphertext,
+        aboutEncryptedAesKey,
+        currentUserId,
+        isReady,
+        recipients,
+    ]);
 }

@@ -23,6 +23,11 @@ import type {
     RecipientEncryptedAesKeyInput,
 } from "@/types/crypto";
 import type { Message } from "@/types/messages.type";
+import {
+    applyMessageReactionToDb,
+    MessageReactionError,
+    type AppliedMessageReaction,
+} from "@/lib/message-reactions";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import {
     logMediaDebug,
@@ -397,6 +402,52 @@ export async function POST(request: Request) {
         chatRoomId: finalChatRoomId,
         message: responseMessage,
     });
+}
+
+export async function PATCH(request: Request) {
+    const session = await auth.api.getSession({
+        headers: new Headers(request.headers),
+    });
+
+    if (!session) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await request.json()) as {
+        chatRoomId?: string;
+        messageId?: string;
+        reactionEmoji?: string;
+    };
+    const sessionUser = session.user as unknown as UserWithPhone;
+
+    try {
+        const appliedReaction = await applyMessageReactionToDb({
+            chatRoomId: body.chatRoomId ?? "",
+            messageId: body.messageId ?? "",
+            reactorUserId: sessionUser.id,
+            reactionEmoji: body.reactionEmoji ?? "",
+        });
+
+        await broadcastRealtimeReaction(appliedReaction);
+
+        return Response.json({
+            success: true,
+            reaction: appliedReaction.reaction,
+            updatedAt: appliedReaction.updatedAt.toISOString(),
+        });
+    } catch (error) {
+        if (error instanceof MessageReactionError) {
+            return Response.json(
+                { error: error.message },
+                { status: error.status }
+            );
+        }
+
+        return Response.json(
+            { error: "Failed to react to message." },
+            { status: 500 }
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -886,6 +937,70 @@ async function broadcastRealtimeMessage({
                     }),
                 });
             })
+        );
+    } catch {
+        // Realtime fanout is best-effort here; the DB write already succeeded.
+    }
+}
+
+async function broadcastRealtimeReaction(appliedReaction: AppliedMessageReaction) {
+    try {
+        const { env } = await getCloudflareContext({ async: true });
+        const bindings = env as unknown as RealtimeBindings;
+        const roomNamespace = bindings.CHAT_ROOM_DO;
+        const presenceNamespace = bindings.USER_PRESENCE_DO;
+
+        if (!roomNamespace || !presenceNamespace) {
+            return;
+        }
+
+        const event = {
+            type: "MESSAGE_REACTION_UPDATED",
+            conversationId: appliedReaction.conversationId,
+            conversationType: appliedReaction.conversationType,
+            messageId: appliedReaction.messageId,
+            targetSenderUserId: appliedReaction.targetSenderUserId,
+            reaction: appliedReaction.reaction,
+            updatedAt: appliedReaction.updatedAt.toISOString(),
+        };
+        const roomDO = roomNamespace.get(
+            roomNamespace.idFromName(appliedReaction.conversationId)
+        );
+        await roomDO.fetch("https://do/broadcast", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify(event),
+        });
+
+        await Promise.all(
+            appliedReaction.participantUserIds
+                .filter(
+                    (participantUserId) =>
+                        participantUserId &&
+                        participantUserId !== appliedReaction.reaction.user_id
+                )
+                .map(async (participantUserId) => {
+                    const unreadCount = await getUnreadCountForRecipient({
+                        chatId: appliedReaction.conversationId,
+                        userId: participantUserId,
+                    });
+                    const userDO = presenceNamespace.get(
+                        presenceNamespace.idFromName(participantUserId)
+                    );
+
+                    await userDO.fetch("https://do/event", {
+                        method: "POST",
+                        headers: {
+                            "content-type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            ...event,
+                            unreadCount,
+                        }),
+                    });
+                })
         );
     } catch {
         // Realtime fanout is best-effort here; the DB write already succeeded.

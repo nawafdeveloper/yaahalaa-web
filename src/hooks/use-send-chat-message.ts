@@ -175,12 +175,27 @@ export function useSendChatMessage() {
         chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
     }) => {
         const senderNickname = session?.user.name ?? currentPhone;
+        const optimisticMessageWithRecipientKeys: Message =
+            recipientEncryptionKeys?.length
+                ? {
+                      ...optimisticMessage,
+                      message_recipient_keys: recipientEncryptionKeys.map((key) => ({
+                          recipient_user_id: key.recipientUserId,
+                          encrypted_aes_key: key.encryptedAesKey,
+                          algorithm:
+                              key.algorithm ?? "aes-256-gcm+rsa-oaep-sha256",
+                      })),
+                  }
+                : optimisticMessage;
 
         if (!existingMessageId) {
-            appendMessage(chatId, optimisticMessage);
+            appendMessage(chatId, optimisticMessageWithRecipientKeys);
         } else {
             updateMessage(chatId, existingMessageId, (message) => ({
                 ...message,
+                message_recipient_keys:
+                    optimisticMessageWithRecipientKeys.message_recipient_keys ??
+                    message.message_recipient_keys,
                 client_status: "sending",
                 client_error: null,
             }));
@@ -190,7 +205,7 @@ export function useSendChatMessage() {
             buildChatFromMessage({
                 conversationId: chatId,
                 conversationType: conversation.conversationType,
-                message: optimisticMessage,
+                message: optimisticMessageWithRecipientKeys,
                 currentUserId,
                 unreadCount: 0,
                 fallbackExistingChat: conversation.selectedChat,

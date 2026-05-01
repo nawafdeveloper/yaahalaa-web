@@ -4,6 +4,7 @@ import { getUnreadCountsByChatId } from "@/lib/chat-read-state";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import {
     chatRecipientKeys,
+    chatReadStates,
     chats,
     contacts,
     encryptedMedia,
@@ -15,8 +16,15 @@ import {
     buildPhoneLookupVariants,
     phoneValuesMatch,
 } from "@/lib/contact-utils";
-import { userHasDirectMediaRecipientKey } from "@/lib/message-media-access";
-import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
+import {
+    parseRecipientMediaKeyMap,
+    userHasDirectMediaRecipientKey,
+} from "@/lib/message-media-access";
+import {
+    canViewAbout,
+    canViewLastSeen,
+    canViewProfilePicture,
+} from "@/lib/profile-picture-privacy";
 import { parseManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { and, desc, eq, inArray, like } from "drizzle-orm";
 import type { RecipientEncryptedAesKey } from "@/types/crypto";
@@ -105,6 +113,77 @@ export async function GET(request: Request) {
         chatIds: rows.map((row) => row.chat_id),
         userId: sessionUser.id,
     });
+    const lastMessageIds = [
+        ...new Set(
+            rows
+                .map((row) => row.last_message_id)
+                .filter((messageId): messageId is string => Boolean(messageId))
+        ),
+    ];
+    const lastMessageRows =
+        lastMessageIds.length > 0
+            ? await db
+                  .select({
+                      messageId: message.message_id,
+                      chatId: message.chat_room_id,
+                      senderUserId: message.sender_user_id,
+                      createdAt: message.created_at,
+                  })
+                  .from(message)
+                  .where(inArray(message.message_id, lastMessageIds))
+            : [];
+    const lastMessageById = new Map(
+        lastMessageRows.map((row) => [row.messageId, row])
+    );
+    const lastMessageRecipientKeyRows =
+        lastMessageIds.length > 0
+            ? await db
+                  .select({
+                      messageId: messageRecipientKeys.message_id,
+                      recipientUserId: messageRecipientKeys.recipient_user_id,
+                  })
+                  .from(messageRecipientKeys)
+                  .where(inArray(messageRecipientKeys.message_id, lastMessageIds))
+            : [];
+    const recipientUserIdsByLastMessageId = new Map<string, string[]>();
+    for (const key of lastMessageRecipientKeyRows) {
+        const existing =
+            recipientUserIdsByLastMessageId.get(key.messageId) ?? [];
+
+        if (!existing.includes(key.recipientUserId)) {
+            existing.push(key.recipientUserId);
+        }
+
+        recipientUserIdsByLastMessageId.set(key.messageId, existing);
+    }
+    const readStateRows =
+        rows.length > 0
+            ? await db
+                  .select({
+                      chatId: chatReadStates.chat_id,
+                      userId: chatReadStates.user_id,
+                      lastReadAt: chatReadStates.last_read_at,
+                  })
+                  .from(chatReadStates)
+                  .where(
+                      inArray(
+                          chatReadStates.chat_id,
+                          rows.map((row) => row.chat_id)
+                      )
+                  )
+            : [];
+    const readStatesByChatId = new Map<
+        string,
+        { userId: string; lastReadAt: Date }[]
+    >();
+    for (const readState of readStateRows) {
+        const existing = readStatesByChatId.get(readState.chatId) ?? [];
+        existing.push({
+            userId: readState.userId,
+            lastReadAt: readState.lastReadAt,
+        });
+        readStatesByChatId.set(readState.chatId, existing);
+    }
 
     const directPartnerPhones = sessionUser.phoneNumber
         ? rows
@@ -136,8 +215,13 @@ export async function GET(request: Request) {
                       image: user.image,
                       publicKey: user.yhlaPublicKey,
                       lastSeen: user.lastSeen,
+                      whoCanSeeLastSeen: user.whoCanSeeLastSeen,
                       whoCanSeeStatus: user.whoCanSeeStatus,
                       whoCanSeeProfilePicture: user.whoCanSeeProfilePicture,
+                      whoCanSeeAbout: user.whoCanSeeAbout,
+                      aboutCiphertext: user.aboutCiphertext,
+                      aboutEncryptedAesKey: user.aboutEncryptedAesKey,
+                      aboutIv: user.aboutIv,
                   })
                   .from(user)
                   .where(inArray(user.phoneNumber, directPartnerPhoneVariants))
@@ -241,92 +325,212 @@ export async function GET(request: Request) {
     }
 
     return Response.json({
-        chats: rows.map((chat) => ({
-            ...chat,
-            is_unreaded_chat:
-                (unreadCountsByChatId.get(chat.chat_id) ?? 0) > 0,
-            unreaded_messages_length:
-                unreadCountsByChatId.get(chat.chat_id) ?? 0,
-            last_message_context: "",
-            ...(chat.chat_type === "single" && sessionUser.phoneNumber
-                ? (() => {
-                      const partnerPhone = chat.chat_id
-                          .split("::")
-                          .find(
-                              (participant) =>
-                                  !phoneValuesMatch(
-                                      participant,
-                                      sessionUser.phoneNumber
-                                  )
-                          ) ?? null;
-                      const partner = partnerPhone
-                          ? buildPhoneLookupVariants(partnerPhone)
-                                .map((variant) =>
-                                    partnerUsersByPhoneVariant.get(variant)
-                                )
-                                .find(Boolean) ?? null
-                          : null;
-                      const savedContact = partner?.id
-                          ? savedContactsByLinkedUserId.get(partner.id) ?? null
-                          : null;
-                      const profilePictureVisibility =
-                          (partner?.whoCanSeeProfilePicture as
-                              | "all"
-                              | "contacts"
-                              | "nobody"
-                              | undefined) ?? null;
-                      const canShowProfilePicture = canViewProfilePicture(
-                          profilePictureVisibility,
-                          partner?.id ? ownerContactUserIds.has(partner.id) : false
-                      );
-                      const managedPartnerImage = parseManagedProfileImageUrl(
-                          partner?.image ?? ""
-                      );
-                      const managedPartnerImageRecord = managedPartnerImage
-                          ? partnerProfileImageRecordByObjectKey.get(
-                                managedPartnerImage.objectKey
-                            ) ?? null
-                          : null;
-                      const canDecryptPartnerImage = managedPartnerImage
-                          ? Boolean(
-                                managedPartnerImageRecord &&
-                                    (managedPartnerImageRecord.ownerId ===
-                                        sessionUser.id ||
-                                        userHasDirectMediaRecipientKey(
-                                            managedPartnerImageRecord.aesKey,
-                                            sessionUser.id
-                                        ))
-                            )
-                          : Boolean(partner?.image);
+        chats: rows.map((chat) => {
+            const lastMessage = chat.last_message_id
+                ? lastMessageById.get(chat.last_message_id) ?? null
+                : null;
+            const lastMessageRecipientUserIds = [
+                ...new Set(
+                    (
+                        chat.last_message_id
+                            ? recipientUserIdsByLastMessageId.get(
+                                  chat.last_message_id
+                              ) ?? []
+                            : []
+                    ).filter(
+                        (recipientUserId) =>
+                            recipientUserId &&
+                            recipientUserId !== lastMessage?.senderUserId
+                    )
+                ),
+            ];
+            const readStatesForChat =
+                readStatesByChatId.get(chat.chat_id) ?? [];
+            const lastMessageReadByUserIds = lastMessage
+                ? lastMessageRecipientUserIds.filter((recipientUserId) =>
+                      readStatesForChat.some(
+                          (readState) =>
+                              readState.userId === recipientUserId &&
+                              readState.lastReadAt >= lastMessage.createdAt
+                      )
+                  )
+                : [];
+            const lastMessageIsReadByRecipient =
+                lastMessageRecipientUserIds.length > 0 &&
+                lastMessageRecipientUserIds.every((recipientUserId) =>
+                    lastMessageReadByUserIds.includes(recipientUserId)
+                );
+            const isReactionPreview = chat.last_message_media === "reaction";
 
-                      return {
-                          avatar:
-                              canShowProfilePicture &&
-                              partner?.image &&
-                              canDecryptPartnerImage
-                                  ? partner.image
-                                  : canShowProfilePicture
-                                    ? getSafeAvatarUrl(chat.avatar)
-                                    : "",
-                          recipient_user_id: partner?.id ?? null,
-                          recipient_public_key: partner?.publicKey ?? null,
-                          contact_phone: partner?.phoneNumber ?? partnerPhone,
-                          recipient_last_seen: partner?.lastSeen ?? null,
-                          recipient_who_can_see_status:
-                              (partner?.whoCanSeeStatus as
+            return {
+                ...chat,
+                last_message_sender_is_me: isReactionPreview
+                    ? chat.last_message_sender_nickname === sessionUser.id
+                    : lastMessage?.senderUserId === sessionUser.id,
+                is_unreaded_chat:
+                    (unreadCountsByChatId.get(chat.chat_id) ?? 0) > 0,
+                unreaded_messages_length:
+                    unreadCountsByChatId.get(chat.chat_id) ?? 0,
+                last_message_context: chat.last_message_context,
+                last_message_is_read_by_recipient: lastMessageIsReadByRecipient,
+                last_message_read_by_user_ids: lastMessageReadByUserIds,
+                last_message_recipient_user_ids: lastMessageRecipientUserIds,
+                ...(chat.chat_type === "single" && sessionUser.phoneNumber
+                    ? (() => {
+                          const partnerPhone = chat.chat_id
+                              .split("::")
+                              .find(
+                                  (participant) =>
+                                      !phoneValuesMatch(
+                                          participant,
+                                          sessionUser.phoneNumber
+                                      )
+                              ) ?? null;
+                          const partner = partnerPhone
+                              ? buildPhoneLookupVariants(partnerPhone)
+                                    .map((variant) =>
+                                        partnerUsersByPhoneVariant.get(variant)
+                                    )
+                                    .find(Boolean) ?? null
+                              : null;
+                          const savedContact = partner?.id
+                              ? savedContactsByLinkedUserId.get(partner.id) ?? null
+                              : null;
+                          const partnerHasSessionUserAsContact = partner?.id
+                              ? ownerContactUserIds.has(partner.id)
+                              : false;
+                          const lastSeenVisibility =
+                              (partner?.whoCanSeeLastSeen as
                                   | "all"
                                   | "contacts"
                                   | "nobody"
-                                  | undefined) ?? null,
-                          recipient_who_can_see_profile_picture:
+                                  | undefined) ?? null;
+                          const canShowLastSeen = canViewLastSeen(
+                              lastSeenVisibility,
+                              partnerHasSessionUserAsContact
+                          );
+                          const profilePictureVisibility =
+                              (partner?.whoCanSeeProfilePicture as
+                                  | "all"
+                                  | "contacts"
+                                  | "nobody"
+                                  | undefined) ?? null;
+                          const canShowProfilePicture = canViewProfilePicture(
                               profilePictureVisibility,
-                          recipient_profile_picture_visible:
-                              canShowProfilePicture,
-                          stored_contact: savedContact,
-                      };
-                  })()
-                : {}),
-            chat_recipient_keys: keysByChatId.get(chat.chat_id) ?? null,
-        })),
+                              partnerHasSessionUserAsContact
+                          );
+                          const aboutVisibility =
+                              (partner?.whoCanSeeAbout as
+                                  | "all"
+                                  | "contacts"
+                                  | "nobody"
+                                  | undefined) ?? null;
+                          const canShowAbout = canViewAbout(
+                              aboutVisibility,
+                              partnerHasSessionUserAsContact
+                          );
+                          const aboutEncryptedAesKey = canShowAbout
+                              ? resolveAboutEncryptedAesKeyForRequester({
+                                    storedValue: partner?.aboutEncryptedAesKey,
+                                    ownerUserId: partner?.id,
+                                    requesterUserId: sessionUser.id,
+                                })
+                              : null;
+                          const hasDecryptableAbout = Boolean(
+                              partner?.aboutCiphertext &&
+                                  partner?.aboutIv &&
+                                  aboutEncryptedAesKey
+                          );
+                          const managedPartnerImage = parseManagedProfileImageUrl(
+                              partner?.image ?? ""
+                          );
+                          const managedPartnerImageRecord = managedPartnerImage
+                              ? partnerProfileImageRecordByObjectKey.get(
+                                    managedPartnerImage.objectKey
+                                ) ?? null
+                              : null;
+                          const canDecryptPartnerImage = managedPartnerImage
+                              ? Boolean(
+                                    managedPartnerImageRecord &&
+                                        (managedPartnerImageRecord.ownerId ===
+                                            sessionUser.id ||
+                                            userHasDirectMediaRecipientKey(
+                                                managedPartnerImageRecord.aesKey,
+                                                sessionUser.id
+                                            ))
+                                )
+                              : Boolean(partner?.image);
+
+                          return {
+                              avatar:
+                                  canShowProfilePicture &&
+                                  partner?.image &&
+                                  canDecryptPartnerImage
+                                      ? partner.image
+                                      : canShowProfilePicture
+                                        ? getSafeAvatarUrl(chat.avatar)
+                                        : "",
+                              recipient_user_id: partner?.id ?? null,
+                              recipient_public_key: partner?.publicKey ?? null,
+                              contact_phone: partner?.phoneNumber ?? partnerPhone,
+                              recipient_last_seen: canShowLastSeen
+                                  ? partner?.lastSeen ?? null
+                                  : null,
+                              recipient_who_can_see_last_seen:
+                                  lastSeenVisibility,
+                              recipient_last_seen_visible: canShowLastSeen,
+                              recipient_who_can_see_status:
+                                  (partner?.whoCanSeeStatus as
+                                      | "all"
+                                      | "contacts"
+                                      | "nobody"
+                                      | undefined) ?? null,
+                              recipient_who_can_see_profile_picture:
+                                  profilePictureVisibility,
+                              recipient_profile_picture_visible:
+                                  canShowProfilePicture,
+                              recipient_about_ciphertext: hasDecryptableAbout
+                                  ? partner?.aboutCiphertext ?? null
+                                  : null,
+                              recipient_about_encrypted_aes_key:
+                                  hasDecryptableAbout
+                                      ? aboutEncryptedAesKey
+                                      : null,
+                              recipient_about_iv: hasDecryptableAbout
+                                  ? partner?.aboutIv ?? null
+                                  : null,
+                              recipient_who_can_see_about:
+                                  aboutVisibility,
+                              recipient_about_visible:
+                                  canShowAbout,
+                              stored_contact: savedContact,
+                          };
+                      })()
+                    : {}),
+                chat_recipient_keys: keysByChatId.get(chat.chat_id) ?? null,
+            };
+        }),
     });
+}
+
+function resolveAboutEncryptedAesKeyForRequester({
+    storedValue,
+    ownerUserId,
+    requesterUserId,
+}: {
+    storedValue?: string | null;
+    ownerUserId?: string | null;
+    requesterUserId: string;
+}) {
+    if (!storedValue || !ownerUserId || !requesterUserId) {
+        return null;
+    }
+
+    const parsedKeyMap = parseRecipientMediaKeyMap(storedValue);
+
+    if (parsedKeyMap) {
+        return parsedKeyMap.keys[requesterUserId] ?? null;
+    }
+
+    return ownerUserId === requesterUserId ? storedValue : null;
 }

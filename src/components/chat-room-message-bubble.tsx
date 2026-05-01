@@ -37,14 +37,15 @@ import Link from "next/link";
 import ChatRoomActionBubble from "./chat-room-action-bubble";
 import ChatRoomReactionButton from "./chat-room-reaction-button";
 import ChatRoomForwardButton from "./chat-room-forward-button";
+import DecryptedProfileImage from "./decrypted-profile-image";
 import useMediaPreviewStore from "@/store/media-preview-store";
-import Avatar from "@mui/material/Avatar";
 import PollComponent from "./chat-poll-item";
 import { convertToPollWithVotes } from "@/utils/convert-to-poll-with-votes";
 import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { useDecryptedMessageMedia } from "@/hooks/use-decrypted-message-media";
 import { authClient } from "@/lib/auth-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { useRealtimeStore } from "@/store/use-realtime-store";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import {
     findContactByUserId,
@@ -52,6 +53,9 @@ import {
 } from "@/lib/contact-display";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { getMessageMediaAutoDownload } from "@/lib/message-media";
+import FileIcon from "./file-icon";
+import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
+import { buildChatFromReaction } from "@/lib/chat-utils";
 
 type Props = {
     message: Message;
@@ -72,19 +76,24 @@ export default function ChatRoomMessageBubble({
 }: Props) {
     const { data: session } = authClient.useSession();
     const { openPreview } = useMediaPreviewStore();
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
     const { open } = useDetailedSidebarStore();
     const chats = useActiveChatStore((state) => state.chats);
+    const updateMessage = useActiveChatStore((state) => state.updateMessage);
+    const upsertChat = useActiveChatStore((state) => state.upsertChat);
+    const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
     const { contacts } = useDecryptedContacts();
 
     const autoDownloadMedia = getMessageMediaAutoDownload(
         message,
         session?.user as
-            | {
-                  id?: string;
-                  imageMediaAutoDownload?: boolean;
-                  videoMediaAutoDownload?: boolean;
-              }
-            | undefined
+        | {
+            id?: string;
+            imageMediaAutoDownload?: boolean;
+            videoMediaAutoDownload?: boolean;
+        }
+        | undefined
     );
 
     const {
@@ -200,6 +209,7 @@ export default function ChatRoomMessageBubble({
     const activeChat =
         chats.find((chat) => chat.chat_id === message.chat_room_id) ?? null;
     const isGroupChat = activeChat?.chat_type === "group";
+    const conversationType = isGroupChat ? "group" : "direct";
     const senderContact = findContactByUserId(contacts, message.sender_user_id);
     const senderDisplayName = senderContact
         ? getContactDisplayName(senderContact)
@@ -212,6 +222,77 @@ export default function ChatRoomMessageBubble({
     const replySenderDisplayName = replySenderContact
         ? getContactDisplayName(replySenderContact)
         : message.reply_message?.original_sender_user_id;
+
+    const handleReactToMessage = async (reactionEmoji: string) => {
+        const currentUserId = session?.user.id;
+
+        if (!currentUserId || !activeChat) {
+            return;
+        }
+
+        const previousReaction = message.message_raction;
+        const previousUpdatedAt = message.updated_at;
+        const updatedAt = new Date();
+        const reaction = {
+            id: crypto.randomUUID(),
+            user_id: currentUserId,
+            reaction_emoji: reactionEmoji,
+        };
+
+        updateMessage(message.chat_room_id, message.message_id, (current) => ({
+            ...current,
+            message_raction: reaction,
+            updated_at: updatedAt,
+        }));
+        upsertChat(
+            buildChatFromReaction({
+                conversationId: message.chat_room_id,
+                conversationType,
+                messageId: message.message_id,
+                reaction,
+                updatedAt,
+                currentUserId,
+                unreadCount: 0,
+                fallbackExistingChat: activeChat,
+            })
+        );
+
+        const realtimeSent = sendRealtimeEvent({
+            type: "REACT_MESSAGE",
+            conversationId: message.chat_room_id,
+            conversationType,
+            messageId: message.message_id,
+            reactionEmoji,
+        });
+
+        if (realtimeSent) {
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/messages", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    chatRoomId: message.chat_room_id,
+                    messageId: message.message_id,
+                    reactionEmoji,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to react to message");
+            }
+        } catch {
+            updateMessage(message.chat_room_id, message.message_id, (current) => ({
+                ...current,
+                message_raction: previousReaction,
+                updated_at: previousUpdatedAt,
+            }));
+        }
+    };
 
     const TAIL_WIDTH = 8;
 
@@ -272,8 +353,8 @@ export default function ChatRoomMessageBubble({
         message.attached_media === "photo"
             ? decryptedMediaUrl
             : message.attached_media === "video" && decryptedMediaUrl
-              ? thumbnail
-              : null;
+                ? thumbnail
+                : null;
     const resolvedMediaAspectRatio =
         storedMediaAspectRatio ?? mediaAspectRatio ?? 4 / 3;
     const hasResolvedMediaAspectRatio = Boolean(
@@ -354,7 +435,7 @@ export default function ChatRoomMessageBubble({
         <ListItem disablePadding>
             <ListItemButton
                 dir="ltr"
-                onClick={isSelectMode ? handleToggle(message.message_id) : () => {}}
+                onClick={isSelectMode ? handleToggle(message.message_id) : () => { }}
                 dense={false}
                 disableRipple={!isSelectMode}
                 disableTouchRipple={!isSelectMode}
@@ -362,18 +443,15 @@ export default function ChatRoomMessageBubble({
                 onMouseLeave={() => setIsListEnter(false)}
                 sx={{
                     cursor: isSelectMode ? "pointer" : "default",
-                    ...(!isSelectMode && {
-                        "&:hover": { backgroundColor: "transparent" },
-                    }),
+                    "&:hover": { backgroundColor: isSelectMode ? (theme) => theme.palette.mode === 'dark' ? "rgba(122, 124, 124, 0.1)" : "rgba(34, 36, 36, 0.1)" : "transparent"},
                     paddingTop: isFirstInGroup ? undefined : "2px",
                     paddingBottom: isFirstInGroup ? undefined : "2px",
                     marginBottom: message.message_raction?.reaction_emoji ? 2 : 0,
                 }}
             >
                 <div
-                    className={`flex w-full flex-row items-center md:mx-auto md:max-w-7xl ${
-                        !isSender ? "gap-x-3" : ""
-                    } ${isSender && isSelectMode ? "justify-end" : ""}`}
+                    className={`flex w-full flex-row items-center md:mx-auto md:max-w-7xl ${!isSender ? "gap-x-3" : ""
+                        } ${isSender && isSelectMode ? "justify-end" : ""}`}
                 >
                     {isSelectMode && (
                         <ListItemIcon>
@@ -389,7 +467,11 @@ export default function ChatRoomMessageBubble({
                     {!isSelectMode && isSender && (
                         <div className="ml-auto mr-1 flex flex-row items-center gap-x-1">
                             <ChatRoomForwardButton />
-                            {isListEnter && <ChatRoomReactionButton />}
+                            {isListEnter && (
+                                <ChatRoomReactionButton
+                                    onReact={handleReactToMessage}
+                                />
+                            )}
                         </div>
                     )}
                     <div className="flex flex-row items-start">
@@ -403,7 +485,9 @@ export default function ChatRoomMessageBubble({
                                 }}
                             >
                                 {isFirstInGroup ? (
-                                    <Avatar
+                                    <DecryptedProfileImage
+                                        imageUrl={senderAvatar}
+                                        fallback={<Person fontSize="small" />}
                                         sx={(theme) => {
                                             const hue = getHue(message.sender_user_id);
                                             const mode = theme.palette.mode;
@@ -426,11 +510,8 @@ export default function ChatRoomMessageBubble({
                                                 fontSize: 16,
                                             };
                                         }}
-                                        src={senderAvatar}
                                         alt={senderDisplayName}
-                                    >
-                                        <Person fontSize="small" />
-                                    </Avatar>
+                                    />
                                 ) : (
                                     <div style={{ width: 34, height: 34 }} />
                                 )}
@@ -486,8 +567,8 @@ export default function ChatRoomMessageBubble({
                                 borderTopLeftRadius: isSender
                                     ? 7
                                     : isFirstInGroup
-                                      ? 0
-                                      : 7,
+                                        ? 0
+                                        : 7,
                                 position: "relative",
                                 overflow: "visible",
                                 boxShadow: "0px 2px 0px rgba(0,0,0,0.09)",
@@ -496,8 +577,8 @@ export default function ChatRoomMessageBubble({
                                         ? "#24352A"
                                         : "#DCF8C6"
                                     : theme.palette.mode === "dark"
-                                      ? "#222424"
-                                      : "#FFFFFF",
+                                        ? "#222424"
+                                        : "#FFFFFF",
                             })}
                             onMouseEnter={() => !isSelectMode && setIsBubbleEnter(true)}
                             onMouseLeave={() => setIsBubbleEnter(false)}
@@ -536,7 +617,13 @@ export default function ChatRoomMessageBubble({
                             {!isSender && isGroupChat && (
                                 <Button
                                     variant="text"
-                                    onClick={open}
+                                    onClick={() =>
+                                        open({
+                                            type: "user",
+                                            chatId: message.chat_room_id,
+                                            userId: message.sender_user_id,
+                                        })
+                                    }
                                     size="small"
                                     className="pl-2 font-semibold! text-xs!"
                                     sx={(theme) => {
@@ -574,9 +661,8 @@ export default function ChatRoomMessageBubble({
                                         const hue = getHue(
                                             message.reply_message?.original_sender_user_id
                                         );
-                                        const accent = `hsl(${hue}, 80%, ${
-                                            theme.palette.mode === "dark" ? "60%" : "35%"
-                                        })`;
+                                        const accent = `hsl(${hue}, 80%, ${theme.palette.mode === "dark" ? "60%" : "35%"
+                                            })`;
                                         return {
                                             mt: 0.5,
                                             mb: 0.75,
@@ -602,11 +688,10 @@ export default function ChatRoomMessageBubble({
                                             );
                                             return {
                                                 fontWeight: 600,
-                                                color: `hsl(${hue}, 80%, ${
-                                                    theme.palette.mode === "dark"
-                                                        ? "60%"
-                                                        : "35%"
-                                                })`,
+                                                color: `hsl(${hue}, 80%, ${theme.palette.mode === "dark"
+                                                    ? "60%"
+                                                    : "35%"
+                                                    })`,
                                             };
                                         }}
                                     >
@@ -648,7 +733,7 @@ export default function ChatRoomMessageBubble({
                             {message.poll && (
                                 <PollComponent
                                     poll={convertToPollWithVotes(message.poll)}
-                                    onVote={() => {}}
+                                    onVote={() => { }}
                                     isSender={isSender}
                                 />
                             )}
@@ -716,12 +801,9 @@ export default function ChatRoomMessageBubble({
                                         }
                                     }}
                                 >
-                                    <Image
-                                        src="/file.svg"
-                                        alt="File"
-                                        width={500}
-                                        height={500}
-                                        className="h-8 w-auto object-contain"
+                                    <FileIcon
+                                        extension={message.client_local_media_mime_type?.split("/").pop() || decryptedMediaMimeType?.split("/").pop() || getFileExtension(message.media_url || "")}
+                                        size={32}
                                     />
                                     <span className="flex flex-col leading-tight text-start">
                                         <Typography
@@ -852,7 +934,9 @@ export default function ChatRoomMessageBubble({
                             {message.attached_media === "contact" && (
                                 <button className={`flex w-full cursor-pointer min-w-72.5 overflow-hidden flex-row items-center gap-x-3 rounded-lg p-3 ${isSender ? 'bg-[#c9e3b5] dark:bg-[#212e26]' : 'bg-[#f7f5f3] dark:bg-[#1a1b1b]'}`}>
                                     <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full">
-                                        <Avatar
+                                        <DecryptedProfileImage
+                                            imageUrl={message.contact?.contact_image || ""}
+                                            fallback={<Person />}
                                             sx={(theme) => ({
                                                 width: 45,
                                                 height: 45,
@@ -865,11 +949,8 @@ export default function ChatRoomMessageBubble({
                                                         ? "#f7f5f3"
                                                         : "#1a1b1b",
                                             })}
-                                            src={message.contact?.contact_image || ""}
                                             alt={`${message.contact?.contact_name || "Contact"} Avatar`}
-                                        >
-                                            <Person />
-                                        </Avatar>
+                                        />
                                     </div>
                                     <Box
                                         sx={{
@@ -997,20 +1078,63 @@ export default function ChatRoomMessageBubble({
                                                 )}
                                                 {(message.client_status === "sent" ||
                                                     !message.client_status) && (
-                                                    <DoneAll
-                                                        sx={{
-                                                            fontSize: 16,
-                                                            color: message.is_read_by_recipient
-                                                                ? "#53bdeb"
-                                                                : "gray",
-                                                        }}
-                                                    />
-                                                )}
+                                                        <DoneAll
+                                                            sx={{
+                                                                fontSize: 16,
+                                                                color: message.is_read_by_recipient
+                                                                    ? "#53bdeb"
+                                                                    : "gray",
+                                                            }}
+                                                        />
+                                                    )}
                                             </>
                                         )}
                                     </Box>
                                 </Box>
                             </CardContent>
+                            {message.attached_media === "contact" && (
+                                <Box
+                                    sx={(theme) => ({
+                                        display: "flex",
+                                        flexDirection: "row",
+                                        alignItems: "end",
+                                        justifyContent: "space-between",
+                                        paddingX: 1,
+                                        width: "100%",
+                                        gap: 3,
+                                        position: "relative",
+                                        borderTopWidth: 1,
+                                        borderTopColor: isSender ? theme.palette.mode === 'dark' ? '#2F4537' : '#C3E3BD' : theme.palette.mode === 'dark' ? '#3A3C3C' : '#E5E5E5'
+                                    })}
+                                >
+                                    <button className={`flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366] border-r ${isSender ? 'border-r-[#C3E3BD] dark:border-r-[#2C5F4B]' : 'border-r-[#E5E5E5] dark:border-r-[#3A3C3C]'}`}>
+                                        <p>{isRTL ? 'مراسلة' : 'Message'}</p>
+                                    </button>
+                                    <button className="flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366]">
+                                        <p>{isRTL ? 'حفظ' : 'Save contact'}</p>
+                                    </button>
+                                </Box>
+                            )}
+                            {message.attached_media === "file" && (
+                                <Box
+                                    sx={(theme) => ({
+                                        display: "flex",
+                                        flexDirection: "row",
+                                        alignItems: "end",
+                                        justifyContent: "space-between",
+                                        paddingX: 1,
+                                        width: "100%",
+                                        gap: 3,
+                                        position: "relative",
+                                        borderTopWidth: 1,
+                                        borderTopColor: isSender ? theme.palette.mode === 'dark' ? '#2F4537' : '#C3E3BD' : theme.palette.mode === 'dark' ? '#3A3C3C' : '#E5E5E5'
+                                    })}
+                                >
+                                    <button className="flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366]">
+                                        <p>{isRTL ? 'تنزيل' : 'Download'}</p>
+                                    </button>
+                                </Box>
+                            )}
                             {message.message_raction?.reaction_emoji && (
                                 <Box
                                     sx={(theme) => ({
@@ -1077,7 +1201,11 @@ export default function ChatRoomMessageBubble({
                     {!isSelectMode && !isSender && (
                         <div className="flex flex-row items-center gap-x-1">
                             <ChatRoomForwardButton />
-                            {isListEnter && <ChatRoomReactionButton />}
+                            {isListEnter && (
+                                <ChatRoomReactionButton
+                                    onReact={handleReactToMessage}
+                                />
+                            )}
                         </div>
                     )}
                 </div>

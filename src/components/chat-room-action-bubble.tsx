@@ -1,10 +1,14 @@
 "use client";
 
+import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { DeleteForeverOutlined, EmojiEmotionsOutlined, ExpandMore, PushPinOutlined, ShortcutRounded, StarOutline, ThumbDownOutlined, TurnLeftOutlined } from '@mui/icons-material';
 import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
 import React, { useState } from 'react'
 
 export default function ChatRoomActionBubble() {
+    const locale = getLocaleFromCookie();
+    const isRTL = locale ? isRTLClient(locale) : false;
+
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -86,7 +90,7 @@ export default function ChatRoomActionBubble() {
                                 fontSize: "15px",
                             }),
                         }}
-                    >Reply</ListItemText>
+                    >{isRTL ? 'رد' : 'Reply'}</ListItemText>
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -115,7 +119,7 @@ export default function ChatRoomActionBubble() {
                                 fontSize: "15px",
                             }),
                         }}
-                    >Forward</ListItemText>
+                    >{isRTL ? 'إعادة توجيه' : 'Forward'}</ListItemText>
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -144,7 +148,7 @@ export default function ChatRoomActionBubble() {
                                 fontSize: "15px",
                             }),
                         }}
-                    >Pin</ListItemText>
+                    >{isRTL ? 'تثبيت' : 'Pin'}</ListItemText>
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -173,36 +177,7 @@ export default function ChatRoomActionBubble() {
                                 fontSize: "15px",
                             }),
                         }}
-                    >Star</ListItemText>
-                </MenuItem>
-                <MenuItem
-                    onClick={handleClose}
-                    sx={(theme) => ({
-                        "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                        },
-                        borderRadius: 2,
-                        paddingY: 1,
-                        paddingX: 1
-                    })}
-                >
-                    <ListItemIcon>
-                        <ThumbDownOutlined
-                            fontSize="small"
-                            sx={(theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                            })}
-                        />
-                    </ListItemIcon>
-                    <ListItemText
-                        primaryTypographyProps={{
-                            sx: (theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                fontWeight: 500,
-                                fontSize: "15px",
-                            }),
-                        }}
-                    >Report</ListItemText>
+                    >{isRTL ? 'نجمة' : 'Star'}</ListItemText>
                 </MenuItem>
                 <MenuItem
                     onClick={handleClose}
@@ -231,7 +206,7 @@ export default function ChatRoomActionBubble() {
                                 fontSize: "15px",
                             }),
                         }}
-                    >Delete</ListItemText>
+                    >{isRTL ? 'حذف' : 'Delete'}</ListItemText>
                 </MenuItem>
             </Menu>
         </div>

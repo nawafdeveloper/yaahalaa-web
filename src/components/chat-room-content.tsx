@@ -30,6 +30,7 @@ import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
 import ChatRoomTypingBubble from "./chat-room-typing-bubble";
 import { CircularProgress } from "@mui/material";
+import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 
 const EMPTY_MESSAGES: Message[] = [];
 const BLOCKING_MEDIA_TYPES = new Set(["photo", "video", "voice", "file"]);
@@ -121,6 +122,8 @@ export default function ChatRoomContent() {
     const olderMessagesLoadingByChatId = useActiveChatStore(
         (state) => state.olderMessagesLoadingByChatId
     );
+    const chats = useActiveChatStore((state) => state.chats);
+    const openDetailedSidebar = useDetailedSidebarStore((state) => state.open);
     const hasOlderMessagesByChatId = useActiveChatStore(
         (state) => state.hasOlderMessagesByChatId
     );
@@ -135,6 +138,7 @@ export default function ChatRoomContent() {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { sendMessage } = useSendChatMessage();
+    const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
 
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
@@ -429,6 +433,17 @@ export default function ChatRoomContent() {
         }
     };
 
+    const handleOpenDetails = () => {
+        if (!selectedChat) {
+            return;
+        }
+
+        openDetailedSidebar({
+            type: "chat",
+            chatId: selectedChat.chat_id,
+        });
+    };
+
     return (
         <Box
             ref={containerRef}
@@ -546,7 +561,7 @@ export default function ChatRoomContent() {
             <ContextMenu
                 containerRef={containerRef}
                 items={[
-                    { label: isRTL ? "\u0645\u0639\u0644\u0648\u0645\u0627\u062a \u062c\u0647\u0629 \u0627\u0644\u0627\u062a\u0635\u0627\u0644" : "Contact Info", onClick: () => { }, icon: <InfoOutlined fontSize="medium" /> },
+                    { label: isRTL ? "\u0645\u0639\u0644\u0648\u0645\u0627\u062a \u062c\u0647\u0629 \u0627\u0644\u0627\u062a\u0635\u0627\u0644" : "Contact Info", onClick: handleOpenDetails, icon: <InfoOutlined fontSize="medium" /> },
                     { label: isRTL ? "\u062a\u062d\u062f\u064a\u062f \u0627\u0644\u0631\u0633\u0627\u0626\u0644" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
                     { label: isRTL ? "\u0643\u062a\u0645 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a" : "Mute notifications", onClick: () => { }, icon: <NotificationsOffOutlined fontSize="medium" /> },
                     { label: isRTL ? "\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Close chat", onClick: () => { }, icon: <HighlightOffOutlined fontSize="medium" /> },

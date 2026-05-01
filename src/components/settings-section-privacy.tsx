@@ -146,12 +146,6 @@ export default function SettingsSectionPrivacy() {
             href: 'about-seen'
         },
         {
-            id: '4',
-            primary: t.status,
-            secondary: t.statusSecondary,
-            href: 'status-seen'
-        },
-        {
             id: '5',
             primary: t.defaultTimer,
             secondary: t.defaultTimerSecondary,
@@ -168,16 +162,9 @@ export default function SettingsSectionPrivacy() {
             primary: t.blockedContacts,
             secondary: t.blockedContactsSecondary,
             href: 'blocked-contacts'
-        },
-        {
-            id: '8',
-            primary: t.appLock,
-            secondary: t.appLockSecondary,
-            href: 'close-app'
-        },
+        }
     ];
 
-    // Helper component for list items to avoid repetition
     const renderListItem = (item: typeof subItemList[0]) => (
         <ListItemButton
             key={item.id}
@@ -273,34 +260,13 @@ export default function SettingsSectionPrivacy() {
                     {subItemList.slice(0, 4).map(renderListItem)}
                 </Stack>
 
-                <Typography
-                    variant='body2'
-                    sx={{
-                        color: (theme) =>
-                            theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                        width: '100%',
-                        textAlign: isRTL ? 'right' : 'left',
-                    }}
-                >
-                    {t.secondSubtitle}
-                </Typography>
-
                 <Stack
                     spacing={1}
                     sx={{
                         width: '100%',
                     }}
                 >
-                    {subItemList.slice(4, 5).map(renderListItem)}
-                </Stack>
-
-                <Stack
-                    spacing={1}
-                    sx={{
-                        width: '100%',
-                    }}
-                >
-                    {subItemList.slice(6, 8).map(renderListItem)}
+                    {subItemList.slice(6, 7).map(renderListItem)}
                 </Stack>
 
                 <Typography
@@ -321,99 +287,6 @@ export default function SettingsSectionPrivacy() {
                         width: '100%',
                     }}
                 >
-                    <ListItem
-                        sx={{
-                            padding: isRTL ? '8px 0 8px 16px' : '8px 16px 8px 0',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <ListItemText
-                            primary={isRTL ? 'إيصالات القراءة' : 'Read receipts'}
-                            sx={{
-                                display: "block",
-                                textAlign: isRTL ? 'right' : 'left',
-                            }}
-                            secondary={
-                                isRTL ?
-                                    'إذا تم إيقاف التشغيل، لن ترسل أو تستلم إيصالات القراءة. يتم دائمًا إرسال إيصالات القراءة للمحادثات الجماعية.' :
-                                    `If turned off, you won't send or receive read receipts. Read receipts are always sent for group chats.`
-                            }
-                            secondaryTypographyProps={{
-                                sx: {
-                                    display: "block",
-                                    maxWidth: "100%",
-                                    textAlign: isRTL ? 'right' : 'left',
-                                },
-                            }}
-                        />
-                        <Switch
-                            edge="end"
-                            onChange={() => handleToggleReadReceipts(!readReceipt)}
-                            checked={readReceipt}
-                            disabled={loadingStates.readReceipt}
-                            inputProps={{
-                                'aria-labelledby': 'switch-list-label-receipt',
-                            }}
-                            sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                    color: '#25D366',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(37, 211, 102, 0.08)',
-                                    },
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                    backgroundColor: '#25D366',
-                                },
-                            }}
-                        />
-                    </ListItem>
-
-                    <ListItem
-                        sx={{
-                            padding: isRTL ? '8px 0 8px 16px' : '8px 16px 8px 0',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <ListItemText
-                            primary={isRTL ? 'حظر رسائل الحسابات غير المعروفة' : 'Block unknown account messages'}
-                            sx={{
-                                display: "block",
-                                textAlign: isRTL ? 'right' : 'left',
-                            }}
-                            secondary={
-                                isRTL ?
-                                    'لحماية حسابك وتحسين أداء الجهاز، سيتم حظر الرسائل من الحسابات غير المعروفة إذا تجاوزت حجمًا معينًا.' :
-                                    `To protect your account and improve device performance, messages from unknown accounts will be blocked if they exceed a certain volume.`
-                            }
-                            secondaryTypographyProps={{
-                                sx: {
-                                    display: "block",
-                                    maxWidth: "100%",
-                                    textAlign: isRTL ? 'right' : 'left',
-                                },
-                            }}
-                        />
-                        <Switch
-                            edge="end"
-                            onChange={() => handleToggleUnknownAccount(!blockUnknownContact)}
-                            checked={blockUnknownContact}
-                            disabled={loadingStates.blockUnknownContact}
-                            inputProps={{
-                                'aria-labelledby': 'switch-list-label-block',
-                            }}
-                            sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                    color: '#25D366',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(37, 211, 102, 0.08)',
-                                    },
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                    backgroundColor: '#25D366',
-                                },
-                            }}
-                        />
-                    </ListItem>
 
                     <ListItem
                         sx={{

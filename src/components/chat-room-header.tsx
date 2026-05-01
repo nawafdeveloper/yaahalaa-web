@@ -2,15 +2,20 @@
 
 import { ArrowBack, ArrowForward, Group, Search } from "@mui/icons-material";
 import Person from "@mui/icons-material/Person";
-import { Avatar, Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import React from "react";
 import ChatRoomMoreActionButton from "./chat-room-more-action-button";
 import DecryptedProfileImage from "./decrypted-profile-image";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
+import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { authClient } from "@/lib/auth-client";
 import { getChatDisplayName } from "@/lib/chat-utils";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
-import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
+import {
+    canViewLastSeen,
+    canViewProfilePicture,
+    canViewStatus,
+} from "@/lib/profile-picture-privacy";
 import {
     getContactDisplayName,
     resolveDirectChatContact,
@@ -37,6 +42,7 @@ export default function ChatRoomHeader() {
     const chats = useActiveChatStore((state) => state.chats);
     const presenceByChatId = useActiveChatStore((state) => state.presenceByChatId);
     const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const openDetailedSidebar = useDetailedSidebarStore((state) => state.open);
     const { contacts } = useDecryptedContacts();
     const selectedChat = chats.find((chat) => chat.chat_id === selectedChatId) ?? null;
     const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
@@ -69,16 +75,31 @@ export default function ChatRoomHeader() {
                 : ""
             : selectedChat?.avatar ?? "";
     const activePresence = selectedChatId ? presenceByChatId[selectedChatId] : undefined;
+    const directRecipientIsSavedContact = Boolean(directContact);
+    const canShowLastSeen =
+        selectedChat?.chat_type === "single" &&
+        (selectedChat.recipient_last_seen_visible ??
+            canViewLastSeen(
+                selectedChat.recipient_who_can_see_last_seen,
+                directRecipientIsSavedContact
+            ));
     const canShowDirectStatus =
         selectedChat?.chat_type === "single" &&
-        (selectedChat.recipient_who_can_see_status === "all" ||
-            (selectedChat.recipient_who_can_see_status === "contacts" &&
-                Boolean(directContact)));
+        canShowLastSeen;
+    const canShowDirectOnline =
+        selectedChat?.chat_type === "single" &&
+        canShowDirectStatus &&
+        canViewStatus(
+            selectedChat.recipient_who_can_see_status,
+            directRecipientIsSavedContact
+        );
     const isDirectRecipientOnline =
         Boolean(
             selectedChat?.chat_type === "single" &&
+                canShowDirectOnline &&
                 selectedChat.recipient_user_id &&
-                activePresence?.activeUsers.includes(selectedChat.recipient_user_id)
+                activePresence &&
+                activePresence.activeUsers.includes(selectedChat.recipient_user_id)
         );
     const subtitle =
         selectedChat?.chat_type === "single"
@@ -100,6 +121,16 @@ export default function ChatRoomHeader() {
                       : ""
                 : ""
             : "Group chat";
+    const handleOpenDetails = () => {
+        if (!selectedChat) {
+            return;
+        }
+
+        openDetailedSidebar({
+            type: "chat",
+            chatId: selectedChat.chat_id,
+        });
+    };
 
     return (
         <Box
@@ -132,53 +163,84 @@ export default function ChatRoomHeader() {
                 >
                     {isRTL ? <ArrowForward /> : <ArrowBack />}
                 </IconButton>
-                {selectedChat?.chat_type === "single" ? (
-                    <DecryptedProfileImage
-                        imageUrl={headerAvatar}
-                        fallback={<Person />}
-                        sx={(theme) => ({
-                            width: 40,
-                            height: 40,
-                            backgroundColor:
-                                theme.palette.mode === "dark" ? "#1d1f1f" : "#f7f5f3",
-                            border: "1px solid",
-                            borderColor:
-                                theme.palette.mode === "dark" ? "#404040" : "#d4d4d4",
-                            color: theme.palette.mode === "dark" ? "#fff" : "#000",
-                        })}
-                    />
-                ) : (
-                    <Avatar
-                        src={headerAvatar}
-                        sx={(theme) => ({
-                            width: 40,
-                            height: 40,
-                            backgroundColor:
-                                theme.palette.mode === "dark" ? "#1d1f1f" : "#f7f5f3",
-                            border: "1px solid",
-                            borderColor:
-                                theme.palette.mode === "dark" ? "#404040" : "#d4d4d4",
-                            color: theme.palette.mode === "dark" ? "#fff" : "#000",
-                        })}
-                    >
-                        <Group />
-                    </Avatar>
-                )}
-                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                    <Typography
-                        variant="body1"
-                        sx={{
-                            fontWeight: "600",
-                            direction: 'ltr'
-                        }}
-                    >
-                        {headerTitle}
-                    </Typography>
-                    {subtitle ? (
-                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
-                            {subtitle}
+                <Box
+                    component="button"
+                    type="button"
+                    onClick={handleOpenDetails}
+                    disabled={!selectedChat}
+                    sx={{
+                        minWidth: 0,
+                        border: 0,
+                        p: 0,
+                        m: 0,
+                        backgroundColor: "transparent",
+                        color: "inherit",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        cursor: selectedChat ? "pointer" : "default",
+                        textAlign: "left",
+                    }}
+                >
+                    {selectedChat?.chat_type === "single" ? (
+                        <DecryptedProfileImage
+                            imageUrl={headerAvatar}
+                            fallback={<Person />}
+                            sx={(theme) => ({
+                                width: 40,
+                                height: 40,
+                                backgroundColor:
+                                    theme.palette.mode === "dark"
+                                        ? "#1d1f1f"
+                                        : "#f7f5f3",
+                                border: "1px solid",
+                                borderColor:
+                                    theme.palette.mode === "dark"
+                                        ? "#404040"
+                                        : "#d4d4d4",
+                                color: theme.palette.mode === "dark" ? "#fff" : "#000",
+                            })}
+                        />
+                    ) : (
+                        <DecryptedProfileImage
+                            imageUrl={headerAvatar}
+                            fallback={<Group />}
+                            sx={(theme) => ({
+                                width: 40,
+                                height: 40,
+                                backgroundColor:
+                                    theme.palette.mode === "dark"
+                                        ? "#1d1f1f"
+                                        : "#f7f5f3",
+                                border: "1px solid",
+                                borderColor:
+                                    theme.palette.mode === "dark"
+                                        ? "#404040"
+                                        : "#d4d4d4",
+                                color: theme.palette.mode === "dark" ? "#fff" : "#000",
+                            })}
+                        />
+                    )}
+                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+                        <Typography
+                            variant="body1"
+                            sx={{
+                                fontWeight: "600",
+                                direction: 'ltr',
+                                maxWidth: { xs: 180, sm: 260, md: 360 },
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {headerTitle}
                         </Typography>
-                    ) : null}
+                        {subtitle ? (
+                            <Typography variant="caption" sx={{ color: "text.secondary", display: "block", textAlign: "left" }}>
+                                {subtitle}
+                            </Typography>
+                        ) : null}
+                    </Box>
                 </Box>
             </Box>
             <div className="flex flex-row items-center gap-x-2">

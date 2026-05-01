@@ -4,7 +4,7 @@ import { authClient } from '@/lib/auth-client';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useSettingsStore } from '@/store/use-active-setting-store';
 import { AccountCircleOutlined, CloseOutlined, Computer, HelpOutline, LockOutline, NotificationsOutlined, Person, SearchOutlined, VpnKeyOutlined } from '@mui/icons-material';
-import { Avatar, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, TextField, Typography } from '@mui/material';
+import { IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, TextField, Typography } from '@mui/material';
 import React, { useRef, useState } from 'react';
 import DecryptedProfileImage from "@/components/decrypted-profile-image";
 

@@ -3,7 +3,10 @@
 import { useCryptoKeys } from "@/context/crypto";
 import { matchesContactSearch } from "@/lib/contact-crypto";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
-import { getContactDisplayName } from "@/lib/contact-display";
+import {
+    getContactDisplayName,
+    resolveDirectChatContact,
+} from "@/lib/contact-display";
 import { groupContactsByLetter } from "@/lib/contact-organizer";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { authClient } from "@/lib/auth-client";
@@ -14,6 +17,7 @@ import type { Contact } from "@/types/contacts.type";
 import {
     CloseOutlined,
     GroupAdd,
+    Person,
     PersonAdd,
     SearchOutlined,
 } from "@mui/icons-material";
@@ -30,8 +34,20 @@ import {
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import CreateChatHeaderLargeSidebar from "./create-chat-header-large-sidebar";
+import DecryptedProfileImage from "./decrypted-profile-image";
+import { canViewProfilePicture } from "@/lib/profile-picture-privacy";
+import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
+
+function getContactAvatarFallback(contact: Contact) {
+    return (
+        contact.contact_first_name?.[0] ||
+        contact.contact_second_name?.[0] ||
+        contact.contact_number[0] ||
+        ""
+    ).toUpperCase();
+}
 
 export default function CreateChatSearchLargeSidebar() {
     const locale = getLocaleFromCookie();
@@ -43,11 +59,51 @@ export default function CreateChatSearchLargeSidebar() {
     const openDirectContactChat = useActiveChatStore(
         (state) => state.openDirectContactChat
     );
+    const chats = useActiveChatStore((state) => state.chats);
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
 
     const [value, setValue] = useState("");
     const { contacts, isLoading: isLoadingContacts, error: contactsError } =
         useDecryptedContacts();
     const inputRef = useRef<HTMLInputElement>(null);
+    const avatarByContactId = useMemo(() => {
+        const avatarMap = new Map<string, string>();
+
+        for (const contact of contacts) {
+            const directChat = chats.find(
+                (chat) =>
+                    chat.chat_type === "single" &&
+                    Boolean(
+                        resolveDirectChatContact(chat, [contact], currentPhone)
+                    )
+            );
+            const contactAvatar =
+                contact.contact_avatar &&
+                !isManagedProfileImageUrl(contact.contact_avatar)
+                    ? contact.contact_avatar
+                    : "";
+
+            if (!directChat) {
+                avatarMap.set(contact.contact_id, contactAvatar);
+                continue;
+            }
+
+            const canShowDirectAvatar =
+                directChat.recipient_profile_picture_visible ??
+                canViewProfilePicture(
+                    directChat.recipient_who_can_see_profile_picture,
+                    true
+                );
+
+            avatarMap.set(
+                contact.contact_id,
+                canShowDirectAvatar ? directChat.avatar || contactAvatar : ""
+            );
+        }
+
+        return avatarMap;
+    }, [chats, contacts, currentPhone]);
 
     const filteredContacts = value.trim()
         ? contacts.filter((contact) => matchesContactSearch(contact, value))
@@ -60,9 +116,6 @@ export default function CreateChatSearchLargeSidebar() {
     };
 
     const handleContactSelect = (contact: Contact) => {
-        const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
-            ?.phoneNumber;
-
         if (!currentPhone || !session?.user.id) {
             return;
         }
@@ -270,61 +323,64 @@ export default function CreateChatSearchLargeSidebar() {
                                 >
                                     {group.letter}
                                 </Typography>
-                                {group.contacts.map((contact) => (
-                                    <ListItemButton
-                                        component="button"
-                                        type="button"
-                                        key={contact.contact_id}
-                                        onClick={() => handleContactSelect(contact)}
-                                        sx={(theme) => ({
-                                            width: "100%",
-                                            borderRadius: 3,
-                                            padding: 0,
-                                            marginY: "2px",
-                                            backgroundColor: "transparent",
-                                            textTransform: "inherit",
-                                            color:
-                                                theme.palette.mode === "dark"
-                                                    ? "#ffffff"
-                                                    : "#000000",
-                                            "&:hover": {
-                                                backgroundColor:
+                                {group.contacts.map((contact) => {
+                                    const avatarSrc =
+                                        avatarByContactId.get(contact.contact_id) ?? "";
+
+                                    return (
+                                        <ListItemButton
+                                            component="button"
+                                            type="button"
+                                            key={contact.contact_id}
+                                            onClick={() => handleContactSelect(contact)}
+                                            sx={(theme) => ({
+                                                width: "100%",
+                                                borderRadius: 3,
+                                                padding: 0,
+                                                marginY: "2px",
+                                                backgroundColor: "transparent",
+                                                textTransform: "inherit",
+                                                color:
                                                     theme.palette.mode === "dark"
-                                                        ? "#242626"
-                                                        : "#f7f5f3",
-                                            },
-                                        })}
-                                    >
-                                        <ListItem sx={{ paddingY: 1, paddingX: 2 }}>
-                                            <ListItemAvatar>
-                                                <Avatar
-                                                    src={contact.contact_avatar}
-                                                    sx={(theme) => ({
-                                                        width: 50,
-                                                        height: 50,
-                                                        marginRight: 2,
-                                                        backgroundColor: "#25D366",
-                                                        color:
-                                                            theme.palette.mode === "dark"
-                                                                ? "#1C1E21"
-                                                                : "#FFFFFF",
-                                                    })}
-                                                >
-                                                    {!contact.contact_avatar &&
-                                                        (
-                                                            contact.contact_first_name?.[0] ||
-                                                            contact.contact_second_name?.[0] ||
-                                                            contact.contact_number[0]
-                                                        )?.toUpperCase()}
-                                                </Avatar>
-                                            </ListItemAvatar>
-                                            <ListItemText
-                                                primary={getContactDisplayName(contact)}
-                                                secondary={contact.contact_number}
-                                            />
-                                        </ListItem>
-                                    </ListItemButton>
-                                ))}
+                                                        ? "#ffffff"
+                                                        : "#000000",
+                                                "&:hover": {
+                                                    backgroundColor:
+                                                        theme.palette.mode === "dark"
+                                                            ? "#242626"
+                                                            : "#f7f5f3",
+                                                },
+                                            })}
+                                        >
+                                            <ListItem sx={{ paddingY: 1, paddingX: 2 }}>
+                                                <ListItemAvatar>
+                                                    <DecryptedProfileImage
+                                                        imageUrl={avatarSrc}
+                                                        fallback={
+                                                            getContactAvatarFallback(contact) || (
+                                                                <Person />
+                                                            )
+                                                        }
+                                                        sx={(theme) => ({
+                                                            width: 50,
+                                                            height: 50,
+                                                            marginRight: 2,
+                                                            backgroundColor: "#25D366",
+                                                            color:
+                                                                theme.palette.mode === "dark"
+                                                                    ? "#1C1E21"
+                                                                    : "#FFFFFF",
+                                                        })}
+                                                    />
+                                                </ListItemAvatar>
+                                                <ListItemText
+                                                    primary={getContactDisplayName(contact)}
+                                                    secondary={contact.contact_number}
+                                                />
+                                            </ListItem>
+                                        </ListItemButton>
+                                    );
+                                })}
                             </div>
                         ))}
                     </List>

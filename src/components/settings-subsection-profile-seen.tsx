@@ -32,7 +32,6 @@ export default function SettingsSubsectionProfileSeen() {
 
     const listSelection = [
         { key: 'all', label: t.everyone, value: 'all' },
-        { key: 'contacts', label: t.myContacts, value: 'contacts' },
         { key: 'nobody', label: t.nobody, value: 'nobody' }
     ];
 
