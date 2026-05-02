@@ -294,6 +294,7 @@ export function createOptimisticMessage({
     mediaFileName = null,
     videoThumbnail = null,
     replyMessage = null,
+    openGraphData = null,
     contact = null,
     clientLocalMediaName = null,
     clientLocalMediaSize = null,
@@ -312,6 +313,7 @@ export function createOptimisticMessage({
     mediaFileName?: string | null;
     videoThumbnail?: string | null;
     replyMessage?: Message["reply_message"];
+    openGraphData?: Message["open_graph_data"];
     contact?: Message["contact"] | null;
     clientLocalMediaName?: string | null;
     clientLocalMediaSize?: number | null;
@@ -341,7 +343,7 @@ export function createOptimisticMessage({
         message_raction: null,
         is_forward_message: false,
         message_text_content: plaintext,
-        open_graph_data: null,
+        open_graph_data: openGraphData,
         user_ids_pin_it: null,
         user_ids_star_it: null,
         deleted: false,

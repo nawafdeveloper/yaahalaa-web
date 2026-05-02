@@ -9,7 +9,14 @@ import {
     PlayArrow,
     Send,
 } from "@mui/icons-material";
-import { Box, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
+import {
+    Box,
+    IconButton,
+    InputAdornment,
+    Skeleton,
+    TextField,
+    Typography,
+} from "@mui/material";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ChatRoomInputAttachButton from "./chat-room-input-attach-button";
 import ChatRoomInputEmojiButton from "./chat-room-input-emoji-button";
@@ -26,6 +33,8 @@ import { authClient } from "@/lib/auth-client";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import { findContactByUserId, getContactDisplayName } from "@/lib/contact-display";
 import { getReplyMessageLabel } from "@/lib/message-reply";
+import { findFirstUrl, splitTextByUrls } from "@/lib/url-links";
+import type { OpenGraphData } from "@/types/messages.type";
 
 const getHue = (userId: string | undefined): number => {
     if (!userId) {
@@ -41,6 +50,114 @@ const getHue = (userId: string | undefined): number => {
     return Math.abs(hash) % 360;
 };
 
+async function fetchOpenGraphPreview(
+    url: string,
+    signal?: AbortSignal
+): Promise<OpenGraphData | null> {
+    const response = await fetch(
+        `/api/open-graph?url=${encodeURIComponent(url)}`,
+        {
+            cache: "no-store",
+            signal,
+        }
+    );
+
+    if (!response.ok) {
+        return null;
+    }
+
+    const payload = (await response.json()) as {
+        openGraphData?: OpenGraphData | null;
+    };
+
+    return payload.openGraphData ?? null;
+}
+
+function ComposerOpenGraphPreview({
+    data,
+    isLoading,
+}: {
+    data: OpenGraphData | null;
+    isLoading: boolean;
+}) {
+    return (
+        <Box sx={{ px: 1.25, pt: 1, pb: 0.25 }}>
+            <Box
+                component={data?.og_url ? "a" : "div"}
+                href={data?.og_url ?? undefined}
+                target={data?.og_url ? "_blank" : undefined}
+                rel={data?.og_url ? "noopener noreferrer" : undefined}
+                sx={(theme) => ({
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: 0.35,
+                    width: "100%",
+                    minWidth: 0,
+                    borderRadius: 2,
+                    p: 1,
+                    textDecoration: "none",
+                    color: "inherit",
+                    backgroundColor:
+                        theme.palette.mode === "dark"
+                            ? "#1a1b1b"
+                            : "#f7f5f3",
+                })}
+            >
+                {isLoading ? (
+                    <>
+                        <Skeleton variant="text" width="55%" height={18} />
+                        <Skeleton variant="text" width="92%" height={16} />
+                        <Skeleton variant="text" width="38%" height={14} />
+                    </>
+                ) : (
+                    <>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                width: "100%",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                fontWeight: 600,
+                            }}
+                        >
+                            {data?.og_title}
+                        </Typography>
+                        {data?.og_description && (
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: "text.secondary",
+                                    display: "-webkit-box",
+                                    overflow: "hidden",
+                                    WebkitBoxOrient: "vertical",
+                                    WebkitLineClamp: 2,
+                                    wordBreak: "break-word",
+                                }}
+                            >
+                                {data.og_description}
+                            </Typography>
+                        )}
+                        <Typography
+                            variant="caption"
+                            sx={{
+                                width: "100%",
+                                color: "text.secondary",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {data?.og_url}
+                        </Typography>
+                    </>
+                )}
+            </Box>
+        </Box>
+    );
+}
+
 export default function ChatRoomInputForm() {
     const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
@@ -48,6 +165,7 @@ export default function ChatRoomInputForm() {
 
     const [micHover, setMicHover] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const [draftInputScrollLeft, setDraftInputScrollLeft] = useState(0);
 
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const draftValue = useActiveChatStore((state) =>
@@ -63,20 +181,69 @@ export default function ChatRoomInputForm() {
     const { contacts } = useDecryptedContacts();
     const [pendingVoiceSend, setPendingVoiceSend] = useState(false);
     const [voiceSendInFlight, setVoiceSendInFlight] = useState(false);
+    const [openGraphPreview, setOpenGraphPreview] =
+        useState<OpenGraphData | null>(null);
+    const [openGraphPreviewUrl, setOpenGraphPreviewUrl] = useState<string | null>(
+        null
+    );
+    const [openGraphLoading, setOpenGraphLoading] = useState(false);
     const voiceSendInFlightRef = useRef(false);
     const voiceSendBlobRef = useRef<Blob | null>(null);
     const isMountedRef = useRef(true);
+
+    const linkPreviewDisabled = Boolean(
+        (
+            session?.user as
+                | {
+                      disableLinkPreview?: boolean | null;
+                  }
+                | undefined
+        )?.disableLinkPreview
+    );
+    const draftFirstUrl = useMemo(() => findFirstUrl(draftValue), [draftValue]);
+    const highlightedDraftParts = useMemo(
+        () => splitTextByUrls(draftValue),
+        [draftValue]
+    );
+    const shouldShowOpenGraphPreview =
+        !linkPreviewDisabled &&
+        Boolean(draftFirstUrl) &&
+        (openGraphLoading || Boolean(openGraphPreview));
+    const hasComposerTopContent =
+        Boolean(replyDraft) || shouldShowOpenGraphPreview;
+
+    const resolveOpenGraphPreviewForSend = async () => {
+        if (linkPreviewDisabled || !draftFirstUrl) {
+            return null;
+        }
+
+        if (openGraphPreviewUrl === draftFirstUrl && openGraphPreview) {
+            return openGraphPreview;
+        }
+
+        try {
+            return await fetchOpenGraphPreview(draftFirstUrl);
+        } catch {
+            return null;
+        }
+    };
 
     const handleSend = async () => {
         if (!selectedChatId) {
             return;
         }
 
+        const openGraphData = await resolveOpenGraphPreviewForSend();
         stopTyping(selectedChatId);
         await sendMessage({
             text: draftValue,
             chatId: selectedChatId,
+            openGraphData,
         });
+    };
+
+    const handleDraftInputScroll = () => {
+        setDraftInputScrollLeft(inputRef.current?.scrollLeft ?? 0);
     };
 
     const recorderControls = useVoiceVisualizer();
@@ -114,6 +281,46 @@ export default function ChatRoomInputForm() {
             inputRef.current?.focus();
         }
     }, [replyDraft]);
+
+    useEffect(() => {
+        if (linkPreviewDisabled || !draftFirstUrl) {
+            setOpenGraphPreview(null);
+            setOpenGraphPreviewUrl(null);
+            setOpenGraphLoading(false);
+            return;
+        }
+
+        let isActive = true;
+        const controller = new AbortController();
+        setOpenGraphPreview(null);
+        setOpenGraphPreviewUrl(draftFirstUrl);
+        setOpenGraphLoading(true);
+
+        const timer = window.setTimeout(() => {
+            void fetchOpenGraphPreview(draftFirstUrl, controller.signal)
+                .then((preview) => {
+                    if (isActive) {
+                        setOpenGraphPreview(preview);
+                    }
+                })
+                .catch(() => {
+                    if (isActive) {
+                        setOpenGraphPreview(null);
+                    }
+                })
+                .finally(() => {
+                    if (isActive) {
+                        setOpenGraphLoading(false);
+                    }
+                });
+        }, 300);
+
+        return () => {
+            isActive = false;
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [draftFirstUrl, linkPreviewDisabled]);
 
     const replySenderContact = findContactByUserId(
         contacts,
@@ -246,12 +453,18 @@ export default function ChatRoomInputForm() {
                 <Box
                     sx={(theme) => ({
                         overflow: "hidden",
-                        borderRadius: replyDraft ? "18px" : 8,
+                        borderRadius: hasComposerTopContent ? "18px" : 8,
                         boxShadow: "0px 2px 2px rgba(0,0,0,0.08)",
                         backgroundColor:
                             theme.palette.mode === "dark" ? "#242626" : "#ffffff",
                     })}
                 >
+                    {shouldShowOpenGraphPreview && (
+                        <ComposerOpenGraphPreview
+                            data={openGraphPreview}
+                            isLoading={openGraphLoading}
+                        />
+                    )}
                     {replyDraft && (
                         <Box sx={{ px: 1.25, pt: 1, pb: 0.25 }}>
                             <Box
@@ -329,112 +542,181 @@ export default function ChatRoomInputForm() {
                             </Box>
                         </Box>
                     )}
-                    <TextField
-                        hiddenLabel
-                        id="filled-chat-input-bar"
-                        variant="filled"
-                        size="small"
-                        placeholder={placeholder}
-                        fullWidth
-                        value={draftValue}
-                        onChange={(event) => {
-                            if (!selectedChatId) {
-                                return;
-                            }
-                            setDraft(selectedChatId, event.target.value);
-                            handleDraftChange(event.target.value);
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                void handleSend();
-                            }
-                        }}
-                        inputRef={inputRef}
-                        sx={(theme) => ({
-                            "& .MuiFilledInput-root": {
-                                borderRadius: replyDraft ? "0 0 18px 18px" : 8,
-                                boxShadow: "none",
-                                paddingY: "5px",
-                                paddingX: "5px",
-                                backgroundColor:
-                                    theme.palette.mode === "dark"
-                                        ? "#242626"
-                                        : "#ffffff",
-                                "&.Mui-focused": {
-                                    outline: "none",
+                    <Box sx={{ position: "relative" }}>
+                        {draftValue.length > 0 && (
+                            <Box
+                                aria-hidden
+                                sx={(theme) => ({
+                                    position: "absolute",
+                                    top: 0,
+                                    bottom: 0,
+                                    left: 90,
+                                    right: 56,
+                                    zIndex: 2,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    overflow: "hidden",
+                                    pointerEvents: "none",
+                                    whiteSpace: "pre",
+                                    color: theme.palette.text.primary,
+                                    fontFamily: theme.typography.body1.fontFamily,
+                                    fontSize: theme.typography.body1.fontSize,
+                                    lineHeight: theme.typography.body1.lineHeight,
+                                })}
+                            >
+                                <Box
+                                    component="span"
+                                    sx={{
+                                        display: "inline-block",
+                                        minWidth: "max-content",
+                                        transform: `translateX(-${draftInputScrollLeft}px)`,
+                                    }}
+                                >
+                                    {highlightedDraftParts.map((part, index) => (
+                                        <Box
+                                            component="span"
+                                            key={`${part.text}-${index}`}
+                                            sx={{
+                                                color: part.isUrl
+                                                    ? "#25D366"
+                                                    : "text.primary",
+                                            }}
+                                        >
+                                            {part.text}
+                                        </Box>
+                                    ))}
+                                </Box>
+                            </Box>
+                        )}
+                        <TextField
+                            hiddenLabel
+                            id="filled-chat-input-bar"
+                            variant="filled"
+                            size="small"
+                            placeholder={placeholder}
+                            fullWidth
+                            value={draftValue}
+                            onChange={(event) => {
+                                if (!selectedChatId) {
+                                    return;
+                                }
+                                setDraft(selectedChatId, event.target.value);
+                                handleDraftChange(event.target.value);
+                                setDraftInputScrollLeft(event.target.scrollLeft);
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                    event.preventDefault();
+                                    void handleSend();
+                                }
+                            }}
+                            inputRef={inputRef}
+                            inputProps={{
+                                onScroll: handleDraftInputScroll,
+                            }}
+                            sx={(theme) => ({
+                                "& .MuiFilledInput-root": {
+                                    borderRadius: hasComposerTopContent
+                                        ? "0 0 18px 18px"
+                                        : 8,
+                                    boxShadow: "none",
+                                    paddingY: "5px",
+                                    paddingX: "5px",
                                     backgroundColor:
                                         theme.palette.mode === "dark"
                                             ? "#242626"
                                             : "#ffffff",
+                                    "&.Mui-focused": {
+                                        outline: "none",
+                                        backgroundColor:
+                                            theme.palette.mode === "dark"
+                                                ? "#242626"
+                                                : "#ffffff",
+                                    },
+                                    "&:hover": {
+                                        backgroundColor:
+                                            theme.palette.mode === "dark"
+                                                ? "#242626"
+                                                : "#ffffff",
+                                    },
+                                    "&::before": { display: "none" },
+                                    "&::after": { display: "none" },
                                 },
-                                "&:hover": {
-                                    backgroundColor:
-                                        theme.palette.mode === "dark"
-                                            ? "#242626"
-                                            : "#ffffff",
+                                "& .MuiFilledInput-input": {
+                                    position: "relative",
+                                    zIndex: 3,
+                                    color: "transparent",
+                                    WebkitTextFillColor: "transparent",
+                                    caretColor: theme.palette.text.primary,
+                                    "&::placeholder": {
+                                        color: theme.palette.text.secondary,
+                                        WebkitTextFillColor:
+                                            theme.palette.text.secondary,
+                                        opacity: 1,
+                                    },
                                 },
-                                "&::before": { display: "none" },
-                                "&::after": { display: "none" },
-                            },
-                        })}
-                        InputProps={{
-                            disableUnderline: true,
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <ChatRoomInputAttachButton />
-                                    <ChatRoomInputEmojiButton
-                                        messageInput={draftValue}
-                                        setMessageInput={(value) => {
-                                            if (!selectedChatId) {
-                                                return;
-                                            }
-                                            setDraft(selectedChatId, value);
-                                            handleDraftChange(value);
-                                        }}
-                                    />
-                                </InputAdornment>
-                            ),
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    {draftValue.trim().length > 0 ? (
-                                        <IconButton
-                                            type="button"
-                                            onClick={() => void handleSend()}
-                                            size="medium"
-                                            sx={{
-                                                backgroundColor: "#25D366",
-                                                color: "#161717",
-                                                "&:hover": {
+                            })}
+                            InputProps={{
+                                disableUnderline: true,
+                                startAdornment: (
+                                    <InputAdornment position="start" sx={{ zIndex: 4 }}>
+                                        <ChatRoomInputAttachButton />
+                                        <ChatRoomInputEmojiButton
+                                            messageInput={draftValue}
+                                            setMessageInput={(value) => {
+                                                if (!selectedChatId) {
+                                                    return;
+                                                }
+                                                setDraft(selectedChatId, value);
+                                                handleDraftChange(value);
+                                            }}
+                                        />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end" sx={{ zIndex: 4 }}>
+                                        {draftValue.trim().length > 0 ? (
+                                            <IconButton
+                                                type="button"
+                                                onClick={() => void handleSend()}
+                                                size="medium"
+                                                sx={{
                                                     backgroundColor: "#25D366",
                                                     color: "#161717",
-                                                },
-                                            }}
-                                        >
-                                            <Send className={isRTL ? "rotate-180" : ""} />
-                                        </IconButton>
-                                    ) : (
-                                        <IconButton
-                                            type="button"
-                                            onClick={() => startRecording()}
-                                            size="medium"
-                                            onMouseEnter={() => setMicHover(true)}
-                                            onMouseLeave={() => setMicHover(false)}
-                                            sx={{
-                                                transition: "background-color 0.2s ease",
-                                                "&:hover": {
-                                                    backgroundColor: "#25D366",
-                                                    color: "#161717",
-                                                },
-                                            }}
-                                        >
-                                            {micHover ? <Mic /> : <MicNoneOutlined />}
-                                        </IconButton>
-                                    )}
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
+                                                    "&:hover": {
+                                                        backgroundColor: "#25D366",
+                                                        color: "#161717",
+                                                    },
+                                                }}
+                                            >
+                                                <Send
+                                                    className={isRTL ? "rotate-180" : ""}
+                                                />
+                                            </IconButton>
+                                        ) : (
+                                            <IconButton
+                                                type="button"
+                                                onClick={() => startRecording()}
+                                                size="medium"
+                                                onMouseEnter={() => setMicHover(true)}
+                                                onMouseLeave={() => setMicHover(false)}
+                                                sx={{
+                                                    transition:
+                                                        "background-color 0.2s ease",
+                                                    "&:hover": {
+                                                        backgroundColor: "#25D366",
+                                                        color: "#161717",
+                                                    },
+                                                }}
+                                            >
+                                                {micHover ? <Mic /> : <MicNoneOutlined />}
+                                            </IconButton>
+                                        )}
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+                    </Box>
                 </Box>
             )}
         </div>

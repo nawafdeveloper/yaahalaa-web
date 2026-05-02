@@ -59,6 +59,7 @@ type HttpMessagePayload = {
     encryptedChatPreview?: EncryptedContentEnvelope | null;
     chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
     replyMessage?: Message["reply_message"];
+    openGraphData?: Message["open_graph_data"];
 };
 
 type ConversationContext = {
@@ -165,6 +166,32 @@ export function useSendChatMessage() {
         }
 
         return state.replyDraftByChatId[chatId] ?? null;
+    };
+
+    const resolveOpenGraphDataForSend = ({
+        chatId,
+        existingMessageId,
+        openGraphData,
+    }: {
+        chatId: string;
+        existingMessageId?: string;
+        openGraphData?: Message["open_graph_data"];
+    }) => {
+        if (openGraphData !== undefined) {
+            return openGraphData;
+        }
+
+        if (!existingMessageId) {
+            return null;
+        }
+
+        return (
+            useActiveChatStore
+                .getState()
+                .messagesByChatId[chatId]?.find(
+                    (message) => message.message_id === existingMessageId
+                )?.open_graph_data ?? null
+        );
     };
 
     const dispatchPreparedMessage = async ({
@@ -284,6 +311,7 @@ export function useSendChatMessage() {
                     encryptedChatPreview,
                     chatPreviewRecipientKeys,
                     replyMessage: optimisticMessage.reply_message,
+                    openGraphData: optimisticMessage.open_graph_data,
                 };
             const httpPayload: HttpMessagePayload = {
                 debugTraceId,
@@ -307,6 +335,7 @@ export function useSendChatMessage() {
                 encryptedChatPreview,
                 chatPreviewRecipientKeys,
                 replyMessage: optimisticMessage.reply_message,
+                openGraphData: optimisticMessage.open_graph_data,
             };
 
             const realtimeSent = sendRealtimeEvent(payload);
@@ -397,11 +426,13 @@ export function useSendChatMessage() {
         chatId = selectedChatId,
         clearDraft = true,
         existingMessageId,
+        openGraphData,
     }: {
         text: string;
         chatId?: string | null;
         clearDraft?: boolean;
         existingMessageId?: string;
+        openGraphData?: Message["open_graph_data"];
     }) => {
         const trimmed = text.trim();
         const currentUserId = session?.user.id;
@@ -428,12 +459,18 @@ export function useSendChatMessage() {
             chatId,
             existingMessageId,
         });
+        const resolvedOpenGraphData = resolveOpenGraphDataForSend({
+            chatId,
+            existingMessageId,
+            openGraphData,
+        });
         const optimisticMessage = createOptimisticMessage({
             messageId,
             chatId,
             senderUserId: currentUserId,
             plaintext: trimmed,
             replyMessage,
+            openGraphData: resolvedOpenGraphData,
         });
 
         try {
@@ -882,6 +919,8 @@ function finalizeReconciledMessage(
             persistedMessage.video_thumbnail ?? fallbackMessage.video_thumbnail,
         reply_message:
             persistedMessage.reply_message ?? fallbackMessage.reply_message,
+        open_graph_data:
+            persistedMessage.open_graph_data ?? fallbackMessage.open_graph_data,
         message_text_content:
             persistedMessage.message_text_content ?? fallbackMessage.message_text_content,
         contact: persistedMessage.contact ?? fallbackMessage.contact,

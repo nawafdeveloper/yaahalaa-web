@@ -35,6 +35,7 @@ import {
 } from "@/lib/message-media-debug";
 import { withMessageReadReceipt } from "@/lib/message-read-receipts";
 import { normalizeReplyMessage } from "@/lib/message-reply";
+import { normalizeOpenGraphData } from "@/lib/open-graph-data";
 
 /**
  * The better-auth `phoneNumber` plugin adds `phoneNumber` at runtime
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
         encryptedChatPreview?: EncryptedContentEnvelope | null;
         chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
         replyMessage?: ReplyMessage | null;
+        openGraphData?: Message["open_graph_data"];
     };
 
     const sessionUser = session.user as unknown as UserWithPhone;
@@ -117,6 +119,7 @@ export async function POST(request: Request) {
         encryptedChatPreview,
         chatPreviewRecipientKeys,
         replyMessage,
+        openGraphData,
     } = body;
     const effectiveDebugTraceId = bodyDebugTraceId ?? debugTraceId ?? null;
     const finalSenderUserId = senderUserId ?? sessionUser.id;
@@ -178,6 +181,7 @@ export async function POST(request: Request) {
         chatPreviewRecipientKeys
     );
     const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
+    const normalizedOpenGraphData = normalizeOpenGraphData(openGraphData);
     const isMediaMessage = Boolean(attachedMedia);
 
     if (isMediaMessage) {
@@ -265,7 +269,7 @@ export async function POST(request: Request) {
         message_raction: null,
         is_forward_message: false,
         message_text_content: null,
-        open_graph_data: null,
+        open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
         user_ids_star_it: null,
         deleted: false,
@@ -351,7 +355,7 @@ export async function POST(request: Request) {
         message_raction: null,
         is_forward_message: false,
         message_text_content: null,
-        open_graph_data: null,
+        open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
         user_ids_star_it: null,
         deleted: false,

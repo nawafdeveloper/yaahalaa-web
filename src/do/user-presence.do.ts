@@ -21,6 +21,7 @@ import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import { normalizeReplyMessage } from "@/lib/message-reply";
+import { normalizeOpenGraphData } from "@/lib/open-graph-data";
 
 type SessionState = {
     userId: string;
@@ -91,6 +92,7 @@ type SendMessagePayload = {
           encryptedChatPreview?: EncryptedContentEnvelope | null;
           chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
           replyMessage?: ReplyMessage | null;
+          openGraphData?: Message["open_graph_data"];
       };
 
 type ChatEvent = {
@@ -121,7 +123,7 @@ type StoredMessage = {
     message_raction: null;
     is_forward_message: boolean;
     message_text_content: string | null;
-    open_graph_data: null;
+    open_graph_data: Message["open_graph_data"];
     user_ids_pin_it: string[] | null;
     user_ids_star_it: string[] | null;
     deleted: boolean;
@@ -422,6 +424,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             encryptedChatPreview: data.encryptedChatPreview ?? null,
             chatPreviewRecipientKeys: data.chatPreviewRecipientKeys ?? null,
             replyMessage: data.replyMessage ?? null,
+            openGraphData: data.openGraphData ?? null,
         });
 
         ws.send(
@@ -707,6 +710,7 @@ async function saveMessageToDb({
     encryptedChatPreview,
     chatPreviewRecipientKeys,
     replyMessage,
+    openGraphData,
 }: {
     debugTraceId?: string;
     messageId?: string;
@@ -727,6 +731,7 @@ async function saveMessageToDb({
     encryptedChatPreview: EncryptedContentEnvelope | null;
     chatPreviewRecipientKeys: RecipientEncryptedAesKeyInput[] | null;
     replyMessage: ReplyMessage | null;
+    openGraphData: Message["open_graph_data"];
 }): Promise<StoredMessage> {
     const finalMessageId = messageId ?? crypto.randomUUID();
     const now = new Date();
@@ -737,6 +742,7 @@ async function saveMessageToDb({
         chatPreviewRecipientKeys
     );
     const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
+    const normalizedOpenGraphData = normalizeOpenGraphData(openGraphData);
     const isMediaMessage = Boolean(attachedMedia);
 
     if (isMediaMessage) {
@@ -822,7 +828,7 @@ async function saveMessageToDb({
         message_raction: null,
         is_forward_message: false,
         message_text_content: null,
-        open_graph_data: null,
+        open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
         user_ids_star_it: null,
         deleted: false,
@@ -928,7 +934,7 @@ async function saveMessageToDb({
         message_raction: null,
         is_forward_message: false,
         message_text_content: null,
-        open_graph_data: null,
+        open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
         user_ids_star_it: null,
         deleted: false,
