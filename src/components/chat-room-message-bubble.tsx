@@ -230,13 +230,15 @@ export default function ChatRoomMessageBubble({
         ? getContactDisplayName(senderContact)
         : message.sender_user_id;
     const senderAvatar = senderContact?.contact_avatar ?? "";
-    const replySenderContact = findContactByUserId(
-        contacts,
-        message.reply_message?.original_sender_user_id
-    );
-    const replySenderDisplayName = replySenderContact
-        ? getContactDisplayName(replySenderContact)
-        : message.reply_message?.original_sender_user_id;
+    const replySenderUserId =
+        message.reply_message?.original_sender_user_id ?? null;
+    const replySenderContact = findContactByUserId(contacts, replySenderUserId);
+    const replySenderDisplayName =
+        replySenderUserId === session?.user.id
+            ? "You"
+            : replySenderContact
+              ? getContactDisplayName(replySenderContact)
+              : replySenderUserId ?? "";
 
     const handleReactToMessage = async (reactionEmoji: string) => {
         const currentUserId = session?.user.id;
