@@ -7,7 +7,7 @@ import MainClientUIAppWrapper from "@/components/main-client-ui-app-warper";
 import { getLocale } from "@/lib/locale";
 import { isRTL } from '@/lib/locale-utils';
 import { auth } from "@/lib/auth";
-import NewPinCode from "@/components/new-pin-code";
+import NewUserOnboarding from "@/components/new-user-onboarding";
 import PinCodeWrapper from "@/components/pin-code-wrapper";
 import { MuiSystemThemeProvider } from "@/context/theme";
 import { CryptoProvider } from "@/context/crypto";
@@ -54,7 +54,7 @@ export default async function RootLayout({
         <body className={`${notoSansArabic.variable} antialiased`}>
           <MuiSystemThemeProvider>
             <CryptoProvider>
-              <NewPinCode />
+              <NewUserOnboarding />
             </CryptoProvider>
           </MuiSystemThemeProvider>
         </body>

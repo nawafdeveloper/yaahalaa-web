@@ -30,6 +30,7 @@ type UseUpdateUserOptions = {
     aboutEncryptedAesKey?: string | null;
     aboutIv?: string | null;
     isRTL: boolean;
+    onSaveSuccess?: () => Promise<void> | void;
 };
 
 function getGenericErrorMessage(isRTL: boolean): string {
@@ -45,6 +46,7 @@ export const useUpdateUser = ({
     aboutEncryptedAesKey,
     aboutIv,
     isRTL,
+    onSaveSuccess,
 }: UseUpdateUserOptions) => {
     const { data: session } = authClient.useSession();
     const { contacts } = useDecryptedContacts();
@@ -251,11 +253,6 @@ export const useUpdateUser = ({
             return;
         }
 
-        if (!hasNameChanged && !hasAboutChanged && !hasImageChanged) {
-            setIsEditing(false);
-            return;
-        }
-
         if (!currentUserId) {
             setIsError(true);
             setErrorMsg(getGenericErrorMessage(isRTL));
@@ -266,6 +263,12 @@ export const useUpdateUser = ({
             setLoading(true);
             setIsError(false);
             setErrorMsg("");
+
+            if (!hasNameChanged && !hasAboutChanged && !hasImageChanged) {
+                setIsEditing(false);
+                await onSaveSuccess?.();
+                return;
+            }
 
             let nextImage = committedImage;
             let nextAbout = committedAbout;
@@ -344,6 +347,7 @@ export const useUpdateUser = ({
 
             setSelectedProfileImage(null);
             setIsEditing(false);
+            await onSaveSuccess?.();
         } catch (error) {
             setIsError(true);
             setErrorMsg(

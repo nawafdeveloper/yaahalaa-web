@@ -1,7 +1,6 @@
 "use client";
 
 import { useCrypto } from "@/context/crypto";
-import { authClient } from "@/lib/auth-client";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { AdminPanelSettingsOutlined, Info } from "@mui/icons-material";
 import { Button } from "@mui/material";
@@ -20,7 +19,11 @@ const RTL_COPY = {
         "\u0645\u0639\u0644\u0648\u0645\u0627\u062a\u0643 \u0645\u062d\u0645\u064a\u0629 \u0648\u0641\u0642\u064b\u0627 \u0644\u0633\u064a\u0627\u0633\u0629 \u0627\u0644\u062e\u0635\u0648\u0635\u064a\u0629 \u0627\u0644\u062e\u0627\u0635\u0629 \u0628\u0646\u0627.",
 };
 
-export default function NewPinCode() {
+type NewPinCodeProps = {
+    onComplete?: () => void;
+};
+
+export default function NewPinCode({ onComplete }: NewPinCodeProps) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { register, state } = useCrypto();
@@ -37,10 +40,7 @@ export default function NewPinCode() {
 
         try {
             await register(pin);
-            await authClient.updateUser({
-                isNewUser: false,
-            });
-            window.location.reload();
+            onComplete?.();
         } catch {
             setIsError(true);
             setErrorMsg(
