@@ -21,7 +21,7 @@ export default function ChatsHeaderLargeSideBar({ logout }: Props) {
     return (
         <div className={`flex flex-row items-center justify-between`}>
             <Image
-                src={'/halabaak-logo.svg'}
+                src={locale === 'ar' ? "yahla-arabic-brand.svg" : "yahla-english-brand.svg"}
                 alt="HalaBaak Corp.©"
                 width={200}
                 height={200}

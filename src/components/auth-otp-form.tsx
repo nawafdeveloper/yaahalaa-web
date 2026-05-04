@@ -36,7 +36,7 @@ export default function AuthOtpForm({
             <div className='flex flex-col h-full max-h-1/2 justify-between w-full md:max-w-sm md:mx-auto'>
                 <div className='flex flex-col items-center justify-center gap-y-4 md:gap-y-8 w-full'>
                     <Image
-                        src={'/halabaak-logo.svg'}
+                        src={locale === 'ar' ? "yahla-arabic-brand.svg" : "yahla-english-brand.svg"}
                         alt="HalaBaak Corp.©"
                         width={200}
                         height={200}
