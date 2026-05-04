@@ -27,25 +27,27 @@ export async function handleRealtimeUpgrade(
         headers: new Headers(request.headers),
     });
 
-    if (!session) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    let sessionUserId = (session?.user as SessionUser | undefined)?.id ?? null;
+    let userPhone = (session?.user as SessionUser | undefined)?.phoneNumber ?? null;
+
+    if (!sessionUserId || !userPhone) {
+        sessionUserId = url.searchParams.get("userId");
+        userPhone = url.searchParams.get("phone");
     }
 
-    const sessionUser = session.user as SessionUser;
-    const userPhone = sessionUser.phoneNumber;
-    if (!userPhone) {
+    if (!sessionUserId || !userPhone) {
         return Response.json(
-            { error: "Authenticated user has no phone number." },
-            { status: 400 }
+            { error: "Unauthorized" },
+            { status: 401 }
         );
     }
 
     const userDO = env.USER_PRESENCE_DO.get(
-        env.USER_PRESENCE_DO.idFromName(sessionUser.id)
+        env.USER_PRESENCE_DO.idFromName(sessionUserId)
     );
 
     const forwardedRequest = new Request(
-        `https://do/connect?userId=${encodeURIComponent(sessionUser.id)}&phone=${encodeURIComponent(userPhone)}`,
+        `https://do/connect?userId=${encodeURIComponent(sessionUserId)}&phone=${encodeURIComponent(userPhone)}`,
         {
             method: request.method,
             headers: request.headers,
