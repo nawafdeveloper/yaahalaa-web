@@ -29,6 +29,9 @@ export async function handleRealtimeUpgrade(
 
     let sessionUserId = (session?.user as SessionUser | undefined)?.id ?? null;
     let userPhone = (session?.user as SessionUser | undefined)?.phoneNumber ?? null;
+    const platform = url.searchParams.get("platform") === "mobile"
+        ? "mobile"
+        : "web";
 
     if (!sessionUserId || !userPhone) {
         sessionUserId = url.searchParams.get("userId");
@@ -47,7 +50,7 @@ export async function handleRealtimeUpgrade(
     );
 
     const forwardedRequest = new Request(
-        `https://do/connect?userId=${encodeURIComponent(sessionUserId)}&phone=${encodeURIComponent(userPhone)}`,
+        `https://do/connect?userId=${encodeURIComponent(sessionUserId)}&phone=${encodeURIComponent(userPhone)}&platform=${platform}`,
         {
             method: request.method,
             headers: request.headers,

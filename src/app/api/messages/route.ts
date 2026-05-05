@@ -36,6 +36,7 @@ import {
 import { withMessageReadReceipt } from "@/lib/message-read-receipts";
 import { normalizeReplyMessage } from "@/lib/message-reply";
 import { normalizeOpenGraphData } from "@/lib/open-graph-data";
+import { sendMessagePushNotifications } from "@/lib/expo-push-notifications";
 
 /**
  * The better-auth `phoneNumber` plugin adds `phoneNumber` at runtime
@@ -403,6 +404,23 @@ export async function POST(request: Request) {
             .map((key) => key.recipient_user_id)
             .filter((recipientUserId) => recipientUserId !== finalSenderUserId),
     });
+
+    try {
+        await sendMessagePushNotifications({
+            conversationId: finalChatRoomId,
+            conversationType: conversationType === "group" ? "group" : "direct",
+            message: responseMessage,
+            recipientUserIds: normalizedMessageKeys
+                .map((key) => key.recipient_user_id)
+                .filter(
+                    (recipientUserId) => recipientUserId !== finalSenderUserId
+                ),
+            senderDisplayName:
+                senderNickname ?? sessionUser.name ?? finalSenderUserId,
+        });
+    } catch {
+        // Expo push is best-effort; the encrypted message is already saved.
+    }
 
     return Response.json({
         success: true,

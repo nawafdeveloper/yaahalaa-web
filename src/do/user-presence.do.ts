@@ -22,10 +22,14 @@ import { DurableObject } from "cloudflare:workers";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import { normalizeReplyMessage } from "@/lib/message-reply";
 import { normalizeOpenGraphData } from "@/lib/open-graph-data";
+import { sendMessagePushNotifications } from "@/lib/expo-push-notifications";
+
+type ClientPlatform = "web" | "mobile";
 
 type SessionState = {
     userId: string;
     phoneNumber: string | null;
+    platform: ClientPlatform;
     activeConversationId: string | null;
 };
 
@@ -167,6 +171,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             );
         }
         const phoneNumber = url.searchParams.get("phone");
+        const platform = normalizeClientPlatform(url.searchParams.get("platform"));
 
         const pair = new WebSocketPair();
         const client = pair[0];
@@ -175,9 +180,14 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
         this.sessions.set(server, {
             userId,
             phoneNumber,
+            platform,
             activeConversationId: null,
         });
         this.ctx.acceptWebSocket(server);
+
+        if (platform === "mobile") {
+            await this.flushQueuedMobileMessageEvents(server);
+        }
 
         return new Response(null, { status: 101, webSocket: client });
     }
@@ -319,6 +329,10 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
     }
 
     private async receiveEvent(event: ChatEvent) {
+        if (shouldQueueMobileMessageEvent(event) && !this.hasMobileSession()) {
+            await this.queueMobileMessageEvent(event);
+        }
+
         const payload = JSON.stringify(event);
 
         for (const ws of this.ctx.getWebSockets()) {
@@ -509,6 +523,23 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 ),
             });
         }
+
+        try {
+            await sendMessagePushNotifications({
+                conversationId,
+                conversationType: data.conversationType,
+                message: savedMessage,
+                recipientUserIds: (savedMessage.message_recipient_keys ?? [])
+                    .map((key) => key.recipient_user_id)
+                    .filter(
+                        (recipientUserId) =>
+                            recipientUserId !== senderUserId
+                    ),
+                senderDisplayName: data.senderNickname ?? senderUserId,
+            });
+        } catch {
+            // Expo push is best-effort; the encrypted message is already saved.
+        }
     }
 
     private async handleReactMessage(
@@ -681,6 +712,61 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             session.userId
         );
     }
+
+    private hasMobileSession() {
+        return this.ctx
+            .getWebSockets()
+            .some((ws) => this.sessions.get(ws)?.platform === "mobile");
+    }
+
+    private async queueMobileMessageEvent(event: ChatEvent) {
+        const messageId = getQueuedMessageId(event);
+        if (!messageId) {
+            return;
+        }
+
+        const queuedEvents = await this.getQueuedMobileMessageEvents();
+        if (
+            queuedEvents.some(
+                (queuedEvent) => getQueuedMessageId(queuedEvent) === messageId
+            )
+        ) {
+            return;
+        }
+
+        queuedEvents.push(event);
+        await this.ctx.storage.put("mobileMessageQueue", queuedEvents);
+    }
+
+    private async flushQueuedMobileMessageEvents(ws: WebSocket) {
+        const queuedEvents = await this.getQueuedMobileMessageEvents();
+        if (queuedEvents.length === 0) {
+            return;
+        }
+
+        const undeliveredEvents: ChatEvent[] = [];
+
+        for (const event of queuedEvents) {
+            try {
+                ws.send(JSON.stringify(event));
+            } catch {
+                undeliveredEvents.push(event);
+            }
+        }
+
+        if (undeliveredEvents.length > 0) {
+            await this.ctx.storage.put("mobileMessageQueue", undeliveredEvents);
+            return;
+        }
+
+        await this.ctx.storage.delete("mobileMessageQueue");
+    }
+
+    private async getQueuedMobileMessageEvents() {
+        return (
+            (await this.ctx.storage.get<ChatEvent[]>("mobileMessageQueue")) ?? []
+        );
+    }
 }
 
 function buildDirectRoomId(senderParticipant: string, recipientParticipant: string) {
@@ -688,6 +774,29 @@ function buildDirectRoomId(senderParticipant: string, recipientParticipant: stri
         .filter(Boolean)
         .sort()
         .join("::");
+}
+
+function normalizeClientPlatform(platform: string | null): ClientPlatform {
+    return platform === "mobile" ? "mobile" : "web";
+}
+
+function shouldQueueMobileMessageEvent(event: ChatEvent) {
+    return (
+        event.type === "CONVERSATION_UPDATED" &&
+        typeof event.conversationId === "string" &&
+        typeof event.conversationType === "string" &&
+        typeof event.lastMessage === "object" &&
+        event.lastMessage !== null
+    );
+}
+
+function getQueuedMessageId(event: ChatEvent) {
+    if (!shouldQueueMobileMessageEvent(event)) {
+        return null;
+    }
+
+    const message = event.lastMessage as { message_id?: unknown };
+    return typeof message.message_id === "string" ? message.message_id : null;
 }
 
 async function saveMessageToDb({
