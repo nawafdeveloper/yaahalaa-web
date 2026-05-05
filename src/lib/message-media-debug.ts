@@ -25,12 +25,10 @@ export function logMediaDebug(
     const timestamp = new Date().toISOString();
 
     if (details) {
-        console.log(`[media-debug] ${timestamp} ${step}`, details);
         void forwardMediaDebugToServer(timestamp, step, details);
         return;
     }
 
-    console.log(`[media-debug] ${timestamp} ${step}`);
     void forwardMediaDebugToServer(timestamp, step);
 }
 
