@@ -184,6 +184,49 @@ export async function POST(request: Request) {
     const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
     const normalizedOpenGraphData = normalizeOpenGraphData(openGraphData);
     const isMediaMessage = Boolean(attachedMedia);
+    let groupParticipantIds: string[] = [];
+
+    if (conversationType === "group") {
+        const participantRows = await db
+            .select({
+                userId: chatRecipientKeys.recipient_user_id,
+            })
+            .from(chatRecipientKeys)
+            .where(eq(chatRecipientKeys.chat_id, finalChatRoomId));
+
+        groupParticipantIds = [
+            ...new Set(participantRows.map((row) => row.userId)),
+        ];
+
+        if (!groupParticipantIds.includes(finalSenderUserId)) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        if (
+            !recipientKeysCoverParticipants(
+                normalizedMessageKeys,
+                groupParticipantIds
+            )
+        ) {
+            return Response.json(
+                { error: "Group messages must be encrypted for every member." },
+                { status: 400 }
+            );
+        }
+
+        if (
+            normalizedChatPreviewKeys.length > 0 &&
+            !recipientKeysCoverParticipants(
+                normalizedChatPreviewKeys,
+                groupParticipantIds
+            )
+        ) {
+            return Response.json(
+                { error: "Group previews must be encrypted for every member." },
+                { status: 400 }
+            );
+        }
+    }
 
     if (isMediaMessage) {
         logMediaDebug("server.http.messages.post.start", {
@@ -217,8 +260,7 @@ export async function POST(request: Request) {
             last_message_context: "",
             last_message_media: attachedMedia ?? null,
             last_message_sender_is_me: false,
-            last_message_sender_nickname:
-                senderNickname ?? sessionUser.name ?? finalSenderUserId,
+            last_message_sender_nickname: finalSenderUserId,
             is_unreaded_chat: false,
             unreaded_messages_length: 0,
             is_archived_chat: false,
@@ -242,8 +284,7 @@ export async function POST(request: Request) {
                 last_message_context: "",
                 last_message_media: attachedMedia ?? null,
                 last_message_sender_is_me: false,
-                last_message_sender_nickname:
-                    senderNickname ?? sessionUser.name ?? finalSenderUserId,
+                last_message_sender_nickname: finalSenderUserId,
                 updated_at: now,
             },
         });
@@ -523,6 +564,17 @@ export async function GET(request: Request) {
             return Response.json({ error: "Forbidden" }, { status: 403 });
         }
 
+        if (chatRoomId && !chatRoomId.includes("::")) {
+            const canAccessStoredChat = await canUserAccessStoredChat({
+                chatId: chatRoomId,
+                userId: sessionUser.id,
+            });
+
+            if (!canAccessStoredChat) {
+                return Response.json({ error: "Forbidden" }, { status: 403 });
+            }
+        }
+
         const chatRoomIds = chatRoomId
             ? buildDirectChatIdVariants(chatRoomId)
             : [];
@@ -739,6 +791,23 @@ function normalizeRecipientKeys(
         }));
 }
 
+function recipientKeysCoverParticipants(
+    keys: RecipientEncryptedAesKey[],
+    participantIds: string[]
+) {
+    if (participantIds.length === 0) {
+        return false;
+    }
+
+    const recipientIds = new Set(
+        keys.map((key) => key.recipient_user_id).filter(Boolean)
+    );
+
+    return participantIds.every((participantId) =>
+        recipientIds.has(participantId)
+    );
+}
+
 function validateEncryptedAttachmentPayload({
     attachedMedia,
     mediaUrl,
@@ -895,6 +964,29 @@ async function getDirectChatMessages({
         .slice(0, limit + 1);
 
     return filteredRows;
+}
+
+async function canUserAccessStoredChat({
+    chatId,
+    userId,
+}: {
+    chatId: string;
+    userId: string;
+}) {
+    const [membership] = await db
+        .select({
+            chatId: chatRecipientKeys.chat_id,
+        })
+        .from(chatRecipientKeys)
+        .where(
+            and(
+                eq(chatRecipientKeys.chat_id, chatId),
+                eq(chatRecipientKeys.recipient_user_id, userId)
+            )
+        )
+        .limit(1);
+
+    return Boolean(membership);
 }
 
 async function broadcastRealtimeMessage({

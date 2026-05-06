@@ -152,6 +152,7 @@ export const chats = pgTable(
         chat_type: text("chat_type")
             .$type<ChatItemType["chat_type"]>()
             .notNull(),
+        display_name: text("display_name"),
         avatar: text("avatar").notNull(),
         last_message_id: text("last_message_id"),
         encrypted_preview_ciphertext: text("encrypted_preview_ciphertext"),
@@ -299,6 +300,7 @@ export const chatRecipientKeys = pgTable(
             .notNull()
             .references(() => user.id, { onDelete: "cascade" }),
         encrypted_aes_key: text("encrypted_aes_key").notNull(),
+        is_admin: boolean("is_admin").default(false).notNull(),
         algorithm: text("algorithm")
             .$type<TextEncryptionAlgorithm>()
             .default("aes-256-gcm+rsa-oaep-sha256")

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import db from "@/db";
 import { getUnreadCountsByChatId } from "@/lib/chat-read-state";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
@@ -20,6 +21,7 @@ import {
     parseRecipientMediaKeyMap,
     userHasDirectMediaRecipientKey,
 } from "@/lib/message-media-access";
+import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import {
     canViewAbout,
     canViewLastSeen,
@@ -27,12 +29,22 @@ import {
 } from "@/lib/profile-picture-privacy";
 import { parseManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { and, desc, eq, inArray, like } from "drizzle-orm";
-import type { RecipientEncryptedAesKey } from "@/types/crypto";
+import type { ChatGroupMember, ChatItemType } from "@/types/chats.type";
+import type {
+    EncryptedContentEnvelope,
+    RecipientEncryptedAesKey,
+    RecipientEncryptedAesKeyInput,
+} from "@/types/crypto";
 
 interface UserWithPhone {
     id: string;
+    name?: string | null;
     phoneNumber?: string | null;
 }
+
+type RealtimeBindings = {
+    USER_PRESENCE_DO?: DurableObjectNamespace;
+};
 
 function getSafeAvatarUrl(value?: string | null): string {
     if (!value || isManagedProfileImageUrl(value)) {
@@ -104,11 +116,57 @@ export async function GET(request: Request) {
     }
 
     const chatIds = [...participantChatIds];
-    const rows = await db
+    const groupMembershipChatIds = new Set(
+        chatKeyRows.map((row) => row.chatId)
+    );
+    const allRows = await db
         .select()
         .from(chats)
         .where(inArray(chats.chat_id, chatIds))
         .orderBy(desc(chats.updated_at));
+    const rows = allRows.filter(
+        (chat) =>
+            chat.chat_type !== "group" ||
+            groupMembershipChatIds.has(chat.chat_id)
+    );
+
+    if (rows.length === 0) {
+        return Response.json({ chats: [] });
+    }
+
+    const groupChatIds = rows
+        .filter((chat) => chat.chat_type === "group")
+        .map((chat) => chat.chat_id);
+    const groupMemberRows =
+        groupChatIds.length > 0
+            ? await db
+                  .select({
+                      chatId: chatRecipientKeys.chat_id,
+                      userId: user.id,
+                      phoneNumber: user.phoneNumber,
+                      publicKey: user.yhlaPublicKey,
+                      name: user.name,
+                      isAdmin: chatRecipientKeys.is_admin,
+                  })
+                  .from(chatRecipientKeys)
+                  .innerJoin(
+                      user,
+                      eq(chatRecipientKeys.recipient_user_id, user.id)
+                  )
+                  .where(inArray(chatRecipientKeys.chat_id, groupChatIds))
+            : [];
+    const groupMembersByChatId = new Map<string, ChatGroupMember[]>();
+    for (const member of groupMemberRows) {
+        const existingMembers = groupMembersByChatId.get(member.chatId) ?? [];
+        existingMembers.push({
+            user_id: member.userId,
+            phone_number: member.phoneNumber,
+            public_key: member.publicKey,
+            name: member.name,
+            is_admin: member.isAdmin,
+        });
+        groupMembersByChatId.set(member.chatId, existingMembers);
+    }
     const unreadCountsByChatId = await getUnreadCountsByChatId({
         chatIds: rows.map((row) => row.chat_id),
         userId: sessionUser.id,
@@ -364,6 +422,10 @@ export async function GET(request: Request) {
 
             return {
                 ...chat,
+                group_members:
+                    chat.chat_type === "group"
+                        ? groupMembersByChatId.get(chat.chat_id) ?? []
+                        : null,
                 last_message_sender_is_me: isReactionPreview
                     ? chat.last_message_sender_nickname === sessionUser.id
                     : lastMessage?.senderUserId === sessionUser.id,
@@ -513,6 +575,266 @@ export async function GET(request: Request) {
     });
 }
 
+export async function POST(request: Request) {
+    const session = await auth.api.getSession({
+        headers: new Headers(request.headers),
+    });
+
+    if (!session) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const sessionUser = session.user as unknown as UserWithPhone;
+    const body = (await request.json()) as {
+        name?: string;
+        avatar?: string | null;
+        memberUserIds?: string[];
+        encryptedChatPreview?: EncryptedContentEnvelope | null;
+        chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+    };
+    const groupName = body.name?.trim() ?? "";
+    const avatar = body.avatar?.trim() ?? "";
+    const requestedMemberIds = [
+        ...new Set(
+            (body.memberUserIds ?? [])
+                .map((memberId) => memberId.trim())
+                .filter(
+                    (memberId) => memberId && memberId !== sessionUser.id
+                )
+        ),
+    ];
+
+    if (!groupName) {
+        return Response.json(
+            { error: "Group name is required." },
+            { status: 400 }
+        );
+    }
+
+    if (requestedMemberIds.length === 0) {
+        return Response.json(
+            { error: "Select at least one group member." },
+            { status: 400 }
+        );
+    }
+
+    if (
+        avatar &&
+        !isManagedProfileImageUrl(avatar) &&
+        !parseManagedMessageMediaUrl(avatar)
+    ) {
+        return Response.json(
+            { error: "Group avatar must use a managed encrypted media route." },
+            { status: 400 }
+        );
+    }
+
+    if (
+        !body.encryptedChatPreview?.ciphertext ||
+        !body.encryptedChatPreview.iv ||
+        !body.chatPreviewRecipientKeys?.length
+    ) {
+        return Response.json(
+            { error: "Encrypted group preview and recipient keys are required." },
+            { status: 400 }
+        );
+    }
+
+    const contactRows = await db
+        .select({
+            linkedUserId: contacts.linked_user_id,
+        })
+        .from(contacts)
+        .where(
+            and(
+                eq(contacts.owner_user_id, sessionUser.id),
+                inArray(contacts.linked_user_id, requestedMemberIds)
+            )
+        );
+    const allowedMemberIds = new Set(
+        contactRows.map((contact) => contact.linkedUserId)
+    );
+    const blockedMemberId = requestedMemberIds.find(
+        (memberId) => !allowedMemberIds.has(memberId)
+    );
+
+    if (blockedMemberId) {
+        return Response.json(
+            { error: "Every group member must be one of your saved contacts." },
+            { status: 403 }
+        );
+    }
+
+    const creatorUserId = sessionUser.id;
+    const participantIds = [creatorUserId, ...requestedMemberIds];
+    const participantRows = await db
+        .select({
+            userId: user.id,
+            phoneNumber: user.phoneNumber,
+            publicKey: user.yhlaPublicKey,
+            name: user.name,
+        })
+        .from(user)
+        .where(inArray(user.id, participantIds));
+    const participantById = new Map(
+        participantRows.map((participant) => [participant.userId, participant])
+    );
+    const missingParticipantId = participantIds.find(
+        (participantId) => !participantById.has(participantId)
+    );
+
+    if (missingParticipantId) {
+        return Response.json(
+            { error: "One of the selected members no longer exists." },
+            { status: 400 }
+        );
+    }
+
+    const missingKeyParticipant = participantRows.find(
+        (participant) => !participant.publicKey
+    );
+    if (missingKeyParticipant) {
+        return Response.json(
+            { error: "Every group member must have encryption keys set up." },
+            { status: 400 }
+        );
+    }
+
+    const normalizedPreviewKeys = normalizeRecipientKeys(
+        body.chatPreviewRecipientKeys
+    );
+    const participantIdSet = new Set(participantIds);
+    const unknownKey = normalizedPreviewKeys.find(
+        (key) => !participantIdSet.has(key.recipient_user_id)
+    );
+    const missingPreviewKey = participantIds.find(
+        (participantId) =>
+            !normalizedPreviewKeys.some(
+                (key) => key.recipient_user_id === participantId
+            )
+    );
+
+    if (unknownKey || missingPreviewKey) {
+        return Response.json(
+            { error: "Group encryption keys must match the selected members." },
+            { status: 400 }
+        );
+    }
+
+    const now = new Date();
+    const chatId = `group:${crypto.randomUUID()}`;
+
+    await db.insert(chats).values({
+        chat_id: chatId,
+        chat_type: "group",
+        display_name: groupName,
+        avatar,
+        last_message_id: null,
+        encrypted_preview_ciphertext: body.encryptedChatPreview.ciphertext,
+        encrypted_preview_iv: body.encryptedChatPreview.iv,
+        encrypted_preview_algorithm: body.encryptedChatPreview.algorithm,
+        last_message_context: "",
+        last_message_media: null,
+        last_message_sender_is_me: false,
+        last_message_sender_nickname: sessionUser.id,
+        is_unreaded_chat: false,
+        unreaded_messages_length: 0,
+        is_archived_chat: false,
+        is_muted_chat_notifications: false,
+        is_pinned_chat: false,
+        is_favourite_chat: false,
+        is_blocked_chat: false,
+        created_at: now,
+        updated_at: now,
+    });
+
+    for (const key of normalizedPreviewKeys) {
+        await db.insert(chatRecipientKeys).values({
+            id: crypto.randomUUID(),
+            chat_id: chatId,
+            recipient_user_id: key.recipient_user_id,
+            encrypted_aes_key: key.encrypted_aes_key,
+            is_admin: key.recipient_user_id === creatorUserId,
+            algorithm: key.algorithm,
+            created_at: now,
+            updated_at: now,
+        });
+    }
+
+    for (const participantId of participantIds) {
+        await db
+            .insert(chatReadStates)
+            .values({
+                id: crypto.randomUUID(),
+                chat_id: chatId,
+                user_id: participantId,
+                last_read_at: now,
+                created_at: now,
+                updated_at: now,
+            })
+            .onConflictDoUpdate({
+                target: [
+                    chatReadStates.chat_id,
+                    chatReadStates.user_id,
+                ],
+                set: {
+                    last_read_at: now,
+                    updated_at: now,
+                },
+            });
+    }
+
+    const groupMembers: ChatGroupMember[] = participantIds
+        .map((participantId) => participantById.get(participantId))
+        .filter(
+            (participant): participant is (typeof participantRows)[number] =>
+                Boolean(participant)
+        )
+        .map((participant) => ({
+            user_id: participant.userId,
+            phone_number: participant.phoneNumber,
+            public_key: participant.publicKey,
+            name: participant.name,
+            is_admin: participant.userId === creatorUserId,
+        }));
+    const chat: ChatItemType = {
+        chat_id: chatId,
+        chat_type: "group",
+        display_name: groupName,
+        group_members: groupMembers,
+        avatar,
+        last_message_id: null,
+        encrypted_preview_ciphertext: body.encryptedChatPreview.ciphertext,
+        encrypted_preview_iv: body.encryptedChatPreview.iv,
+        encrypted_preview_algorithm: body.encryptedChatPreview.algorithm,
+        chat_recipient_keys: normalizedPreviewKeys,
+        last_message_context: "",
+        last_message_media: null,
+        last_message_sender_is_me: false,
+        last_message_sender_nickname: sessionUser.id,
+        last_message_is_read_by_recipient: null,
+        last_message_read_by_user_ids: [],
+        last_message_recipient_user_ids: requestedMemberIds,
+        is_unreaded_chat: false,
+        unreaded_messages_length: 0,
+        is_archived_chat: false,
+        is_muted_chat_notifications: false,
+        is_pinned_chat: false,
+        is_favourite_chat: false,
+        is_blocked_chat: false,
+        created_at: now,
+        updated_at: now,
+    };
+
+    await broadcastGroupCreated({
+        chat,
+        creatorUserId: sessionUser.id,
+        participantIds,
+    });
+
+    return Response.json({ chat }, { status: 201 });
+}
+
 export async function PATCH(request: Request) {
     const session = await auth.api.getSession({
         headers: new Headers(request.headers),
@@ -567,6 +889,64 @@ export async function PATCH(request: Request) {
         chatId,
         isMuted: body.isMuted,
     });
+}
+
+function normalizeRecipientKeys(
+    keys: RecipientEncryptedAesKeyInput[] | null | undefined
+): RecipientEncryptedAesKey[] {
+    return (keys ?? [])
+        .filter((key) => key.recipientUserId && key.encryptedAesKey)
+        .map((key) => ({
+            recipient_user_id: key.recipientUserId,
+            encrypted_aes_key: key.encryptedAesKey,
+            algorithm: key.algorithm ?? "aes-256-gcm+rsa-oaep-sha256",
+        }));
+}
+
+async function broadcastGroupCreated({
+    chat,
+    creatorUserId,
+    participantIds,
+}: {
+    chat: ChatItemType;
+    creatorUserId: string;
+    participantIds: string[];
+}) {
+    try {
+        const { env } = await getCloudflareContext({ async: true });
+        const bindings = env as unknown as RealtimeBindings;
+        const presenceNamespace = bindings.USER_PRESENCE_DO;
+
+        if (!presenceNamespace) {
+            return;
+        }
+
+        await Promise.all(
+            [...new Set(participantIds)]
+                .filter(
+                    (participantId) =>
+                        participantId && participantId !== creatorUserId
+                )
+                .map(async (participantId) => {
+                    const userDO = presenceNamespace.get(
+                        presenceNamespace.idFromName(participantId)
+                    );
+
+                    await userDO.fetch("https://do/event", {
+                        method: "POST",
+                        headers: {
+                            "content-type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            type: "GROUP_CREATED",
+                            chat,
+                        }),
+                    });
+                })
+        );
+    } catch {
+        // Realtime fanout is best-effort; the group is already persisted.
+    }
 }
 
 function resolveAboutEncryptedAesKeyForRequester({

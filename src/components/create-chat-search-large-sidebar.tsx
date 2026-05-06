@@ -130,7 +130,7 @@ export default function CreateChatSearchLargeSidebar() {
     };
 
     return (
-        <div className="flex h-full flex-col gap-y-3">
+        <div className="flex h-full flex-col gap-y-3"> 
             <CreateChatHeaderLargeSidebar />
             <TextField
                 hiddenLabel
@@ -210,6 +210,7 @@ export default function CreateChatSearchLargeSidebar() {
                                         : "#f7f5f3",
                             },
                         })}
+                        onClick={() => setActiveSubsideBar("new-group")}
                     >
                         <ListItem sx={{ paddingY: 1, paddingX: 2 }}>
                             <ListItemAvatar>

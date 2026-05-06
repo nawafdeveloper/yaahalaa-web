@@ -6,6 +6,8 @@ import {
     cacheAvatarImage,
     getCachedAvatarImage,
 } from "@/lib/avatar-image-cache";
+import { fetchAndDecryptMessageMedia } from "@/lib/message-media-upload";
+import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import { fetchAndDecryptProfileImage } from "@/lib/profile-image-upload";
 import { parseManagedProfileImageUrl } from "@/lib/profile-image-url";
 import { logMediaDebug } from "@/lib/message-media-debug";
@@ -33,6 +35,10 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
     const [error, setError] = useState<Error | null>(null);
     const parsedManagedImage = useMemo(
         () => parseManagedProfileImageUrl(imageUrl),
+        [imageUrl]
+    );
+    const parsedManagedMedia = useMemo(
+        () => parseManagedMessageMediaUrl(imageUrl),
         [imageUrl]
     );
 
@@ -70,7 +76,7 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
             return;
         }
 
-        if (!parsedManagedImage) {
+        if (!parsedManagedImage && !parsedManagedMedia) {
             const cacheKey = getAvatarUrlCacheKey(imageUrl);
 
             const loadPlainAvatar = async () => {
@@ -125,7 +131,11 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
             return cleanup;
         }
 
-        const managedCacheKey = `profile:${parsedManagedImage.objectKey}`;
+        const managedObjectKey =
+            parsedManagedImage?.objectKey ?? parsedManagedMedia?.objectKey ?? "";
+        const managedCacheKey = parsedManagedImage
+            ? `profile:${managedObjectKey}`
+            : `media:${managedObjectKey}`;
 
         const loadManagedAvatar = async () => {
             const cachedBlob = await getCachedAvatarImage(managedCacheKey);
@@ -141,7 +151,7 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
             setLoading(false);
             setError(null);
             logMediaDebug("client.profile-image.hook.cache-hit", {
-                objectKey: parsedManagedImage.objectKey,
+                objectKey: managedObjectKey,
                 mimeType: cachedBlob.type || null,
                 size: cachedBlob.size,
             });
@@ -163,7 +173,7 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
 
         if (!isReady) {
             logMediaDebug("client.profile-image.hook.keys-locked", {
-                objectKey: parsedManagedImage.objectKey,
+                objectKey: managedObjectKey,
             });
             setDecryptedUrl(null);
             setLoading(false);
@@ -180,12 +190,12 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
                 setLoading(true);
                 setError(null);
                 logMediaDebug("client.profile-image.hook.load-start", {
-                    objectKey: parsedManagedImage.objectKey,
+                    objectKey: managedObjectKey,
                 });
 
-                const blob = await fetchAndDecryptProfileImage(
-                    parsedManagedImage.objectKey
-                );
+                const blob = parsedManagedImage
+                    ? await fetchAndDecryptProfileImage(managedObjectKey)
+                    : await fetchAndDecryptMessageMedia(managedObjectKey);
                 if (!isActive) {
                     return;
                 }
@@ -197,7 +207,7 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
 
                 setBlobUrl(blob);
                 logMediaDebug("client.profile-image.hook.load-success", {
-                    objectKey: parsedManagedImage.objectKey,
+                    objectKey: managedObjectKey,
                     mimeType: blob.type || null,
                     size: blob.size,
                 });
@@ -208,7 +218,7 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
 
                 setError(err instanceof Error ? err : new Error("Failed to decrypt profile image"));
                 logMediaDebug("client.profile-image.hook.load-failed", {
-                    objectKey: parsedManagedImage.objectKey,
+                    objectKey: managedObjectKey,
                     error:
                         err instanceof Error
                             ? err.message
@@ -225,10 +235,12 @@ export function useDecryptedProfileImage(imageUrl?: string | null) {
         void fetchAndDecrypt();
 
         return cleanup;
-    }, [imageUrl, isHydrated, isReady, parsedManagedImage]);
+    }, [imageUrl, isHydrated, isReady, parsedManagedImage, parsedManagedMedia]);
 
     const directDisplayUrl =
-        imageUrl && (!parsedManagedImage || isImmediateAvatarUrl(imageUrl))
+        imageUrl &&
+        ((!parsedManagedImage && !parsedManagedMedia) ||
+            isImmediateAvatarUrl(imageUrl))
             ? imageUrl
             : null;
 

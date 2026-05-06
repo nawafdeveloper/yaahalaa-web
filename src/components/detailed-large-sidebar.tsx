@@ -55,6 +55,7 @@ export default function DetailedLargeSidebar() {
     const currentPhone =
         (session?.user as { phoneNumber?: string | null } | undefined)
             ?.phoneNumber ?? null;
+    const currentUserId = session?.user.id ?? null;
     const activeChatId = target?.chatId ?? selectedChatId;
     const activeChat =
         chats.find((chat) => chat.chat_id === activeChatId) ?? null;
@@ -217,6 +218,7 @@ export default function DetailedLargeSidebar() {
                 <DetailedLargeSidebarHeader />
                 <DetailedLargeSidebarContent
                     chatId={activeChat?.chat_id ?? null}
+                    chatType={activeChat?.chat_type ?? null}
                     avatar={avatar}
                     contactName={contactName}
                     contactNumber={contactNumber}
@@ -227,6 +229,9 @@ export default function DetailedLargeSidebar() {
                         activeChat?.is_muted_chat_notifications ?? false
                     }
                     isBlocked={activeChat?.is_blocked_chat ?? false}
+                    groupMembers={activeChat?.group_members ?? null}
+                    currentUserId={currentUserId}
+                    contacts={contacts}
                 />
             </div>
         </div>

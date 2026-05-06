@@ -67,6 +67,7 @@ type ConversationContext = {
     conversationType: "group" | "direct";
     recipientUserId?: string;
     recipientPhoneForTransport?: string;
+    participantIds?: string[];
     recipients: RecipientKeySource[];
 };
 
@@ -108,33 +109,58 @@ export function useSendChatMessage() {
 
         const conversationType: "group" | "direct" =
             selectedChat.chat_type === "group" ? "group" : "direct";
-        const recipients: RecipientKeySource[] = [
-            {
-                userId: currentUserId,
-                publicKey: currentPublicKey,
-            },
-        ];
+        const recipientsByUserId = new Map<string, RecipientKeySource>();
+        recipientsByUserId.set(currentUserId, {
+            userId: currentUserId,
+            publicKey: currentPublicKey,
+        });
         const recipientUserId = selectedChat.recipient_user_id ?? undefined;
         const recipientPublicKey = selectedChat.recipient_public_key ?? undefined;
 
+        if (selectedChat.chat_type === "group") {
+            const groupMembers = selectedChat.group_members ?? [];
+            const groupMemberIds = groupMembers
+                .map((member) => member.user_id)
+                .filter(Boolean);
+            const missingEncryptionMember = groupMembers.some(
+                (member) => !member.user_id || !member.public_key
+            );
+
+            if (
+                groupMembers.length === 0 ||
+                missingEncryptionMember ||
+                groupMemberIds.length < 2
+            ) {
+                return null;
+            }
+
+            for (const member of groupMembers) {
+                if (member.user_id && member.public_key) {
+                    recipientsByUserId.set(member.user_id, {
+                        userId: member.user_id,
+                        publicKey: member.public_key,
+                    });
+                }
+            }
+
+            return {
+                selectedChat,
+                conversationType,
+                participantIds: [...new Set(groupMemberIds)],
+                recipients: [...recipientsByUserId.values()],
+            };
+        }
+
         if (recipientUserId && recipientPublicKey) {
-            recipients.push({
+            recipientsByUserId.set(recipientUserId, {
                 userId: recipientUserId,
                 publicKey: recipientPublicKey,
             });
         }
 
         if (requirePeerEncryption) {
-            if (selectedChat.chat_type !== "single") {
-                throw new Error(
-                    "Encrypted attachments for group chats need participant public keys in the client first."
-                );
-            }
-
             if (!recipientUserId || !recipientPublicKey) {
-                throw new Error(
-                    "This chat is missing the recipient encryption key."
-                );
+                return null;
             }
         }
 
@@ -144,7 +170,7 @@ export function useSendChatMessage() {
             recipientUserId,
             recipientPhoneForTransport:
                 recipientPhone ?? selectedChat.contact_phone ?? undefined,
-            recipients,
+            recipients: [...recipientsByUserId.values()],
         };
     };
 
@@ -298,6 +324,7 @@ export function useSendChatMessage() {
                     senderPhone: currentPhone,
                     recipientUserId: conversation.recipientUserId,
                     recipientPhone: conversation.recipientPhoneForTransport,
+                    participantIds: conversation.participantIds,
                     attachedMedia: optimisticMessage.attached_media,
                     mediaUrl: optimisticMessage.media_url,
                     mediaPreviewUrl: optimisticMessage.media_preview_url ?? null,

@@ -19,6 +19,7 @@ import type { Message, ReplyMessage } from "@/types/messages.type";
 import { applyMessageReactionToDb } from "@/lib/message-reactions";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import { normalizeReplyMessage } from "@/lib/message-reply";
 import { normalizeOpenGraphData } from "@/lib/open-graph-data";
@@ -416,12 +417,43 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 "conversationId is required for group messages."
             );
         }
+        const groupParticipantIds =
+            data.conversationType === "group"
+                ? await getGroupParticipantIds(conversationId)
+                : [];
+
+        if (
+            data.conversationType === "group" &&
+            !groupParticipantIds.includes(senderUserId)
+        ) {
+            throw new Error("You are not a member of this group.");
+        }
+
+        if (
+            data.conversationType === "group" &&
+            !recipientKeysCoverParticipants(
+                normalizeRecipientKeys(data.recipientEncryptionKeys ?? null),
+                groupParticipantIds
+            )
+        ) {
+            throw new Error("Group messages must be encrypted for every member.");
+        }
+
+        if (
+            data.conversationType === "group" &&
+            data.chatPreviewRecipientKeys?.length &&
+            !recipientKeysCoverParticipants(
+                normalizeRecipientKeys(data.chatPreviewRecipientKeys),
+                groupParticipantIds
+            )
+        ) {
+            throw new Error("Group previews must be encrypted for every member.");
+        }
 
         const savedMessage = await saveMessageToDb({
             debugTraceId: data.debugTraceId,
             messageId: data.clientMessageId,
             senderUserId,
-            senderNickname: data.senderNickname ?? senderUserId,
             chatRoomId: conversationId,
             chatType:
                 data.conversationType === "group" ? "group" : "single",
@@ -489,7 +521,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
 
         const recipients =
             data.conversationType === "group"
-                ? data.participantIds ?? []
+                ? groupParticipantIds
                 : directRecipientId
                   ? [directRecipientId]
                   : [];
@@ -803,7 +835,6 @@ async function saveMessageToDb({
     debugTraceId,
     messageId,
     senderUserId,
-    senderNickname,
     chatRoomId,
     chatType,
     attachedMedia,
@@ -824,7 +855,6 @@ async function saveMessageToDb({
     debugTraceId?: string;
     messageId?: string;
     senderUserId: string;
-    senderNickname: string;
     chatRoomId: string;
     chatType: "single" | "group";
     attachedMedia: Message["attached_media"];
@@ -886,7 +916,7 @@ async function saveMessageToDb({
             last_message_context: "",
             last_message_media: attachedMedia,
             last_message_sender_is_me: false,
-            last_message_sender_nickname: senderNickname,
+            last_message_sender_nickname: senderUserId,
             is_unreaded_chat: false,
             unreaded_messages_length: 0,
             is_archived_chat: false,
@@ -910,7 +940,7 @@ async function saveMessageToDb({
                 last_message_context: "",
                 last_message_media: attachedMedia,
                 last_message_sender_is_me: false,
-                last_message_sender_nickname: senderNickname,
+                last_message_sender_nickname: senderUserId,
                 updated_at: now,
             },
         });
@@ -1068,6 +1098,34 @@ function normalizeRecipientKeys(
             encrypted_aes_key: key.encryptedAesKey,
             algorithm: key.algorithm ?? "aes-256-gcm+rsa-oaep-sha256",
         }));
+}
+
+async function getGroupParticipantIds(chatId: string) {
+    const rows = await db
+        .select({
+            userId: chatRecipientKeys.recipient_user_id,
+        })
+        .from(chatRecipientKeys)
+        .where(eq(chatRecipientKeys.chat_id, chatId));
+
+    return [...new Set(rows.map((row) => row.userId).filter(Boolean))];
+}
+
+function recipientKeysCoverParticipants(
+    keys: RecipientEncryptedAesKey[],
+    participantIds: string[]
+) {
+    if (participantIds.length === 0) {
+        return false;
+    }
+
+    const recipientIds = new Set(
+        keys.map((key) => key.recipient_user_id).filter(Boolean)
+    );
+
+    return participantIds.every((participantId) =>
+        recipientIds.has(participantId)
+    );
 }
 
 function validateEncryptedAttachmentPayload({

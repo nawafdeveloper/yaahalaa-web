@@ -1,4 +1,5 @@
 import type { Message, MessageReaction } from "./messages.type";
+import type { ChatItemType } from "./chats.type";
 import type {
     EncryptedContentEnvelope,
     RecipientEncryptedAesKeyInput,
@@ -74,6 +75,13 @@ export type ClientRealtimeEvent =
       };
 
 export type ServerRealtimeEvent =
+    | {
+          type: "GROUP_CREATED";
+          chat: Omit<ChatItemType, "created_at" | "updated_at"> & {
+              created_at: string;
+              updated_at: string;
+          };
+      }
     | {
           type: "MESSAGE_SENT";
           conversationId: string;

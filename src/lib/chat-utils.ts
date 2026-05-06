@@ -210,6 +210,7 @@ export function buildChatFromMessage({
         chat_type: conversationType === "group" ? "group" : "single",
         avatar: fallbackExistingChat?.avatar ?? "",
         display_name: fallbackExistingChat?.display_name ?? null,
+        group_members: fallbackExistingChat?.group_members ?? null,
         recipient_user_id: fallbackExistingChat?.recipient_user_id ?? null,
         recipient_public_key: fallbackExistingChat?.recipient_public_key ?? null,
         contact_phone: fallbackExistingChat?.contact_phone ?? null,
@@ -245,9 +246,7 @@ export function buildChatFromMessage({
         last_message_context: message.message_text_content ?? "",
         last_message_media: message.attached_media ?? null,
         last_message_sender_is_me: message.sender_user_id === currentUserId,
-        last_message_sender_nickname:
-            fallbackExistingChat?.last_message_sender_nickname ??
-            message.sender_user_id,
+        last_message_sender_nickname: message.sender_user_id,
         last_message_is_read_by_recipient:
             message.is_read_by_recipient ??
             (lastMessageRecipientUserIds.length > 0 &&
@@ -293,6 +292,7 @@ export function buildChatFromReaction({
         chat_type: conversationType === "group" ? "group" : "single",
         avatar: fallbackExistingChat?.avatar ?? "",
         display_name: fallbackExistingChat?.display_name ?? null,
+        group_members: fallbackExistingChat?.group_members ?? null,
         recipient_user_id: fallbackExistingChat?.recipient_user_id ?? null,
         recipient_public_key: fallbackExistingChat?.recipient_public_key ?? null,
         contact_phone: fallbackExistingChat?.contact_phone ?? null,

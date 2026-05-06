@@ -248,7 +248,7 @@ export default function ChatItem({ chat_item }: Props) {
                                 isRTL ? `${reactionSenderLabel} تفاعل مع المحادثة بـ ${chat_item.last_message_context}` : `${reactionSenderLabel} reacted to message with ${chat_item.last_message_context}`
                             ) : (
                                 <>
-                            {chat_item.chat_type === 'group' && !chat_item.last_message_sender_is_me && `${groupSenderLabel}:`}
+                            {chat_item.chat_type === 'group' && chat_item.last_message_id && !chat_item.last_message_sender_is_me && `${groupSenderLabel}:`}
                             {chat_item.last_message_media && (
                                 <>
                                     {chat_item.last_message_media === 'photo' && (

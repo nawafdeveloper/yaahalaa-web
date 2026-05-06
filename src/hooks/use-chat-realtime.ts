@@ -287,6 +287,17 @@ export function useChatRealtime() {
 
         const handleServerEvent = async (event: ServerRealtimeEvent) => {
             switch (event.type) {
+                case "GROUP_CREATED": {
+                    const normalizedChat = normalizeChatItem(event.chat);
+                    const [decryptedChat] = await decryptChatPreviewBatch({
+                        chats: [normalizedChat],
+                        currentUserId,
+                    });
+
+                    upsertChat(decryptedChat);
+                    break;
+                }
+
                 case "MESSAGE_SENT": {
                     const normalizedMessage = normalizeMessage(event.message);
                     const [nextMessage] = await decryptMessageBatch({

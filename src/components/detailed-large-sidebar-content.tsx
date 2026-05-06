@@ -1,16 +1,72 @@
 "use client";
 
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { BlockOutlined, CloseOutlined, CollectionsOutlined, DeleteOutlineOutlined, NotificationsOutlined, Person, SearchOutlined, StarOutline } from '@mui/icons-material';
-import { Box, Divider, IconButton, InputAdornment, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack, Switch, TextField, Typography } from '@mui/material';
-import React, { useEffect, useRef, useState } from 'react'
+import {
+    AddAPhoto,
+    BlockOutlined,
+    Check,
+    CloseOutlined,
+    CollectionsOutlined,
+    DeleteOutlineOutlined,
+    EditOutlined,
+    ExpandMoreOutlined,
+    Group,
+    LogoutOutlined,
+    NotificationsOutlined,
+    Person,
+    PersonAddOutlined,
+    SearchOutlined,
+    StarOutline,
+} from '@mui/icons-material';
+import {
+    Alert,
+    Box,
+    Checkbox,
+    Chip,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    IconButton,
+    InputAdornment,
+    List,
+    ListItem,
+    ListItemAvatar,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Menu,
+    MenuItem,
+    Stack,
+    Switch,
+    TextField,
+    Typography,
+    Button,
+    CircularProgress,
+} from '@mui/material';
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import DecryptedProfileImage from './decrypted-profile-image';
 import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
 import { DetailedSidebarMediaItem, DetailedSidebarMediaTile } from './detailed-sidebar-item-media';
 import { useToggleChatNotifications } from '@/hooks/use-toggle-chat-notifications';
+import { uploadEncryptedMessageMedia } from '@/lib/message-media-upload';
+import { encryptTextForRecipients } from '@/lib/chat-e2ee';
+import { findContactByUserId, getContactDisplayName } from '@/lib/contact-display';
+import { normalizeChatItem } from '@/lib/chat-utils';
+import { useActiveChatStore } from '@/store/use-active-chat-store';
+import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
+import type { ChatGroupMember, ChatItemType } from '@/types/chats.type';
+import type { Contact } from '@/types/contacts.type';
+
+type RawChatItem = Omit<ChatItemType, "created_at" | "updated_at"> & {
+    created_at: string | Date;
+    updated_at: string | Date;
+};
 
 type Props = {
     chatId: string | null;
+    chatType: ChatItemType["chat_type"] | null;
     avatar?: string | null;
     contactName: string | null;
     contactNumber: string | null;
@@ -19,10 +75,25 @@ type Props = {
     mediaItems: DetailedSidebarMediaItem[];
     muteNotification: boolean;
     isBlocked: boolean;
+    groupMembers?: ChatGroupMember[] | null;
+    currentUserId?: string | null;
+    contacts: Contact[];
+}
+
+const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
+
+function getMemberDisplayName(member: ChatGroupMember, contacts: Contact[]) {
+    const contact = findContactByUserId(contacts, member.user_id);
+    return contact ? getContactDisplayName(contact) : member.name || member.phone_number || member.user_id;
+}
+
+function getMemberAvatar(member: ChatGroupMember, contacts: Contact[]) {
+    return findContactByUserId(contacts, member.user_id)?.contact_avatar ?? "";
 }
 
 export default function DetailedLargeSidebarContent({
     chatId,
+    chatType,
     avatar,
     contactName,
     contactNumber,
@@ -30,20 +101,53 @@ export default function DetailedLargeSidebarContent({
     mediaCount,
     mediaItems,
     muteNotification,
-    isBlocked
+    groupMembers: rawGroupMembers = [],
+    currentUserId,
+    contacts,
 }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
     const { open } = useMediaDisplayAllStore();
+    const closeDetails = useDetailedSidebarStore((state) => state.close);
+    const upsertChat = useActiveChatStore((state) => state.upsertChat);
+    const removeChat = useActiveChatStore((state) => state.removeChat);
     const { isToggling, setChatNotificationsMuted } = useToggleChatNotifications();
 
     const [isMuted, setIsMuted] = useState(muteNotification || false);
     const [value, setValue] = useState("");
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [groupNameDraft, setGroupNameDraft] = useState(contactName ?? "");
+    const [pendingAction, setPendingAction] = useState<string | null>(null);
+    const [groupError, setGroupError] = useState<string | null>(null);
+    const [memberMenuAnchor, setMemberMenuAnchor] = useState<HTMLElement | null>(null);
+    const [activeMember, setActiveMember] = useState<ChatGroupMember | null>(null);
+    const [inviteOpen, setInviteOpen] = useState(false);
+    const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+    const [selectedInviteIds, setSelectedInviteIds] = useState<string[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const isGroup = chatType === "group";
+    const groupMembers = rawGroupMembers ?? EMPTY_GROUP_MEMBERS;
+    const currentMember = groupMembers.find((member) => member.user_id === currentUserId);
+    const isCurrentUserAdmin = Boolean(isGroup && currentMember?.is_admin);
     const displayContactName =
         contactName?.trim() ||
         contactNumber ||
-        (isRTL ? "جهة الإتصال" : "contact");
+        (isRTL ? "ط¬ظ‡ط© ط§ظ„ط¥طھطµط§ظ„" : "contact");
+    const groupMemberIds = useMemo(
+        () => new Set(groupMembers.map((member) => member.user_id)),
+        [groupMembers]
+    );
+    const inviteCandidates = useMemo(
+        () =>
+            contacts.filter(
+                (contact) =>
+                    contact.linked_user_id &&
+                    contact.linked_user_public_key &&
+                    !groupMemberIds.has(contact.linked_user_id)
+            ),
+        [contacts, groupMemberIds]
+    );
 
     const handleClear = () => {
         setValue("");
@@ -53,6 +157,26 @@ export default function DetailedLargeSidebarContent({
     useEffect(() => {
         setIsMuted(muteNotification || false);
     }, [muteNotification]);
+
+    useEffect(() => {
+        setGroupNameDraft(contactName ?? "");
+    }, [contactName]);
+
+    const mergeUpdatedChat = (rawChat: RawChatItem) => {
+        const normalized = normalizeChatItem(rawChat);
+        const existing = useActiveChatStore
+            .getState()
+            .chats.find((chat) => chat.chat_id === normalized.chat_id);
+
+        upsertChat({
+            ...existing,
+            ...normalized,
+            last_message_context:
+                normalized.last_message_context ||
+                existing?.last_message_context ||
+                "",
+        });
+    };
 
     const handleToggleNotifications = async () => {
         if (!chatId || isToggling) {
@@ -68,32 +192,321 @@ export default function DetailedLargeSidebarContent({
         }
     };
 
+    const handleSaveGroupName = async () => {
+        if (!chatId || !isCurrentUserAdmin || !groupNameDraft.trim()) {
+            return;
+        }
+
+        setPendingAction("name");
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ displayName: groupNameDraft.trim() }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to update group name.");
+            }
+
+            const payload = await response.json() as { chat: RawChatItem };
+            mergeUpdatedChat(payload.chat);
+            setIsEditingName(false);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to update group name.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
+    const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+
+        if (!file || !chatId || !isCurrentUserAdmin) {
+            return;
+        }
+
+        const recipients = groupMembers
+            .filter((member) => member.user_id && member.public_key)
+            .map((member) => ({
+                recipientUserId: member.user_id,
+                publicKey: member.public_key!,
+            }));
+
+        if (recipients.length === 0) {
+            setGroupError("Group members are missing encryption keys.");
+            return;
+        }
+
+        setPendingAction("avatar");
+        setGroupError(null);
+
+        try {
+            const upload = await uploadEncryptedMessageMedia(file, recipients, null);
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ avatar: upload.mediaUrl }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to update group avatar.");
+            }
+
+            const payload = await response.json() as { chat: RawChatItem };
+            mergeUpdatedChat(payload.chat);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to update group avatar.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
+    const handleMemberMenuOpen = (
+        event: React.MouseEvent<HTMLElement>,
+        member: ChatGroupMember
+    ) => {
+        event.stopPropagation();
+        setMemberMenuAnchor(event.currentTarget);
+        setActiveMember(member);
+    };
+
+    const handleMemberMenuClose = () => {
+        setMemberMenuAnchor(null);
+        setActiveMember(null);
+    };
+
+    const updateMemberAdmin = async (member: ChatGroupMember, isAdmin: boolean) => {
+        if (!chatId) {
+            return;
+        }
+
+        setPendingAction(`admin-${member.user_id}`);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/members`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ memberUserId: member.user_id, isAdmin }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to update member.");
+            }
+
+            const payload = await response.json() as { chat: RawChatItem };
+            mergeUpdatedChat(payload.chat);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to update member.");
+        } finally {
+            setPendingAction(null);
+            handleMemberMenuClose();
+        }
+    };
+
+    const removeMember = async (member: ChatGroupMember) => {
+        if (!chatId) {
+            return;
+        }
+
+        setPendingAction(`remove-${member.user_id}`);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/members`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ memberUserId: member.user_id }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to remove member.");
+            }
+
+            const payload = await response.json() as { chat: RawChatItem };
+            mergeUpdatedChat(payload.chat);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to remove member.");
+        } finally {
+            setPendingAction(null);
+            handleMemberMenuClose();
+        }
+    };
+
+    const handleExitGroupClick = () => {
+        if (!chatId || !isGroup || pendingAction === "exit") {
+            return;
+        }
+
+        setExitConfirmOpen(true);
+    };
+
+    const handleCancelExitGroup = () => {
+        if (pendingAction === "exit") {
+            return;
+        }
+
+        setExitConfirmOpen(false);
+    };
+
+    const handleConfirmExitGroup = async () => {
+        if (!chatId || !isGroup) {
+            return;
+        }
+
+        setPendingAction("exit");
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
+                method: "DELETE",
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to exit group.");
+            }
+
+            removeChat(chatId);
+            closeDetails();
+            setExitConfirmOpen(false);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to exit group.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
+    const handleInviteMembers = async () => {
+        if (!chatId || !isCurrentUserAdmin || selectedInviteIds.length === 0) {
+            return;
+        }
+
+        const selectedContacts = inviteCandidates.filter(
+            (contact) =>
+                contact.linked_user_id &&
+                selectedInviteIds.includes(contact.linked_user_id)
+        );
+        const recipientsByUserId = new Map<string, { userId: string; publicKey: string }>();
+
+        for (const member of groupMembers) {
+            if (member.user_id && member.public_key) {
+                recipientsByUserId.set(member.user_id, {
+                    userId: member.user_id,
+                    publicKey: member.public_key,
+                });
+            }
+        }
+
+        for (const contact of selectedContacts) {
+            if (contact.linked_user_id && contact.linked_user_public_key) {
+                recipientsByUserId.set(contact.linked_user_id, {
+                    userId: contact.linked_user_id,
+                    publicKey: contact.linked_user_public_key,
+                });
+            }
+        }
+
+        setPendingAction("invite");
+        setGroupError(null);
+
+        try {
+            const encryptedPreview = await encryptTextForRecipients(
+                "Added to group",
+                [...recipientsByUserId.values()]
+            );
+            const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/members`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    memberUserIds: selectedInviteIds,
+                    encryptedChatPreview: encryptedPreview.encryptedContent,
+                    chatPreviewRecipientKeys:
+                        encryptedPreview.recipientEncryptionKeys,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to invite members.");
+            }
+
+            const payload = await response.json() as { chat: RawChatItem };
+            mergeUpdatedChat(payload.chat);
+            setSelectedInviteIds([]);
+            setInviteOpen(false);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to invite members.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
     const listItems = [
         {
             id: '1',
-            primary: isRTL ? 'نجمة' : 'Starred',
-            secondary: isRTL ? 'الرسائل المميزة' : 'Starred messages',
+            primary: isRTL ? 'ظ†ط¬ظ…ط©' : 'Starred',
+            secondary: isRTL ? 'ط§ظ„ط±ط³ط§ط¦ظ„ ط§ظ„ظ…ظ…ظٹط²ط©' : 'Starred messages',
             icon: StarOutline,
-            href: 'detailed-starred'
+            href: 'detailed-starred',
+            disabled: false,
+            onClick: undefined as undefined | (() => void),
         },
+        ...(isGroup
+            ? [
+                  {
+                      id: 'invite',
+                      primary: isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user',
+                      secondary: isCurrentUserAdmin
+                          ? isRTL
+                              ? 'ط¥ط¶ط§ظپط© ط¬ظ‡ط© ط§طھطµط§ظ„ ط¥ظ„ظ‰ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©'
+                              : 'Add a contact to this group'
+                          : isRTL
+                            ? 'ط§ظ„ظ…ط´ط±ظپظˆظ† ظپظ‚ط·'
+                            : 'Admins only',
+                      icon: PersonAddOutlined,
+                      href: 'group-invite',
+                      disabled: !isCurrentUserAdmin,
+                      onClick: () => setInviteOpen(true),
+                  },
+              ]
+            : []),
     ];
 
-    const secondListItems = [
-        {
-            id: '3',
-            primary: isRTL ? `حضر ${displayContactName}` : `Block ${displayContactName}`,
-            icon: BlockOutlined,
-            distructive: true,
-            href: 'detailed-privacy'
-        },
-        {
-            id: '5',
-            primary: isRTL ? 'حذف المحادثة' : 'Delete chat',
-            icon: DeleteOutlineOutlined,
-            distructive: true,
-            href: 'detailed-delete-chat'
-        },
-    ];
+    const secondListItems = isGroup
+        ? [
+              {
+                  id: 'exit-group',
+                  primary: isRTL ? 'ط§ظ„ط®ط±ظˆط¬ ظ…ظ† ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Exit group',
+                  icon: LogoutOutlined,
+                  distructive: true,
+                  onClick: handleExitGroupClick,
+              },
+          ]
+        : [
+              {
+                  id: '3',
+                  primary: isRTL ? `ط­ط¶ط± ${displayContactName}` : `Block ${displayContactName}`,
+                  icon: BlockOutlined,
+                  distructive: true,
+                  onClick: undefined,
+              },
+              {
+                  id: '5',
+                  primary: isRTL ? 'ط­ط°ظپ ط§ظ„ظ…ط­ط§ط¯ط«ط©' : 'Delete chat',
+                  icon: DeleteOutlineOutlined,
+                  distructive: true,
+                  onClick: undefined,
+              },
+          ];
 
     return (
         <Stack
@@ -108,7 +521,7 @@ export default function DetailedLargeSidebarContent({
                 id="filled-search-bar"
                 variant="filled"
                 size="small"
-                placeholder={isRTL ? "إبحث في المحادثات" : "Search for messages"}
+                placeholder={isRTL ? "ط¥ط¨ط­ط« ظپظٹ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ" : "Search for messages"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 inputRef={inputRef}
@@ -159,10 +572,39 @@ export default function DetailedLargeSidebarContent({
                     width: '100%',
                 }}
             >
-                <button className='cursor-pointer'>
+                <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={handleAvatarChange}
+                />
+                <Box
+                    component="button"
+                    type="button"
+                    disabled={!isGroup || !isCurrentUserAdmin || pendingAction === "avatar"}
+                    onClick={() => {
+                        if (isGroup && isCurrentUserAdmin) {
+                            avatarInputRef.current?.click();
+                        }
+                    }}
+                    sx={{
+                        border: 0,
+                        p: 0,
+                        m: 0,
+                        background: "transparent",
+                        cursor: isGroup && isCurrentUserAdmin ? "pointer" : "default",
+                        position: "relative",
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        "&:hover .avatar-overlay": {
+                            opacity: isGroup && isCurrentUserAdmin ? 1 : 0,
+                        },
+                    }}
+                >
                     <DecryptedProfileImage
                         imageUrl={avatar || ""}
-                        fallback={<Person className='size-16!' />}
+                        fallback={isGroup ? <Group className='size-16!' /> : <Person className='size-16!' />}
                         sx={(theme) => ({
                             width: 120,
                             height: 120,
@@ -171,37 +613,123 @@ export default function DetailedLargeSidebarContent({
                             border: `1px solid ${theme.palette.mode === "dark" ? "#24453B" : "#C4DCC0"}`,
                         })}
                     />
-                </button>
-                <Typography variant='h6'>
-                    {displayContactName}
-                </Typography>
+                    {isGroup && isCurrentUserAdmin ? (
+                        <Box
+                            className="avatar-overlay"
+                            sx={(theme) => ({
+                                position: "absolute",
+                                inset: 0,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "4px",
+                                backgroundColor:
+                                    theme.palette.mode === "dark"
+                                        ? "rgba(0, 0, 0, 0.65)"
+                                        : "rgba(0, 0, 0, 0.45)",
+                                opacity: 0,
+                                transition: "opacity 0.2s ease",
+                            })}
+                        >
+                            {pendingAction === "avatar" ? (
+                                <CircularProgress size={24} sx={{ color: "#ffffff" }} />
+                            ) : (
+                                <>
+                                    <AddAPhoto sx={{ width: 22, height: 22, color: "#ffffff" }} />
+                                    <Typography
+                                        sx={{
+                                            fontSize: 10,
+                                            fontWeight: 600,
+                                            color: "#ffffff",
+                                            textAlign: "center",
+                                            lineHeight: 1.2,
+                                            px: 1,
+                                            textTransform: "uppercase",
+                                        }}
+                                    >
+                                        {isRTL ? 'ط£ط¶ظپ طµظˆط±ط©' : 'Add Photo'}
+                                    </Typography>
+                                </>
+                            )}
+                        </Box>
+                    ) : null}
+                </Box>
+                {isGroup && isEditingName ? (
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
+                        <TextField
+                            variant="standard"
+                            value={groupNameDraft}
+                            onChange={(event) => setGroupNameDraft(event.target.value)}
+                            fullWidth
+                            autoFocus
+                            inputProps={{ maxLength: 80 }}
+                        />
+                        <IconButton
+                            type="button"
+                            onClick={() => void handleSaveGroupName()}
+                            disabled={!groupNameDraft.trim() || pendingAction === "name"}
+                            sx={{ color: "#25D366" }}
+                        >
+                            {pendingAction === "name" ? (
+                                <CircularProgress size={18} />
+                            ) : (
+                                <Check />
+                            )}
+                        </IconButton>
+                    </Stack>
+                ) : (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant='h6'>
+                            {displayContactName}
+                        </Typography>
+                        {isGroup && isCurrentUserAdmin ? (
+                            <IconButton
+                                type="button"
+                                size="small"
+                                onClick={() => setIsEditingName(true)}
+                            >
+                                <EditOutlined sx={{ fontSize: 18 }} />
+                            </IconButton>
+                        ) : null}
+                    </Stack>
+                )}
                 <Typography
                     variant='body1'
                     className='text-gray-400!'
                     sx={{ direction: 'ltr' }}
                 >
-                    {contactNumber}
+                    {isGroup
+                        ? `${groupMembers.length} ${groupMembers.length === 1 ? "member" : "members"}`
+                        : contactNumber}
                 </Typography>
+                {groupError ? (
+                    <Alert severity="error" sx={{ width: "100%" }}>
+                        {groupError}
+                    </Alert>
+                ) : null}
             </Stack>
-            <Stack
-                spacing={1}
-                sx={{
-                    width: '100%',
-                }}
-            >
-                <Typography
-                    variant='body1'
-                    className='text-gray-400!'
+            {!isGroup ? (
+                <Stack
+                    spacing={1}
+                    sx={{
+                        width: '100%',
+                    }}
                 >
-                    {isRTL ? 'نبذة مختصرة' : 'About'}
-                </Typography>
-                <Typography
-                    variant='body1'
-                >
-                    {biography}
-                </Typography>
-                <Divider />
-            </Stack>
+                    <Typography
+                        variant='body1'
+                        className='text-gray-400!'
+                    >
+                        {isRTL ? 'ظ†ط¨ط°ط© ظ…ط®طھطµط±ط©' : 'About'}
+                    </Typography>
+                    <Typography
+                        variant='body1'
+                    >
+                        {biography}
+                    </Typography>
+                    <Divider />
+                </Stack>
+            ) : null}
             <Stack
                 spacing={1}
                 sx={{
@@ -223,21 +751,6 @@ export default function DetailedLargeSidebarContent({
                         "&:hover": {
                             boxShadow: "0px 4px 20px rgba(0,0,0,0)",
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                            "& .chat-badge": {
-                                transform: "translate(-28px, -50%)",
-                                opacity: 1,
-                            },
-                            "& .chat-hover-action": {
-                                transform: "translate(-50%, -50%)",
-                                opacity: 1,
-                                pointerEvents: "auto",
-                            },
-                            "& .MuiListItemText-secondary": {
-                                maxWidth: "calc(100% - 30px)",
-                            },
-                        },
-                        "& .MuiListItemText-secondary": {
-                            maxWidth: "100%",
                         },
                     })}
                 >
@@ -264,7 +777,7 @@ export default function DetailedLargeSidebarContent({
                             <CollectionsOutlined className='size-6! text-gray-600 dark:text-gray-300' />
                         </ListItemIcon>
                         <ListItemText
-                            primary={isRTL ? 'الوسائط, الروابط و المستندات' : 'Media, links & docs'}
+                            primary={isRTL ? 'ط§ظ„ظˆط³ط§ط¦ط·, ط§ظ„ط±ظˆط§ط¨ط· ظˆ ط§ظ„ظ…ط³طھظ†ط¯ط§طھ' : 'Media, links & docs'}
                             sx={{
                                 transition: "max-width 100ms ease",
                                 maxWidth: "75%",
@@ -305,6 +818,8 @@ export default function DetailedLargeSidebarContent({
                 {listItems.map((item) => (
                     <ListItemButton
                         key={item.id}
+                        disabled={item.disabled}
+                        onClick={item.onClick}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 3,
@@ -362,14 +877,14 @@ export default function DetailedLargeSidebarContent({
                         <NotificationsOutlined className='size-6! text-gray-600 dark:text-gray-300' />
                     </ListItemIcon>
                     <ListItemText
-                        primary={isRTL ? 'كتم الإشعارات' : 'Mute notifications'}
+                        primary={isRTL ? 'ظƒطھظ… ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ' : 'Mute notifications'}
                         sx={{
                             display: "block",
                             textAlign: isRTL ? 'right' : 'left',
                         }}
                         secondary={
                             isRTL ?
-                                'إيقاف إشعارات هذه المحادثة' :
+                                'ط¥ظٹظ‚ط§ظپ ط¥ط´ط¹ط§ط±ط§طھ ظ‡ط°ظ‡ ط§ظ„ظ…ط­ط§ط¯ط«ط©' :
                                 'Turn off notifications for this conversation'
                         }
                         secondaryTypographyProps={{
@@ -401,6 +916,100 @@ export default function DetailedLargeSidebarContent({
                         }}
                     />
                 </ListItem>
+                {isGroup ? (
+                    <>
+                        <Divider />
+                        <Typography variant="body1" className="text-gray-400!">
+                            {isRTL ? 'ط£ط¹ط¶ط§ط، ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Group members'}
+                        </Typography>
+                        <List sx={{ width: "100%", p: 0 }}>
+                            {groupMembers.map((member) => {
+                                const memberName = getMemberDisplayName(member, contacts);
+                                const isSelf = member.user_id === currentUserId;
+                                const showActions = isCurrentUserAdmin && !isSelf;
+
+                                return (
+                                    <ListItemButton
+                                        key={member.user_id}
+                                        sx={(theme) => ({
+                                            width: "100%",
+                                            borderRadius: 3,
+                                            padding: 0,
+                                            marginY: "2px",
+                                            backgroundColor: "transparent",
+                                            color:
+                                                theme.palette.mode === "dark"
+                                                    ? "#ffffff"
+                                                    : "#000000",
+                                            "&:hover": {
+                                                backgroundColor:
+                                                    theme.palette.mode === "dark"
+                                                        ? "#333"
+                                                        : "#eee",
+                                                "& .member-action": {
+                                                    opacity: showActions ? 1 : 0,
+                                                    pointerEvents: showActions ? "auto" : "none",
+                                                },
+                                            },
+                                        })}
+                                    >
+                                        <ListItem sx={{ py: 1, px: 2 }}>
+                                            <ListItemAvatar>
+                                                <DecryptedProfileImage
+                                                    imageUrl={getMemberAvatar(member, contacts)}
+                                                    fallback={<Person />}
+                                                    sx={(theme) => ({
+                                                        width: 42,
+                                                        height: 42,
+                                                        backgroundColor:
+                                                            theme.palette.mode === "dark"
+                                                                ? "#103529"
+                                                                : "#D9FDD3",
+                                                        color:
+                                                            theme.palette.mode === "dark"
+                                                                ? "#25D366"
+                                                                : "#1F4E2E",
+                                                    })}
+                                                />
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={isSelf ? `${memberName} (You)` : memberName}
+                                                secondary={member.phone_number}
+                                            />
+                                            {member.is_admin ? (
+                                                <Chip
+                                                    label="Admin"
+                                                    size="small"
+                                                    sx={{
+                                                        mr: 1,
+                                                        backgroundColor: "#25D36622",
+                                                        color: "#1E9A4D",
+                                                    }}
+                                                />
+                                            ) : null}
+                                            {showActions ? (
+                                                <IconButton
+                                                    className="member-action"
+                                                    size="small"
+                                                    onClick={(event) =>
+                                                        handleMemberMenuOpen(event, member)
+                                                    }
+                                                    sx={{
+                                                        opacity: 0,
+                                                        pointerEvents: "none",
+                                                        transition: "opacity 100ms ease",
+                                                    }}
+                                                >
+                                                    <ExpandMoreOutlined />
+                                                </IconButton>
+                                            ) : null}
+                                        </ListItem>
+                                    </ListItemButton>
+                                );
+                            })}
+                        </List>
+                    </>
+                ) : null}
             </Stack>
             <Divider />
             <Stack
@@ -412,6 +1021,8 @@ export default function DetailedLargeSidebarContent({
                 {secondListItems.map((item) => (
                     <ListItemButton
                         key={item.id}
+                        onClick={item.onClick}
+                        disabled={pendingAction === "exit"}
                         sx={(theme) => ({
                             width: "100%",
                             borderRadius: 3,
@@ -450,6 +1061,195 @@ export default function DetailedLargeSidebarContent({
                     </ListItemButton>
                 ))}
             </Stack>
+            <Menu
+                anchorEl={memberMenuAnchor}
+                open={Boolean(memberMenuAnchor)}
+                onClose={handleMemberMenuClose}
+                PaperProps={{
+                    sx: (theme) => ({
+                        backgroundColor: theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                        borderRadius: 3,
+                        boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
+                    }),
+                }}
+            >
+                {activeMember ? (
+                    <>
+                        <MenuItem
+                            disabled={Boolean(pendingAction)}
+                            onClick={() =>
+                                void updateMemberAdmin(
+                                    activeMember,
+                                    !activeMember.is_admin
+                                )
+                            }
+                        >
+                            {activeMember.is_admin ? "Remove admin" : "Make admin"}
+                        </MenuItem>
+                        <MenuItem
+                            disabled={Boolean(pendingAction)}
+                            onClick={() => void removeMember(activeMember)}
+                            sx={{ color: "#fa99a4" }}
+                        >
+                            Remove from group
+                        </MenuItem>
+                    </>
+                ) : null}
+            </Menu>
+            <Dialog
+                open={exitConfirmOpen}
+                onClose={handleCancelExitGroup}
+                aria-labelledby="exit-group-confirm-title"
+                aria-describedby="exit-group-confirm-description"
+                PaperProps={{
+                    sx: {
+                        borderRadius: "16px",
+                        minWidth: { xs: "calc(100vw - 32px)", sm: "450px" },
+                        padding: "4px",
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                        boxShadow: "0px 12px 30px rgba(0, 0, 0, 0.08)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    id="exit-group-confirm-title"
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: "18px",
+                        color: (theme) =>
+                            theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                        textAlign: isRTL ? "right" : "left",
+                    }}
+                >
+                    Exit group?
+                </DialogTitle>
+                <DialogContent sx={{ paddingTop: "4px" }}>
+                    <Typography
+                        id="exit-group-confirm-description"
+                        sx={{
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
+                            fontSize: "14px",
+                            textAlign: isRTL ? "right" : "left",
+                        }}
+                    >
+                        You will leave this group and it will be removed from your chat list.
+                    </Typography>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        padding: "12px 16px 16px 16px",
+                        gap: "8px",
+                        ...(isRTL && { flexDirection: "row-reverse" }),
+                    }}
+                >
+                    <Button
+                        onClick={handleCancelExitGroup}
+                        variant="outlined"
+                        disabled={pendingAction === "exit"}
+                        sx={{
+                            borderRadius: "99px",
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#DCDCDC",
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#D8D8D8" : "#5A5A5A",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => void handleConfirmExitGroup()}
+                        variant="contained"
+                        disabled={pendingAction === "exit"}
+                        sx={{
+                            borderRadius: "99px",
+                            backgroundColor: "#25D366",
+                            color: "#0B1B12",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                            boxShadow: "0px 0px 0px rgba(0, 0, 0, 0.0)",
+                            "&:hover": {
+                                backgroundColor: "#1FB75A",
+                            },
+                            "&.Mui-disabled": {
+                                backgroundColor: (theme) =>
+                                    theme.palette.mode === "dark" ? "#2D4035" : "#CFEFDB",
+                                color: (theme) =>
+                                    theme.palette.mode === "dark" ? "#A1B6A8" : "#6B8F7A",
+                            },
+                        }}
+                    >
+                        {pendingAction === "exit" ? (
+                            <CircularProgress size={18} />
+                        ) : (
+                            "Exit"
+                        )}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} fullWidth maxWidth="xs">
+                <DialogTitle>{isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user'}</DialogTitle>
+                <DialogContent dividers>
+                    {inviteCandidates.length === 0 ? (
+                        <Typography color="text.secondary">
+                            {isRTL ? 'ظ„ط§ طھظˆط¬ط¯ ط¬ظ‡ط§طھ ط§طھطµط§ظ„ ظ…طھط§ط­ط©.' : 'No eligible contacts to invite.'}
+                        </Typography>
+                    ) : (
+                        <List sx={{ p: 0 }}>
+                            {inviteCandidates.map((contact) => {
+                                const linkedUserId = contact.linked_user_id!;
+                                const checked = selectedInviteIds.includes(linkedUserId);
+
+                                return (
+                                    <ListItemButton
+                                        key={contact.contact_id}
+                                        onClick={() =>
+                                            setSelectedInviteIds((current) =>
+                                                checked
+                                                    ? current.filter((id) => id !== linkedUserId)
+                                                    : [...current, linkedUserId]
+                                            )
+                                        }
+                                    >
+                                        <ListItemAvatar>
+                                            <DecryptedProfileImage
+                                                imageUrl={contact.contact_avatar ?? ""}
+                                                fallback={<Person />}
+                                                sx={{
+                                                    width: 40,
+                                                    height: 40,
+                                                    backgroundColor: "#D9FDD3",
+                                                }}
+                                            />
+                                        </ListItemAvatar>
+                                        <ListItemText
+                                            primary={getContactDisplayName(contact)}
+                                            secondary={contact.contact_number}
+                                        />
+                                        <Checkbox checked={checked} />
+                                    </ListItemButton>
+                                );
+                            })}
+                        </List>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setInviteOpen(false)}>
+                        {isRTL ? 'ط¥ظ„ط؛ط§ط،' : 'Cancel'}
+                    </Button>
+                    <Button
+                        onClick={() => void handleInviteMembers()}
+                        disabled={selectedInviteIds.length === 0 || pendingAction === "invite"}
+                    >
+                        {pendingAction === "invite" ? (
+                            <CircularProgress size={18} />
+                        ) : isRTL ? 'ط¥ط¶ط§ظپط©' : 'Invite'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Stack>
     )
 }

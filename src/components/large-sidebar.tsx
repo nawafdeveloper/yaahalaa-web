@@ -10,6 +10,9 @@ import ArchiveSectionLargeSidebar from "./archive-section-large-sidebar";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { useSubsidebarStore } from "@/store/use-active-subsidebar-store";
 import CreateNewContactSection from "./create-new-contact-section";
+import CreateGroupMemebersListLargeSidebar from "./create-group-memebers-list-large-sidebar";
+import { useGroupSidebarStore } from "@/store/use-group-sidebar-store";
+import CreateGroupInformationLargeSidebar from "./create-group-information-large-sidebar";
 
 type Props = {
     logout: () => void;
@@ -19,6 +22,7 @@ type Props = {
 export default function LargeSideBar({ logout, country }: Props) {
     const { activeSideBar } = useSidebarStore();
     const { activeSubsideBar } = useSubsidebarStore();
+    const { groupSidebarState } = useGroupSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -64,12 +68,30 @@ export default function LargeSideBar({ logout, country }: Props) {
                         transition={{ duration: 0.15, ease: customEasing }}
                         className="absolute inset-0 z-20 flex h-full w-full"
                         style={{
-                            pointerEvents: activeSubsideBar === 'new-contact' ? 'auto' : 'none'
+                            pointerEvents: (activeSubsideBar === 'new-contact' || activeSubsideBar === 'new-group') ? 'auto' : 'none'
                         }}
                     >
                         {activeSubsideBar === 'new-contact' && (
                             <CreateNewContactSection country={country} />
                         )}
+                        {activeSubsideBar === 'new-group' && (
+                            <CreateGroupMemebersListLargeSidebar />
+                        )}
+                    </motion.div>
+                )}
+                {groupSidebarState && (
+                    <motion.div
+                        key={'group-creation'}
+                        initial={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: isRTL ? '100%' : '-100%', opacity: 1 }}
+                        transition={{ duration: 0.15, ease: customEasing }}
+                        className="absolute inset-0 z-30 flex h-full w-full"
+                        style={{
+                            pointerEvents: groupSidebarState ? 'auto' : 'none'
+                        }}
+                    >
+                        <CreateGroupInformationLargeSidebar />
                     </motion.div>
                 )}
             </AnimatePresence>

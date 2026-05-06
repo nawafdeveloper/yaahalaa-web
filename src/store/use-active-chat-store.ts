@@ -32,6 +32,7 @@ interface ActiveChatState {
     typingByChatId: Record<string, TypingState>;
     setChats: (chats: ChatItemType[]) => void;
     upsertChat: (chat: ChatItemType) => void;
+    removeChat: (chatId: string) => void;
     setChatsLoading: (loading: boolean) => void;
     setChatsError: (error: string | null) => void;
     setSelectedChatId: (chatId: string | null) => void;
@@ -91,6 +92,26 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
 
             return {
                 chats: sortChatsByRecent([...existingWithoutChat, chat]),
+            };
+        }),
+    removeChat: (chatId) =>
+        set((state) => {
+            const messagesByChatId = { ...state.messagesByChatId };
+            const draftsByChatId = { ...state.draftsByChatId };
+            const replyDraftByChatId = { ...state.replyDraftByChatId };
+            delete messagesByChatId[chatId];
+            delete draftsByChatId[chatId];
+            delete replyDraftByChatId[chatId];
+
+            return {
+                chats: state.chats.filter((chat) => chat.chat_id !== chatId),
+                selectedChatId:
+                    state.selectedChatId === chatId
+                        ? null
+                        : state.selectedChatId,
+                messagesByChatId,
+                draftsByChatId,
+                replyDraftByChatId,
             };
         }),
     setChatsLoading: (loading) => set({ chatsLoading: loading }),
@@ -348,6 +369,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
                 display_name:
                     `${contact.contact_first_name ?? ""} ${contact.contact_second_name ?? ""}`
                         .trim() || contact.contact_number,
+                group_members: null,
                 recipient_user_id: contact.linked_user_id,
                 recipient_public_key: contact.linked_user_public_key ?? null,
                 contact_phone: contact.contact_number,
