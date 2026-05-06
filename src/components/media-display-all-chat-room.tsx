@@ -4,6 +4,7 @@ import {
     findContactByUserId,
     getContactDisplayName,
 } from '@/lib/contact-display';
+import { phoneValuesMatch } from '@/lib/contact-utils';
 import { formatFileSize, getFileExtension } from '@/lib/files';
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { useDecryptedMessageMedia } from '@/hooks/use-decrypted-message-media';
@@ -314,13 +315,61 @@ export default function MediaDisplayAllChatRoom() {
     const isRTL = locale ? isRTLClient(locale) : false;
     const target = useDetailedSidebarStore((state) => state.target);
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const chats = useActiveChatStore((state) => state.chats);
     const messagesByChatId = useActiveChatStore(
         (state) => state.messagesByChatId
     );
     const { contacts } = useDecryptedContacts();
 
     const [value, setValue] = useState(0);
-    const activeChatId = target?.chatId ?? selectedChatId;
+    const targetChat =
+        target?.chatId
+            ? chats.find((chat) => chat.chat_id === target.chatId) ?? null
+            : null;
+    const targetGroupMember =
+        target?.type === "user" && targetChat?.chat_type === "group"
+            ? targetChat.group_members?.find(
+                  (member) => member.user_id === target.userId
+              ) ?? null
+            : null;
+    const targetMemberPhone = targetGroupMember?.phone_number ?? null;
+    const targetProfileChat =
+        target?.type === "user"
+            ? chats.find((chat) => {
+                  if (chat.chat_type !== "single") {
+                      return false;
+                  }
+
+                  if (chat.recipient_user_id === target.userId) {
+                      return true;
+                  }
+
+                  if (!targetMemberPhone) {
+                      return false;
+                  }
+
+                  const chatIdHasMemberPhone = chat.chat_id
+                      .split("::")
+                      .some((participant) =>
+                          phoneValuesMatch(participant, targetMemberPhone)
+                      );
+
+                  return (
+                      Boolean(
+                          chat.contact_phone &&
+                              phoneValuesMatch(
+                                  chat.contact_phone,
+                                  targetMemberPhone
+                              )
+                      ) ||
+                      chatIdHasMemberPhone
+                  );
+              }) ?? null
+            : null;
+    const activeChatId =
+        target?.type === "user"
+            ? targetProfileChat?.chat_id ?? null
+            : target?.chatId ?? selectedChatId;
     const messages = activeChatId
         ? messagesByChatId[activeChatId] ?? EMPTY_MESSAGES
         : EMPTY_MESSAGES;

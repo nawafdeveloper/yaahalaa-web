@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { authClient } from "@/lib/auth-client";
 import {
+    findContactByPhone,
     findContactByUserId,
     getContactDisplayName,
     resolveDirectChatContact,
@@ -11,6 +12,7 @@ import {
     getChatDisplayName,
     resolveDirectChatPartner,
 } from "@/lib/chat-utils";
+import { phoneValuesMatch } from "@/lib/contact-utils";
 import { getCachedMessageMedia } from "@/lib/message-media-cache";
 import { fetchAndDecryptMessageMedia } from "@/lib/message-media-upload";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
@@ -59,27 +61,77 @@ export default function DetailedLargeSidebar() {
     const activeChatId = target?.chatId ?? selectedChatId;
     const activeChat =
         chats.find((chat) => chat.chat_id === activeChatId) ?? null;
-    const messages = activeChatId
-        ? messagesByChatId[activeChatId] ?? EMPTY_MESSAGES
-        : EMPTY_MESSAGES;
+    const targetUserId = target?.type === "user" ? target.userId : null;
+    const targetGroupMember =
+        targetUserId && activeChat?.chat_type === "group"
+            ? activeChat.group_members?.find(
+                  (member) => member.user_id === targetUserId
+              ) ?? null
+            : null;
+    const targetMemberPhone = targetGroupMember?.phone_number ?? null;
     const directContact = activeChat
         ? resolveDirectChatContact(activeChat, contacts, currentPhone)
         : null;
     const targetContact =
         target?.type === "user"
-            ? findContactByUserId(contacts, target.userId)
+            ? findContactByUserId(contacts, target.userId) ??
+              findContactByPhone(contacts, targetMemberPhone)
             : directContact;
     const profileChat =
         target?.type === "user"
-            ? chats.find(
-                  (chat) =>
-                      chat.chat_type === "single" &&
-                      chat.recipient_user_id === target.userId
-              ) ?? null
+            ? chats.find((chat) => {
+                  if (chat.chat_type !== "single") {
+                      return false;
+                  }
+
+                  if (chat.recipient_user_id === target.userId) {
+                      return true;
+                  }
+
+                  if (!targetMemberPhone) {
+                      return false;
+                  }
+
+                  const directPartnerPhone = resolveDirectChatPartner(
+                      chat.chat_id,
+                      currentPhone
+                  );
+
+                  return (
+                      Boolean(
+                          chat.contact_phone &&
+                              phoneValuesMatch(
+                                  chat.contact_phone,
+                                  targetMemberPhone
+                              )
+                      ) ||
+                      Boolean(
+                          directPartnerPhone &&
+                              phoneValuesMatch(
+                                  directPartnerPhone,
+                                  targetMemberPhone
+                              )
+                      )
+                  );
+              }) ?? null
             : activeChat;
     const profileChatContact = profileChat
         ? resolveDirectChatContact(profileChat, contacts, currentPhone)
         : null;
+    const detailChat = target?.type === "user" ? profileChat : activeChat;
+    const detailChatId = detailChat?.chat_id ?? null;
+    const messages = detailChatId
+        ? messagesByChatId[detailChatId] ?? EMPTY_MESSAGES
+        : EMPTY_MESSAGES;
+    const targetPhone =
+        target?.type === "user"
+            ? targetContact?.contact_number ??
+              targetMemberPhone ??
+              profileChat?.contact_phone ??
+              (profileChat
+                  ? resolveDirectChatPartner(profileChat.chat_id, currentPhone)
+                  : null)
+            : null;
 
     const mediaItems = useMemo<DetailedSidebarMediaItem[]>(
         () =>
@@ -162,31 +214,33 @@ export default function DetailedLargeSidebar() {
         target?.type === "user"
             ? targetContact
                 ? getContactDisplayName(targetContact)
-                : target.userId
+                : targetPhone ?? targetGroupMember?.name ?? target.userId
             : activeChat?.chat_type === "single" && targetContact
               ? getContactDisplayName(targetContact)
               : activeChat
                 ? getChatDisplayName(activeChat, currentPhone)
                 : null;
     const contactNumber =
-        targetContact?.contact_number ??
-        (target?.type !== "user" && activeChat?.chat_type === "single"
-            ? activeChat.contact_phone ??
-              resolveDirectChatPartner(activeChat.chat_id, currentPhone)
-            : null);
+        target?.type === "user"
+            ? targetPhone
+            : targetContact?.contact_number ??
+              (activeChat?.chat_type === "single"
+                  ? activeChat.contact_phone ??
+                    resolveDirectChatPartner(activeChat.chat_id, currentPhone)
+                  : null);
     const canShowChatAvatar =
         profileChat?.chat_type === "single" &&
         (profileChat.recipient_profile_picture_visible ??
             canViewProfilePicture(
                 profileChat.recipient_who_can_see_profile_picture,
-                Boolean(profileChatContact)
+                Boolean(profileChatContact ?? targetContact)
             ));
     const canShowChatAbout =
         profileChat?.chat_type === "single" &&
         (profileChat.recipient_about_visible ??
             canViewAbout(
                 profileChat.recipient_who_can_see_about,
-                Boolean(profileChatContact)
+                Boolean(profileChatContact ?? targetContact)
             ));
     const { aboutText } = useDecryptedAboutText({
         ciphertext: profileChat?.recipient_about_ciphertext,
@@ -200,9 +254,14 @@ export default function DetailedLargeSidebar() {
             ? profileChatContact.contact_avatar
             : "";
     const avatar =
-        profileChat?.chat_type === "single"
+        target?.type === "user" && !profileChat
+            ? targetContact?.contact_avatar ?? ""
+            : profileChat?.chat_type === "single"
             ? canShowChatAvatar
-                ? profileChat.avatar || directContactAvatar
+                ? profileChat.avatar ||
+                  directContactAvatar ||
+                  targetContact?.contact_avatar ||
+                  ""
                 : ""
             : target?.type === "user"
               ? targetContact?.contact_avatar ?? ""
@@ -217,8 +276,12 @@ export default function DetailedLargeSidebar() {
             >
                 <DetailedLargeSidebarHeader />
                 <DetailedLargeSidebarContent
-                    chatId={activeChat?.chat_id ?? null}
-                    chatType={activeChat?.chat_type ?? null}
+                    chatId={detailChat?.chat_id ?? null}
+                    chatType={
+                        target?.type === "user"
+                            ? "single"
+                            : activeChat?.chat_type ?? null
+                    }
                     avatar={avatar}
                     contactName={contactName}
                     contactNumber={contactNumber}
@@ -226,10 +289,14 @@ export default function DetailedLargeSidebar() {
                     mediaCount={mediaItems.length}
                     mediaItems={mediaItems.slice(0, 4)}
                     muteNotification={
-                        activeChat?.is_muted_chat_notifications ?? false
+                        detailChat?.is_muted_chat_notifications ?? false
                     }
-                    isBlocked={activeChat?.is_blocked_chat ?? false}
-                    groupMembers={activeChat?.group_members ?? null}
+                    isBlocked={detailChat?.is_blocked_chat ?? false}
+                    groupMembers={
+                        target?.type === "user"
+                            ? null
+                            : activeChat?.group_members ?? null
+                    }
                     currentUserId={currentUserId}
                     contacts={contacts}
                 />

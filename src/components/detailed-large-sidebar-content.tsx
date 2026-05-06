@@ -3,6 +3,7 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import {
     AddAPhoto,
+    AddComment,
     BlockOutlined,
     Check,
     CloseOutlined,
@@ -14,6 +15,7 @@ import {
     LogoutOutlined,
     NotificationsOutlined,
     Person,
+    PersonAdd,
     PersonAddOutlined,
     SearchOutlined,
     StarOutline,
@@ -122,9 +124,11 @@ export default function DetailedLargeSidebarContent({
     const [memberMenuAnchor, setMemberMenuAnchor] = useState<HTMLElement | null>(null);
     const [activeMember, setActiveMember] = useState<ChatGroupMember | null>(null);
     const [inviteOpen, setInviteOpen] = useState(false);
+    const [inviteSearchQuery, setInviteSearchQuery] = useState("");
     const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
     const [selectedInviteIds, setSelectedInviteIds] = useState<string[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
+    const inviteInputRef = useRef<HTMLInputElement>(null);
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const isGroup = chatType === "group";
     const groupMembers = rawGroupMembers ?? EMPTY_GROUP_MEMBERS;
@@ -148,10 +152,43 @@ export default function DetailedLargeSidebarContent({
             ),
         [contacts, groupMemberIds]
     );
+    const visibleInviteCandidates = useMemo(() => {
+        const query = inviteSearchQuery.trim().toLowerCase();
+
+        if (!query) {
+            return inviteCandidates;
+        }
+
+        return inviteCandidates.filter((contact) =>
+            [getContactDisplayName(contact), contact.contact_number]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(query))
+        );
+    }, [inviteCandidates, inviteSearchQuery]);
+    const inviteLabelByUserId = useMemo(
+        () =>
+            new Map(
+                inviteCandidates
+                    .filter((contact) => contact.linked_user_id)
+                    .map((contact) => [
+                        contact.linked_user_id!,
+                        getContactDisplayName(contact),
+                    ])
+            ),
+        [inviteCandidates]
+    );
+    const selectedInviteLabels = selectedInviteIds.map(
+        (userId) => inviteLabelByUserId.get(userId) ?? userId
+    );
 
     const handleClear = () => {
         setValue("");
         inputRef.current?.blur();
+    };
+
+    const handleInviteSearchClear = () => {
+        setInviteSearchQuery("");
+        inviteInputRef.current?.blur();
     };
 
     useEffect(() => {
@@ -462,51 +499,51 @@ export default function DetailedLargeSidebarContent({
         },
         ...(isGroup
             ? [
-                  {
-                      id: 'invite',
-                      primary: isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user',
-                      secondary: isCurrentUserAdmin
-                          ? isRTL
-                              ? 'ط¥ط¶ط§ظپط© ط¬ظ‡ط© ط§طھطµط§ظ„ ط¥ظ„ظ‰ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©'
-                              : 'Add a contact to this group'
-                          : isRTL
+                {
+                    id: 'invite',
+                    primary: isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user',
+                    secondary: isCurrentUserAdmin
+                        ? isRTL
+                            ? 'ط¥ط¶ط§ظپط© ط¬ظ‡ط© ط§طھطµط§ظ„ ط¥ظ„ظ‰ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©'
+                            : 'Add a contact to this group'
+                        : isRTL
                             ? 'ط§ظ„ظ…ط´ط±ظپظˆظ† ظپظ‚ط·'
                             : 'Admins only',
-                      icon: PersonAddOutlined,
-                      href: 'group-invite',
-                      disabled: !isCurrentUserAdmin,
-                      onClick: () => setInviteOpen(true),
-                  },
-              ]
+                    icon: PersonAddOutlined,
+                    href: 'group-invite',
+                    disabled: !isCurrentUserAdmin,
+                    onClick: () => setInviteOpen(true),
+                },
+            ]
             : []),
     ];
 
     const secondListItems = isGroup
         ? [
-              {
-                  id: 'exit-group',
-                  primary: isRTL ? 'ط§ظ„ط®ط±ظˆط¬ ظ…ظ† ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Exit group',
-                  icon: LogoutOutlined,
-                  distructive: true,
-                  onClick: handleExitGroupClick,
-              },
-          ]
+            {
+                id: 'exit-group',
+                primary: isRTL ? 'ط§ظ„ط®ط±ظˆط¬ ظ…ظ† ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Exit group',
+                icon: LogoutOutlined,
+                distructive: true,
+                onClick: handleExitGroupClick,
+            },
+        ]
         : [
-              {
-                  id: '3',
-                  primary: isRTL ? `ط­ط¶ط± ${displayContactName}` : `Block ${displayContactName}`,
-                  icon: BlockOutlined,
-                  distructive: true,
-                  onClick: undefined,
-              },
-              {
-                  id: '5',
-                  primary: isRTL ? 'ط­ط°ظپ ط§ظ„ظ…ط­ط§ط¯ط«ط©' : 'Delete chat',
-                  icon: DeleteOutlineOutlined,
-                  distructive: true,
-                  onClick: undefined,
-              },
-          ];
+            {
+                id: '3',
+                primary: isRTL ? `ط­ط¶ط± ${displayContactName}` : `Block ${displayContactName}`,
+                icon: BlockOutlined,
+                distructive: true,
+                onClick: undefined,
+            },
+            {
+                id: '5',
+                primary: isRTL ? 'ط­ط°ظپ ط§ظ„ظ…ط­ط§ط¯ط«ط©' : 'Delete chat',
+                icon: DeleteOutlineOutlined,
+                distructive: true,
+                onClick: undefined,
+            },
+        ];
 
     return (
         <Stack
@@ -708,6 +745,35 @@ export default function DetailedLargeSidebarContent({
                         {groupError}
                     </Alert>
                 ) : null}
+                {!isGroup && (
+                    <Box
+                        sx={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 2,
+                        }}
+                    >
+                        <div className='flex flex-col items-center justify-center space-y-1'>
+                            <IconButton size="large" sx={{ color: '#25D366' }}>
+                                <AddComment fontSize='small' />
+                            </IconButton>
+                            <Typography sx={{ color: '#25D366' }} variant='body2'>
+                                Message
+                            </Typography>
+                        </div>
+
+                        <div className='flex flex-col items-center justify-center space-y-1'>
+                            <IconButton size="large" sx={{ color: '#25D366' }}>
+                                <PersonAdd fontSize='small' />
+                            </IconButton>
+                            <Typography sx={{ color: '#25D366' }} variant='body2'>
+                                Add
+                            </Typography>
+                        </div>
+                    </Box>
+                )}
             </Stack>
             {!isGroup ? (
                 <Stack
@@ -920,7 +986,7 @@ export default function DetailedLargeSidebarContent({
                     <>
                         <Divider />
                         <Typography variant="body1" className="text-gray-400!">
-                            {isRTL ? 'ط£ط¹ط¶ط§ط، ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Group members'}
+                            {isRTL ? 'أعضاء المجموعة' : 'Group members'}
                         </Typography>
                         <List sx={{ width: "100%", p: 0 }}>
                             {groupMembers.map((member) => {
@@ -1072,6 +1138,14 @@ export default function DetailedLargeSidebarContent({
                         boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                     }),
                 }}
+                slotProps={{
+                    list: {
+                        'aria-labelledby': 'basic-button',
+                        sx: {
+                            padding: 1,
+                        },
+                    },
+                }}
             >
                 {activeMember ? (
                     <>
@@ -1083,13 +1157,29 @@ export default function DetailedLargeSidebarContent({
                                     !activeMember.is_admin
                                 )
                             }
+                            sx={(theme) => ({
+                                "&:hover": {
+                                    backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                                },
+                                borderRadius: 2,
+                                paddingY: 1,
+                                paddingX: 1
+                            })}
                         >
                             {activeMember.is_admin ? "Remove admin" : "Make admin"}
                         </MenuItem>
                         <MenuItem
                             disabled={Boolean(pendingAction)}
                             onClick={() => void removeMember(activeMember)}
-                            sx={{ color: "#fa99a4" }}
+                            sx={(theme) => ({
+                                "&:hover": {
+                                    backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                                },
+                                color: "#fa99a4",
+                                borderRadius: 2,
+                                paddingY: 1,
+                                paddingX: 1
+                            })}
                         >
                             Remove from group
                         </MenuItem>
@@ -1190,16 +1280,127 @@ export default function DetailedLargeSidebarContent({
                     </Button>
                 </DialogActions>
             </Dialog>
-            <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} fullWidth maxWidth="xs">
+            <Dialog
+                open={inviteOpen}
+                onClose={() => setInviteOpen(false)}
+                fullWidth
+                maxWidth={false}
+                PaperProps={{
+                    sx: (theme) => ({
+                        backgroundColor:
+                            theme.palette.mode === "dark" ? "#161717" : "#FFFFFF",
+                        boxShadow: 0,
+                        p: 0,
+                        borderRadius: "18px",
+                        width: "440px",
+                        maxWidth: "calc(100vw - 32px)",
+                        marginY: "auto",
+                        height: "100%",
+                        maxHeight: "calc(100vh - 200px)",
+                        overflow: "hidden",
+                        position: "relative",
+                        "& > .MuiDialogTitle-root": {
+                            display: "none",
+                        },
+                    }),
+                }}
+            >
+                <div className="flex flex-row items-center gap-x-3 p-2">
+                    <IconButton onClick={() => setInviteOpen(false)}>
+                        <CloseOutlined />
+                    </IconButton>
+                    <Typography>
+                        {isRTL ? 'Ø·Â¥Ø·Â¶Ø·Â§Ø¸Ù¾Ø·Â© Ø·Â¹Ø·Â¶Ø¸Ë†' : 'Invite new user'}
+                    </Typography>
+                </div>
                 <DialogTitle>{isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user'}</DialogTitle>
-                <DialogContent dividers>
+                <Box sx={{ px: 5 }}>
+                    <TextField
+                        hiddenLabel
+                        variant="filled"
+                        size="small"
+                        placeholder="Search name or number"
+                        fullWidth
+                        value={inviteSearchQuery}
+                        onChange={(event) => setInviteSearchQuery(event.target.value)}
+                        inputRef={inviteInputRef}
+                        sx={(theme) => ({
+                            "& .MuiFilledInput-root": {
+                                borderRadius: 8,
+                                "&.Mui-focused": {
+                                    outline: "2px solid #25D366",
+                                    backgroundColor:
+                                        theme.palette.mode === "dark"
+                                            ? "#2B2C2C"
+                                            : "#ffffff",
+                                },
+                            },
+                            width: "100%",
+                        })}
+                        InputProps={{
+                            disableUnderline: true,
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchOutlined
+                                        sx={{
+                                            color: (theme) =>
+                                                theme.palette.mode === "dark"
+                                                    ? "#A5A5A5"
+                                                    : "#636261",
+                                            width: 20,
+                                            height: 20,
+                                        }}
+                                    />
+                                </InputAdornment>
+                            ),
+                            endAdornment: inviteSearchQuery ? (
+                                <InputAdornment position="end">
+                                    <IconButton onClick={handleInviteSearchClear} size="small">
+                                        <CloseOutlined
+                                            sx={{
+                                                color: (theme) =>
+                                                    theme.palette.mode === "dark"
+                                                        ? "#A5A5A5"
+                                                        : "#636261",
+                                                width: 18,
+                                                height: 18,
+                                            }}
+                                        />
+                                    </IconButton>
+                                </InputAdornment>
+                            ) : null,
+                        }}
+                    />
+                </Box>
+                <Box sx={{ my: 2.5, px: 6 }}>
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            fontWeight: 600,
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
+                            fontSize: 14,
+                        }}
+                    >
+                        Contacts
+                    </Typography>
+                </Box>
+                <DialogContent sx={{ p: 0, overflow: "hidden" }}>
                     {inviteCandidates.length === 0 ? (
                         <Typography color="text.secondary">
                             {isRTL ? 'ظ„ط§ طھظˆط¬ط¯ ط¬ظ‡ط§طھ ط§طھطµط§ظ„ ظ…طھط§ط­ط©.' : 'No eligible contacts to invite.'}
                         </Typography>
                     ) : (
-                        <List sx={{ p: 0 }}>
-                            {inviteCandidates.map((contact) => {
+                        <List
+                            sx={{
+                                bgcolor: "transparent",
+                                overflowY: "scroll",
+                                height: "83%",
+                                paddingX: "20px",
+                                paddingBottom: selectedInviteIds.length > 0 ? "78px" : 0,
+                            }}
+                        >
+                            {visibleInviteCandidates.map((contact) => {
                                 const linkedUserId = contact.linked_user_id!;
                                 const checked = selectedInviteIds.includes(linkedUserId);
 
@@ -1213,36 +1414,149 @@ export default function DetailedLargeSidebarContent({
                                                     : [...current, linkedUserId]
                                             )
                                         }
+                                        sx={(theme) => ({
+                                            display: "flex",
+                                            flexDirection: "row-reverse",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            borderRadius: 3,
+                                            backgroundColor: "transparent",
+                                            boxShadow: "0px 4px 20px rgba(0,0,0,0)",
+                                            textTransform: "inherit",
+                                            color:
+                                                theme.palette.mode === "dark"
+                                                    ? "#ffffff"
+                                                    : "#000000",
+                                            "&:hover": {
+                                                boxShadow: "0px 4px 20px rgba(0,0,0,0)",
+                                                backgroundColor:
+                                                    theme.palette.mode === "dark"
+                                                        ? "#333"
+                                                        : "#eee",
+                                            },
+                                            "& .MuiListItemText-secondary": {
+                                                maxWidth: "100%",
+                                            },
+                                        })}
                                     >
                                         <ListItemAvatar>
                                             <DecryptedProfileImage
                                                 imageUrl={contact.contact_avatar ?? ""}
                                                 fallback={<Person />}
                                                 sx={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    backgroundColor: "#D9FDD3",
+                                                    width: 45,
+                                                    height: 45,
+                                                    backgroundColor: (theme) =>
+                                                        theme.palette.mode === "dark"
+                                                            ? "#103529"
+                                                            : "#D9FDD3",
+                                                    color: (theme) =>
+                                                        theme.palette.mode === "dark"
+                                                            ? "#25D366"
+                                                            : "#1F4E2E",
                                                 }}
                                             />
                                         </ListItemAvatar>
                                         <ListItemText
                                             primary={getContactDisplayName(contact)}
                                             secondary={contact.contact_number}
+                                            sx={{
+                                                overflow: "hidden",
+                                                "& .MuiListItemText-secondary": {
+                                                    color: (theme) =>
+                                                        theme.palette.mode === "dark"
+                                                            ? "#A5A5A5"
+                                                            : "#636261",
+                                                },
+                                            }}
+                                            secondaryTypographyProps={{
+                                                noWrap: true,
+                                                sx: {
+                                                    overflow: "hidden",
+                                                    display: "block",
+                                                    maxWidth: "100%",
+                                                    color: (theme) =>
+                                                        theme.palette.mode === "dark"
+                                                            ? "#A5A5A5"
+                                                            : "#636261",
+                                                },
+                                            }}
                                         />
-                                        <Checkbox checked={checked} />
+                                        <Checkbox
+                                            checked={checked}
+                                            tabIndex={-1}
+                                            disableRipple
+                                            sx={{
+                                                "&.Mui-checked": {
+                                                    color: "#25D366",
+                                                },
+                                            }}
+                                        />
                                     </ListItemButton>
                                 );
                             })}
                         </List>
                     )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setInviteOpen(false)}>
+                <DialogActions
+                    sx={{
+                        position: "absolute",
+                        zIndex: 10,
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        display: selectedInviteIds.length > 0 ? "flex" : "none",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        px: 4,
+                        py: 3,
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#2B2C2C" : "#F0F0F0",
+                    }}
+                >
+                    <Typography
+                        component="span"
+                        sx={{
+                            display: "block",
+                            maxWidth: "70%",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        {selectedInviteLabels.join(", ")}
+                    </Typography>
+                    <Button onClick={() => setInviteOpen(false)} sx={{ display: "none" }}>
                         {isRTL ? 'ط¥ظ„ط؛ط§ط،' : 'Cancel'}
                     </Button>
                     <Button
                         onClick={() => void handleInviteMembers()}
                         disabled={selectedInviteIds.length === 0 || pendingAction === "invite"}
+                        variant="contained"
+                        startIcon={pendingAction === "invite" ? undefined : <Check />}
+                        sx={{
+                            minWidth: 44,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            p: 0,
+                            fontSize: 0,
+                            backgroundColor: "#25D366",
+                            color: "#161717",
+                            boxShadow: "none",
+                            "& .MuiButton-startIcon": {
+                                m: 0,
+                            },
+                            "&:hover": {
+                                backgroundColor: "#25D366",
+                                color: "#161717",
+                                boxShadow: "none",
+                            },
+                            "&.Mui-disabled": {
+                                backgroundColor: "#25D36699",
+                                color: "#16171799",
+                            },
+                        }}
                     >
                         {pendingAction === "invite" ? (
                             <CircularProgress size={18} />

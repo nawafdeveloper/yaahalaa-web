@@ -67,7 +67,7 @@ export default function ChatItem({ chat_item }: Props) {
     );
     const groupSenderLabel = groupSenderContact
         ? getContactDisplayName(groupSenderContact)
-        : chat_item.last_message_sender_nickname;
+        : chat_item.last_message_sender_nickname.trim();
     const isReactionPreview = chat_item.last_message_media === "reaction";
     const reactionSenderLabel = chat_item.last_message_sender_is_me
         ? "You"

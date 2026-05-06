@@ -47,6 +47,7 @@ import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useRealtimeStore } from "@/store/use-realtime-store";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import {
+    findContactByPhone,
     findContactByUserId,
     getContactDisplayName,
 } from "@/lib/contact-display";
@@ -225,20 +226,38 @@ export default function ChatRoomMessageBubble({
         chats.find((chat) => chat.chat_id === message.chat_room_id) ?? null;
     const isGroupChat = activeChat?.chat_type === "group";
     const conversationType = isGroupChat ? "group" : "direct";
-    const senderContact = findContactByUserId(contacts, message.sender_user_id);
-    const senderDisplayName = senderContact
-        ? getContactDisplayName(senderContact)
-        : message.sender_user_id;
-    const senderAvatar = senderContact?.contact_avatar ?? "";
+    const senderGroupMember =
+        isGroupChat
+            ? activeChat?.group_members?.find(
+                (member) => member.user_id === message.sender_user_id
+            ) ?? null
+            : null;
     const replySenderUserId =
         message.reply_message?.original_sender_user_id ?? null;
+    const replySenderGroupMember = isGroupChat
+        ? activeChat?.group_members?.find(
+            (member) => member.user_id === replySenderUserId
+        ) ?? null
+        : null;
+    const senderContact =
+        findContactByUserId(contacts, message.sender_user_id) ??
+        findContactByPhone(contacts, senderGroupMember?.phone_number);
+    const senderPhone =
+        senderContact?.contact_number ?? senderGroupMember?.phone_number ?? null;
+    const senderDisplayName = senderContact
+        ? getContactDisplayName(senderContact)
+        : senderGroupMember?.name?.trim() || senderGroupMember?.phone_number || message.sender_user_id;
+    const shouldShowSenderPhone = Boolean(!senderContact && senderPhone);
+    const senderAvatar = senderContact?.contact_avatar ?? "";
     const replySenderContact = findContactByUserId(contacts, replySenderUserId);
     const replySenderDisplayName =
         replySenderUserId === session?.user.id
-            ? "You"
+            ? isRTL ? "أنت" : "You"
             : replySenderContact
-              ? getContactDisplayName(replySenderContact)
-              : replySenderUserId ?? "";
+                ? getContactDisplayName(replySenderContact)
+                : isGroupChat && replySenderGroupMember
+                    ? (replySenderGroupMember.name?.trim() || replySenderGroupMember.phone_number) ?? ""
+                    : replySenderUserId ?? "";
 
     const handleReactToMessage = async (reactionEmoji: string) => {
         const currentUserId = session?.user.id;
@@ -716,6 +735,7 @@ export default function ChatRoomMessageBubble({
                                                     : `hsl(${hue}, 80%, 30%)`,
                                             textTransform: "none",
                                             minWidth: "auto",
+                                            maxWidth: "100%",
                                             padding: 0,
                                             paddingLeft: 1,
                                             "&:hover": {
@@ -725,7 +745,44 @@ export default function ChatRoomMessageBubble({
                                         };
                                     }}
                                 >
-                                    {senderDisplayName}
+                                    <Box
+                                        component="span"
+                                        sx={{
+                                            display: "inline-flex",
+                                            alignItems: "baseline",
+                                            gap: "4px",
+                                            maxWidth: "100%",
+                                            minWidth: 0,
+                                        }}
+                                    >
+                                        <Box
+                                            component="span"
+                                            sx={{
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {senderDisplayName}
+                                        </Box>
+                                        {shouldShowSenderPhone ? (
+                                            <Box
+                                                component="span"
+                                                sx={(theme) => ({
+                                                    color:
+                                                        theme.palette.mode === "dark"
+                                                            ? "#9CA3AF"
+                                                            : "#6B7280",
+                                                    fontWeight: 500,
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                })}
+                                            >
+                                                {senderPhone}
+                                            </Box>
+                                        ) : null}
+                                    </Box>
                                 </Button>
                             )}
                             {message.is_forward_message && (
