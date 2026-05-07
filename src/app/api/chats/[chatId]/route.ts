@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import db from "@/db";
-import { chatRecipientKeys, chats } from "@/db/schema";
+import { chatRecipientKeys, chats, user } from "@/db/schema";
 import {
     broadcastGroupChatUpdate,
+    createAndBroadcastGroupSystemMessage,
     getGroupChatForUser,
     getGroupParticipantIds,
     isGroupAdmin,
@@ -48,6 +49,14 @@ export async function PATCH(
     };
     const nextDisplayName = body.displayName?.trim();
     const nextAvatar = body.avatar?.trim();
+    const [currentChat] = await db
+        .select({
+            displayName: chats.display_name,
+            avatar: chats.avatar,
+        })
+        .from(chats)
+        .where(eq(chats.chat_id, chatId))
+        .limit(1);
     const update: Partial<typeof chats.$inferInsert> = {
         updated_at: new Date(),
     };
@@ -81,6 +90,47 @@ export async function PATCH(
 
     await db.update(chats).set(update).where(eq(chats.chat_id, chatId));
 
+    const participantIds = await getGroupParticipantIds(chatId);
+    const actorName = await getUserDisplayName(sessionUser.id);
+    const systemMessages = [];
+
+    if (
+        "display_name" in update &&
+        update.display_name !== currentChat?.displayName
+    ) {
+        systemMessages.push(
+            await createAndBroadcastGroupSystemMessage({
+                chatId,
+                actorUserId: sessionUser.id,
+                participantIds,
+                event: {
+                    kind: "group-system",
+                    action: "name-changed",
+                    actor_user_id: sessionUser.id,
+                    actor_name: actorName,
+                    previous_name: currentChat?.displayName ?? null,
+                    next_name: update.display_name ?? null,
+                },
+            })
+        );
+    }
+
+    if ("avatar" in update && update.avatar !== currentChat?.avatar) {
+        systemMessages.push(
+            await createAndBroadcastGroupSystemMessage({
+                chatId,
+                actorUserId: sessionUser.id,
+                participantIds,
+                event: {
+                    kind: "group-system",
+                    action: "image-changed",
+                    actor_user_id: sessionUser.id,
+                    actor_name: actorName,
+                },
+            })
+        );
+    }
+
     const chat = await getGroupChatForUser({
         chatId,
         userId: sessionUser.id,
@@ -90,14 +140,13 @@ export async function PATCH(
         return jsonError("Group not found.", 404);
     }
 
-    const participantIds = await getGroupParticipantIds(chatId);
     await broadcastGroupChatUpdate({
         actorUserId: sessionUser.id,
         chat,
         participantIds,
     });
 
-    return Response.json({ chat });
+    return Response.json({ chat, systemMessages });
 }
 
 export async function DELETE(
@@ -115,6 +164,7 @@ export async function DELETE(
     const { chatId } = await params;
     const sessionUser = session.user as UserSessionShape;
     const beforeParticipantIds = await getGroupParticipantIds(chatId);
+    const actorName = await getUserDisplayName(sessionUser.id);
 
     if (!beforeParticipantIds.includes(sessionUser.id)) {
         return jsonError("Forbidden", 403);
@@ -164,6 +214,20 @@ export async function DELETE(
             );
     }
 
+    await createAndBroadcastGroupSystemMessage({
+        chatId,
+        actorUserId: sessionUser.id,
+        participantIds: beforeParticipantIds,
+        event: {
+            kind: "group-system",
+            action: "member-left",
+            actor_user_id: sessionUser.id,
+            actor_name: actorName,
+            target_user_ids: [sessionUser.id],
+            target_names: [actorName],
+        },
+    });
+
     const chat = await getGroupChatForUser({
         chatId,
         userId: afterMembers[0].userId,
@@ -178,4 +242,17 @@ export async function DELETE(
     }
 
     return Response.json({ success: true, removedChat: true });
+}
+
+async function getUserDisplayName(userId: string) {
+    const [row] = await db
+        .select({
+            name: user.name,
+            phoneNumber: user.phoneNumber,
+        })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+
+    return row?.name || row?.phoneNumber || userId;
 }

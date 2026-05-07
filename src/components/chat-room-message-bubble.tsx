@@ -11,7 +11,9 @@ import {
     PauseRounded,
     Person,
     PlayArrowRounded,
+    StarRounded,
     ShortcutOutlined,
+    ShortcutRounded,
     VideocamRounded,
 } from "@mui/icons-material";
 import Box from "@mui/material/Box";
@@ -35,7 +37,6 @@ import "react-h5-audio-player/lib/styles.css";
 import Link from "next/link";
 import ChatRoomActionBubble from "./chat-room-action-bubble";
 import ChatRoomReactionButton from "./chat-room-reaction-button";
-import ChatRoomForwardButton from "./chat-room-forward-button";
 import DecryptedProfileImage from "./decrypted-profile-image";
 import useMediaPreviewStore from "@/store/media-preview-store";
 import PollComponent from "./chat-poll-item";
@@ -44,7 +45,6 @@ import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { useDecryptedMessageMedia } from "@/hooks/use-decrypted-message-media";
 import { authClient } from "@/lib/auth-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
-import { useRealtimeStore } from "@/store/use-realtime-store";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
 import {
     findContactByPhone,
@@ -56,6 +56,7 @@ import { getMessageMediaAutoDownload } from "@/lib/message-media";
 import FileIcon from "./file-icon";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { buildChatFromReaction } from "@/lib/chat-utils";
+import { useMessageActions } from "@/hooks/use-message-actions";
 import {
     createReplyMessageFromMessage,
     getReplyMessageLabel,
@@ -68,6 +69,7 @@ type Props = {
     setSelectedMessages: (value: string[]) => void;
     isFirstInGroup?: boolean;
     onRetry?: () => void;
+    onForward?: (message: Message) => void;
 };
 
 const SHOW_REPLY_TARGET_EVENT = "chat-room:show-reply-target";
@@ -83,6 +85,7 @@ export default function ChatRoomMessageBubble({
     setSelectedMessages,
     isFirstInGroup = true,
     onRetry,
+    onForward,
 }: Props) {
     const { data: session } = authClient.useSession();
     const { openPreview } = useMediaPreviewStore();
@@ -93,8 +96,8 @@ export default function ChatRoomMessageBubble({
     const updateMessage = useActiveChatStore((state) => state.updateMessage);
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
     const setReplyDraft = useActiveChatStore((state) => state.setReplyDraft);
-    const sendRealtimeEvent = useRealtimeStore((state) => state.sendEvent);
     const { contacts } = useDecryptedContacts();
+    const { starMessage, pinMessage } = useMessageActions();
 
     const autoDownloadMedia = getMessageMediaAutoDownload(
         message,
@@ -221,7 +224,14 @@ export default function ChatRoomMessageBubble({
         message.media_url,
     ]);
 
-    const isSender = message.sender_user_id === session?.user.id;
+    const currentUserId = session?.user.id ?? null;
+    const isSender = message.sender_user_id === currentUserId;
+    const isStarredByCurrentUser = Boolean(
+        currentUserId && message.user_ids_star_it?.includes(currentUserId)
+    );
+    const isPinnedByCurrentUser = Boolean(
+        currentUserId && message.user_ids_pin_it?.includes(currentUserId)
+    );
     const activeChat =
         chats.find((chat) => chat.chat_id === message.chat_room_id) ?? null;
     const isGroupChat = activeChat?.chat_type === "group";
@@ -248,7 +258,8 @@ export default function ChatRoomMessageBubble({
         ? getContactDisplayName(senderContact)
         : senderGroupMember?.name?.trim() || senderGroupMember?.phone_number || message.sender_user_id;
     const shouldShowSenderPhone = Boolean(!senderContact && senderPhone);
-    const senderAvatar = senderContact?.contact_avatar ?? "";
+    const senderAvatar =
+        senderContact?.contact_avatar || senderGroupMember?.avatar || "";
     const replySenderContact = findContactByUserId(contacts, replySenderUserId);
     const replySenderDisplayName =
         replySenderUserId === session?.user.id
@@ -293,18 +304,6 @@ export default function ChatRoomMessageBubble({
             })
         );
 
-        const realtimeSent = sendRealtimeEvent({
-            type: "REACT_MESSAGE",
-            conversationId: message.chat_room_id,
-            conversationType,
-            messageId: message.message_id,
-            reactionEmoji,
-        });
-
-        if (realtimeSent) {
-            return;
-        }
-
         try {
             const response = await fetch("/api/messages", {
                 method: "PATCH",
@@ -335,6 +334,14 @@ export default function ChatRoomMessageBubble({
             message.chat_room_id,
             createReplyMessageFromMessage(message)
         );
+    };
+
+    const handleToggleStarMessage = () => {
+        void starMessage(message, !isStarredByCurrentUser);
+    };
+
+    const handleTogglePinMessage = () => {
+        void pinMessage(message, !isPinnedByCurrentUser);
     };
 
     const handleShowOriginalReplyMessage = (
@@ -562,7 +569,12 @@ export default function ChatRoomMessageBubble({
                     )}
                     {!isSelectMode && isSender && (
                         <div className="ml-auto mr-1 flex flex-row items-center gap-x-1">
-                            <ChatRoomForwardButton />
+                            <IconButton
+                                onClick={() => onForward?.(message)}
+                                sx={{ color: "gray" }}
+                            >
+                                <ShortcutRounded fontSize="small" />
+                            </IconButton>
                             {isListEnter && (
                                 <ChatRoomReactionButton
                                     onReact={handleReactToMessage}
@@ -694,6 +706,9 @@ export default function ChatRoomMessageBubble({
                                         >
                                             <ChatRoomActionBubble
                                                 onReply={handleReplyToMessage}
+                                                onForward={() => onForward?.(message)}
+                                                onPin={handleTogglePinMessage}
+                                                onStar={handleToggleStarMessage}
                                             />
                                         </motion.div>
                                     )
@@ -990,6 +1005,8 @@ export default function ChatRoomMessageBubble({
                                             openPreview(
                                                 message.attached_media,
                                                 message.media_url || "",
+                                                message.chat_room_id,
+                                                message.message_id,
                                                 message.sender_user_id,
                                                 message.created_at.toLocaleDateString(),
                                                 senderDisplayName
@@ -1195,6 +1212,14 @@ export default function ChatRoomMessageBubble({
                                             gap: 0.5,
                                         }}
                                     >
+                                        {isStarredByCurrentUser && (
+                                            <StarRounded
+                                                sx={{
+                                                    fontSize: 14,
+                                                    color: "gray",
+                                                }}
+                                            />
+                                        )}
                                         <Typography
                                             variant="caption"
                                             sx={{ color: "gray" }}
@@ -1352,7 +1377,12 @@ export default function ChatRoomMessageBubble({
                     </div>
                     {!isSelectMode && !isSender && (
                         <div className="flex flex-row items-center gap-x-1">
-                            <ChatRoomForwardButton />
+                            <IconButton
+                                onClick={() => onForward?.(message)}
+                                sx={{ color: "gray" }}
+                            >
+                                <ShortcutRounded fontSize="small" />
+                            </IconButton>
                             {isListEnter && (
                                 <ChatRoomReactionButton
                                     onReact={handleReactToMessage}

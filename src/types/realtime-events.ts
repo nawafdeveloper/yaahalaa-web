@@ -41,6 +41,7 @@ export type ClientRealtimeEvent =
           mediaHeight?: number | null;
           mediaFileName?: string | null;
           videoThumbnail?: string | null;
+          isForwardMessage?: boolean;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
           encryptedChatPreview?: EncryptedContentEnvelope | null;
@@ -111,6 +112,13 @@ export type ServerRealtimeEvent =
           reaction: MessageReaction;
           updatedAt: string;
           unreadCount?: number;
+      }
+    | {
+          type: "MESSAGE_FLAGS_UPDATED";
+          conversationId: string;
+          messageId: string;
+          userIdsPinIt: string[] | null;
+          updatedAt: string;
       }
     | {
           type: "CONVERSATION_PRESENCE";

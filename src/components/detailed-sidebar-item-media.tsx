@@ -38,6 +38,8 @@ export function DetailedSidebarMediaTile({ item }: { item: DetailedSidebarMediaI
         openPreview(
             item.type,
             previewMediaUrl,
+            "",
+            item.id,
             item.senderUserId,
             item.createdAt.toLocaleDateString(),
             item.senderDisplayName ?? item.senderUserId

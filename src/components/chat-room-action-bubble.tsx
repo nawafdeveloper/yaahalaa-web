@@ -7,9 +7,17 @@ import React, { useState } from 'react'
 
 type Props = {
     onReply?: () => void;
+    onForward?: () => void;
+    onPin?: () => void;
+    onStar?: () => void;
 };
 
-export default function ChatRoomActionBubble({ onReply }: Props) {
+export default function ChatRoomActionBubble({
+    onReply,
+    onForward,
+    onPin,
+    onStar,
+}: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -24,6 +32,21 @@ export default function ChatRoomActionBubble({ onReply }: Props) {
     const handleReply = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
         onReply?.();
+        handleClose();
+    };
+    const handleForward = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        onForward?.();
+        handleClose();
+    };
+    const handlePin = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        onPin?.();
+        handleClose();
+    };
+    const handleStar = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        onStar?.();
         handleClose();
     };
 
@@ -102,7 +125,7 @@ export default function ChatRoomActionBubble({ onReply }: Props) {
                     >{isRTL ? 'رد' : 'Reply'}</ListItemText>
                 </MenuItem>
                 <MenuItem
-                    onClick={handleClose}
+                    onClick={handleForward}
                     sx={(theme) => ({
                         "&:hover": {
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
@@ -131,7 +154,7 @@ export default function ChatRoomActionBubble({ onReply }: Props) {
                     >{isRTL ? 'إعادة توجيه' : 'Forward'}</ListItemText>
                 </MenuItem>
                 <MenuItem
-                    onClick={handleClose}
+                    onClick={handlePin}
                     sx={(theme) => ({
                         "&:hover": {
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
@@ -160,7 +183,7 @@ export default function ChatRoomActionBubble({ onReply }: Props) {
                     >{isRTL ? 'تثبيت' : 'Pin'}</ListItemText>
                 </MenuItem>
                 <MenuItem
-                    onClick={handleClose}
+                    onClick={handleStar}
                     sx={(theme) => ({
                         "&:hover": {
                             backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",

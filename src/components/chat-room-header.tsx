@@ -244,31 +244,9 @@ export default function ChatRoomHeader() {
                 </Box>
             </Box>
             <div className="flex flex-row items-center gap-x-2">
-                <Tooltip
-                    title="Search"
-                    placement="bottom"
-                    slotProps={{
-                        tooltip: {
-                            sx: (theme) => ({
-                                backgroundColor:
-                                    theme.palette.mode === "dark" ? "#ffffff" : "#000000",
-                                color: theme.palette.mode === "dark" ? "#000000" : "#ffffff",
-                            }),
-                        },
-                    }}
-                >
-                    <IconButton
-                        type="button"
-                        size="medium"
-                        sx={(theme) => ({
-                            color: theme.palette.mode === "dark" ? "#ffffff" : "#000000"
-                        })}
-                    >
-                        <Search />
-                    </IconButton>
-                </Tooltip>
                 <ChatRoomMoreActionButton
                     chat_type={selectedChat?.chat_type ?? "single"}
+                    chat_id={selectedChat?.chat_id ?? ""}
                 />
             </div>
         </Box>

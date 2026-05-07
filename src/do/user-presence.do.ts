@@ -92,6 +92,7 @@ type SendMessagePayload = {
           mediaHeight?: number | null;
           mediaFileName?: string | null;
           videoThumbnail?: string | null;
+          isForwardMessage?: boolean;
           encryptedContent?: EncryptedContentEnvelope | null;
           recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
           encryptedChatPreview?: EncryptedContentEnvelope | null;
@@ -465,6 +466,7 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             mediaHeight: data.mediaHeight ?? null,
             mediaFileName: data.mediaFileName ?? null,
             videoThumbnail: data.videoThumbnail ?? null,
+            isForwardMessage: data.isForwardMessage,
             encryptedContent: data.encryptedContent ?? null,
             recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
             encryptedChatPreview: data.encryptedChatPreview ?? null,
@@ -845,6 +847,7 @@ async function saveMessageToDb({
     mediaHeight,
     mediaFileName,
     videoThumbnail,
+    isForwardMessage,
     encryptedContent,
     recipientEncryptionKeys,
     encryptedChatPreview,
@@ -865,6 +868,7 @@ async function saveMessageToDb({
     mediaHeight: number | null;
     mediaFileName: string | null;
     videoThumbnail: string | null;
+    isForwardMessage?: boolean;
     encryptedContent: EncryptedContentEnvelope | null;
     recipientEncryptionKeys: RecipientEncryptedAesKeyInput[] | null;
     encryptedChatPreview: EncryptedContentEnvelope | null;
@@ -965,7 +969,7 @@ async function saveMessageToDb({
         media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
-        is_forward_message: false,
+        is_forward_message: Boolean(isForwardMessage),
         message_text_content: null,
         open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
@@ -1071,7 +1075,7 @@ async function saveMessageToDb({
         media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
-        is_forward_message: false,
+        is_forward_message: Boolean(isForwardMessage),
         message_text_content: null,
         open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,

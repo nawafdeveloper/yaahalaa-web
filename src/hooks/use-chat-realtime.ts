@@ -508,6 +508,32 @@ export function useChatRealtime() {
                     break;
                 }
 
+                case "MESSAGE_FLAGS_UPDATED": {
+                    const updatedAt = new Date(event.updatedAt);
+                    const safeUpdatedAt = Number.isNaN(updatedAt.getTime())
+                        ? new Date()
+                        : updatedAt;
+
+                    useActiveChatStore.getState().updateMessage(
+                        event.conversationId,
+                        event.messageId,
+                        (message) => ({
+                            ...message,
+                            user_ids_pin_it: event.userIdsPinIt,
+                            updated_at: safeUpdatedAt,
+                        })
+                    );
+                    window.dispatchEvent(
+                        new CustomEvent("chat-room:pin-flags-updated", {
+                            detail: {
+                                chatId: event.conversationId,
+                                messageId: event.messageId,
+                            },
+                        })
+                    );
+                    break;
+                }
+
                 case "CONVERSATION_PRESENCE": {
                     setPresence(event.conversationId, {
                         activeUsers: event.activeUsers,

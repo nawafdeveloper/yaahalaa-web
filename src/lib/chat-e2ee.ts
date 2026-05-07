@@ -299,6 +299,7 @@ export function createOptimisticMessage({
     clientLocalMediaName = null,
     clientLocalMediaSize = null,
     clientLocalMediaMimeType = null,
+    isForwarded = false,
 }: {
     messageId: string;
     chatId: string;
@@ -318,6 +319,7 @@ export function createOptimisticMessage({
     clientLocalMediaName?: string | null;
     clientLocalMediaSize?: number | null;
     clientLocalMediaMimeType?: string | null;
+    isForwarded?: boolean;
 }): Message {
     const now = new Date();
 
@@ -341,7 +343,7 @@ export function createOptimisticMessage({
         media_file_name: mediaFileName,
         video_thumbnail: videoThumbnail,
         message_raction: null,
-        is_forward_message: false,
+        is_forward_message: isForwarded,
         message_text_content: plaintext,
         open_graph_data: openGraphData,
         user_ids_pin_it: null,

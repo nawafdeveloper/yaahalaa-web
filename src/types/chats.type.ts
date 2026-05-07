@@ -9,6 +9,7 @@ export type ChatGroupMember = {
     phone_number?: string | null;
     public_key?: string | null;
     name?: string | null;
+    avatar?: string | null;
     is_admin?: boolean;
 };
 

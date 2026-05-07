@@ -167,6 +167,7 @@ export async function GET(request: Request) {
                       phoneNumber: user.phoneNumber,
                       publicKey: user.yhlaPublicKey,
                       name: user.name,
+                      avatar: user.image,
                       isAdmin: chatRecipientKeys.is_admin,
                   })
                   .from(chatRecipientKeys)
@@ -184,6 +185,7 @@ export async function GET(request: Request) {
             phone_number: member.phoneNumber,
             public_key: member.publicKey,
             name: member.name,
+            avatar: member.avatar,
             is_admin: member.isAdmin,
         });
         groupMembersByChatId.set(member.chatId, existingMembers);
@@ -707,6 +709,7 @@ export async function POST(request: Request) {
             phoneNumber: user.phoneNumber,
             publicKey: user.yhlaPublicKey,
             name: user.name,
+            image: user.image,
         })
         .from(user)
         .where(inArray(user.id, participantIds));
@@ -829,6 +832,7 @@ export async function POST(request: Request) {
             phone_number: participant.phoneNumber,
             public_key: participant.publicKey,
             name: participant.name,
+            avatar: participant.image,
             is_admin: participant.userId === creatorUserId,
         }));
     const chat: ChatItemType = {

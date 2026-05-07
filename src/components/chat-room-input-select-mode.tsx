@@ -9,9 +9,15 @@ interface Props {
     setSelectMode: (value: boolean) => void;
     selectedCount: number;
     setSelectedMessages: (value: string[]) => void;
+    onForwardSelected?: () => void;
 }
 
-export default function ChatRoomInputSelectMode({ selectedCount, setSelectMode, setSelectedMessages }: Props) {
+export default function ChatRoomInputSelectMode({
+    selectedCount,
+    setSelectMode,
+    setSelectedMessages,
+    onForwardSelected,
+}: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
@@ -32,7 +38,10 @@ export default function ChatRoomInputSelectMode({ selectedCount, setSelectMode, 
                 <IconButton disabled={selectedCount === 0}>
                     <DeleteOutline fontSize="inherit" />
                 </IconButton>
-                <IconButton disabled={selectedCount === 0}>
+                <IconButton
+                    disabled={selectedCount === 0}
+                    onClick={onForwardSelected}
+                >
                     <ShortcutOutlined fontSize="inherit" />
                 </IconButton>
             </div>

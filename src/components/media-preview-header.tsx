@@ -3,9 +3,11 @@
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { authClient } from '@/lib/auth-client';
 import useMediaPreviewStore from '@/store/media-preview-store';
-import { CloseOutlined, FileDownloadOutlined, KeyboardDoubleArrowRight, MoodOutlined, Person, PushPinOutlined, Shortcut, StarOutline, StartOutlined, ZoomIn, ZoomOut } from '@mui/icons-material'
+import { CloseOutlined, FileDownloadOutlined, KeyboardDoubleArrowRight, MoodOutlined, Person, PushPin, PushPinOutlined, Shortcut, Star, StarOutline, ZoomIn, ZoomOut } from '@mui/icons-material'
 import { Avatar, Box, IconButton, Tooltip, Typography } from '@mui/material'
 import React from 'react'
+import { useActiveChatStore } from '@/store/use-active-chat-store';
+import { useMessageActions } from '@/hooks/use-message-actions';
 
 type Props = {
     zoom: number;
@@ -28,7 +30,31 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
-    const { closePreview, senderUserId, senderDisplayName, createdAt } = useMediaPreviewStore();
+    const {
+        closePreview,
+        senderUserId,
+        senderDisplayName,
+        createdAt,
+        chatId,
+        messageId,
+    } = useMediaPreviewStore();
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const messagesByChatId = useActiveChatStore((state) => state.messagesByChatId);
+    const { starMessage, pinMessage } = useMessageActions();
+    const resolvedChatId = chatId || selectedChatId;
+    const previewMessage =
+        resolvedChatId && messageId
+            ? messagesByChatId[resolvedChatId]?.find(
+                (message) => message.message_id === messageId
+            ) ?? null
+            : null;
+    const currentUserId = session?.user.id ?? null;
+    const isStarredByCurrentUser = Boolean(
+        currentUserId && previewMessage?.user_ids_star_it?.includes(currentUserId)
+    );
+    const isPinnedByCurrentUser = Boolean(
+        currentUserId && previewMessage?.user_ids_pin_it?.includes(currentUserId)
+    );
     const senderLabel =
         senderUserId && senderUserId === session?.user.id
             ? isRTL
@@ -72,14 +98,24 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
         {
             id: '5',
             tooltip: isRTL ? 'نجمة' : 'Star',
-            icon: StarOutline,
-            onClick: () => { },
+            icon: isStarredByCurrentUser ? Star : StarOutline,
+            onClick: () => {
+                if (previewMessage) {
+                    void starMessage(previewMessage, !isStarredByCurrentUser);
+                }
+            },
+            disabled: !previewMessage,
         },
         {
             id: '6',
             tooltip: isRTL ? 'تثبيت' : 'Pin',
-            icon: PushPinOutlined,
-            onClick: () => { },
+            icon: isPinnedByCurrentUser ? PushPin : PushPinOutlined,
+            onClick: () => {
+                if (previewMessage) {
+                    void pinMessage(previewMessage, !isPinnedByCurrentUser);
+                }
+            },
+            disabled: !previewMessage,
         },
         {
             id: '7',

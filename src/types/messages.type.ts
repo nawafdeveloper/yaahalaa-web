@@ -15,7 +15,7 @@ export type OpenGraphData = {
     og_description: string | null;
 };
 
-export type Event = {
+export type CalendarEvent = {
     event_id: string;
     event_name: string;
     event_description: string | null;
@@ -25,6 +25,23 @@ export type Event = {
     event_end_time: Date | null;
     event_location: string | null;
 };
+
+export type GroupSystemEvent = {
+    kind: "group-system";
+    action:
+        | "member-left"
+        | "member-added"
+        | "name-changed"
+        | "image-changed";
+    actor_user_id: string;
+    actor_name?: string | null;
+    target_user_ids?: string[] | null;
+    target_names?: string[] | null;
+    previous_name?: string | null;
+    next_name?: string | null;
+};
+
+export type Event = CalendarEvent | GroupSystemEvent;
 
 export type Poll = {
     poll_id: string;

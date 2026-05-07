@@ -54,6 +54,7 @@ type HttpMessagePayload = {
     mediaHeight?: number | null;
     mediaFileName?: string | null;
     videoThumbnail?: string | null;
+    isForwardMessage?: boolean;
     encryptedContent?: EncryptedContentEnvelope | null;
     recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
     encryptedChatPreview?: EncryptedContentEnvelope | null;
@@ -234,6 +235,7 @@ export function useSendChatMessage() {
         recipientEncryptionKeys = null,
         encryptedChatPreview = null,
         chatPreviewRecipientKeys = null,
+        isForwardMessage = false,
     }: {
         chatId: string;
         currentUserId: string;
@@ -248,6 +250,7 @@ export function useSendChatMessage() {
         recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
         encryptedChatPreview?: EncryptedContentEnvelope | null;
         chatPreviewRecipientKeys?: RecipientEncryptedAesKeyInput[] | null;
+        isForwardMessage?: boolean;
     }) => {
         const senderNickname = session?.user.name ?? currentPhone;
         const optimisticMessageWithRecipientKeys: Message =
@@ -333,6 +336,7 @@ export function useSendChatMessage() {
                     mediaHeight: optimisticMessage.media_height ?? null,
                     mediaFileName: optimisticMessage.media_file_name ?? null,
                     videoThumbnail: optimisticMessage.video_thumbnail,
+                    isForwardMessage,
                     encryptedContent,
                     recipientEncryptionKeys,
                     encryptedChatPreview,
@@ -357,6 +361,7 @@ export function useSendChatMessage() {
                 mediaHeight: optimisticMessage.media_height ?? null,
                 mediaFileName: optimisticMessage.media_file_name ?? null,
                 videoThumbnail: optimisticMessage.video_thumbnail,
+                isForwardMessage,
                 encryptedContent,
                 recipientEncryptionKeys,
                 encryptedChatPreview,
@@ -454,12 +459,14 @@ export function useSendChatMessage() {
         clearDraft = true,
         existingMessageId,
         openGraphData,
+        isForwardMessage = false,
     }: {
         text: string;
         chatId?: string | null;
         clearDraft?: boolean;
         existingMessageId?: string;
         openGraphData?: Message["open_graph_data"];
+        isForwardMessage?: boolean;
     }) => {
         const trimmed = text.trim();
         const currentUserId = session?.user.id;
@@ -482,10 +489,12 @@ export function useSendChatMessage() {
         }
 
         const messageId = existingMessageId ?? crypto.randomUUID();
-        const replyMessage = resolveReplyMessageForSend({
-            chatId,
-            existingMessageId,
-        });
+        const replyMessage = isForwardMessage
+            ? null
+            : resolveReplyMessageForSend({
+                  chatId,
+                  existingMessageId,
+              });
         const resolvedOpenGraphData = resolveOpenGraphDataForSend({
             chatId,
             existingMessageId,
@@ -498,6 +507,7 @@ export function useSendChatMessage() {
             plaintext: trimmed,
             replyMessage,
             openGraphData: resolvedOpenGraphData,
+            isForwarded: isForwardMessage,
         });
 
         try {
@@ -527,6 +537,7 @@ export function useSendChatMessage() {
                 recipientEncryptionKeys: encryptedMessage.recipientEncryptionKeys,
                 encryptedChatPreview: encryptedPreview.encryptedContent,
                 chatPreviewRecipientKeys: encryptedPreview.recipientEncryptionKeys,
+                isForwardMessage,
             });
 
             return true;
@@ -540,6 +551,7 @@ export function useSendChatMessage() {
         attachedMedia,
         chatId = selectedChatId,
         text = null,
+        isForwardMessage = false,
     }: {
         file: File;
         attachedMedia: Extract<
@@ -548,6 +560,7 @@ export function useSendChatMessage() {
         >;
         chatId?: string | null;
         text?: string | null;
+        isForwardMessage?: boolean;
     }) => {
         const currentUserId = session?.user.id;
         const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
@@ -590,7 +603,9 @@ export function useSendChatMessage() {
                           conversation.recipients
                       )
                 : null;
-        const replyMessage = resolveReplyMessageForSend({ chatId });
+        const replyMessage = isForwardMessage
+            ? null
+            : resolveReplyMessageForSend({ chatId });
         logMediaDebug("client.attachment.prepare", {
             debugTraceId,
             messageId,
@@ -618,6 +633,7 @@ export function useSendChatMessage() {
             clientLocalMediaName: file.name,
             clientLocalMediaSize: file.size,
             clientLocalMediaMimeType: file.type || null,
+            isForwarded: isForwardMessage,
         });
 
         appendMessage(chatId, optimisticMessage);
@@ -692,6 +708,7 @@ export function useSendChatMessage() {
                 encryptedChatPreview: encryptedPreview?.encryptedContent ?? null,
                 chatPreviewRecipientKeys:
                     encryptedPreview?.recipientEncryptionKeys ?? null,
+                isForwardMessage,
             });
         } catch (error) {
             logMediaDebug("client.attachment.failed", {
@@ -715,9 +732,11 @@ export function useSendChatMessage() {
     const sendContact = async ({
         contact,
         chatId = selectedChatId,
+        isForwardMessage = false,
     }: {
         contact: DirectoryContact;
         chatId?: string | null;
+        isForwardMessage?: boolean;
     }) => {
         const currentUserId = session?.user.id;
         const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
@@ -761,7 +780,10 @@ export function useSendChatMessage() {
             senderUserId: currentUserId,
             attachedMedia: "contact",
             contact: sharedContact,
-            replyMessage: resolveReplyMessageForSend({ chatId }),
+            replyMessage: isForwardMessage
+                ? null
+                : resolveReplyMessageForSend({ chatId }),
+            isForwarded: isForwardMessage,
         });
 
         await dispatchPreparedMessage({
@@ -775,6 +797,7 @@ export function useSendChatMessage() {
             recipientEncryptionKeys: encryptedMessage.recipientEncryptionKeys,
             encryptedChatPreview: encryptedPreview.encryptedContent,
             chatPreviewRecipientKeys: encryptedPreview.recipientEncryptionKeys,
+            isForwardMessage,
         });
 
         return true;

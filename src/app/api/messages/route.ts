@@ -12,7 +12,7 @@ import {
     message,
     messageRecipientKeys,
 } from "@/db/schema";
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import {
     areDirectChatIdsEquivalent,
     buildDirectChatIdVariants,
@@ -87,6 +87,7 @@ export async function POST(request: Request) {
         mediaHeight?: number | null;
         mediaFileName?: string | null;
         videoThumbnail?: string | null;
+        isForwardMessage?: boolean;
         encryptedContent?: EncryptedContentEnvelope | null;
         recipientEncryptionKeys?: RecipientEncryptedAesKeyInput[] | null;
         encryptedChatPreview?: EncryptedContentEnvelope | null;
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
         mediaHeight,
         mediaFileName,
         videoThumbnail,
+        isForwardMessage,
         encryptedContent,
         recipientEncryptionKeys,
         encryptedChatPreview,
@@ -309,7 +311,7 @@ export async function POST(request: Request) {
         media_file_name: mediaFileName ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
-        is_forward_message: false,
+        is_forward_message: Boolean(isForwardMessage),
         message_text_content: null,
         open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
@@ -395,7 +397,7 @@ export async function POST(request: Request) {
         media_file_name: mediaFileName ?? null,
         video_thumbnail: videoThumbnail ?? null,
         message_raction: null,
-        is_forward_message: false,
+        is_forward_message: Boolean(isForwardMessage),
         message_text_content: null,
         open_graph_data: normalizedOpenGraphData,
         user_ids_pin_it: null,
@@ -481,11 +483,52 @@ export async function PATCH(request: Request) {
     }
 
     const body = (await request.json()) as {
+        action?: "reaction" | "star" | "pin";
         chatRoomId?: string;
         messageId?: string;
         reactionEmoji?: string;
+        starred?: boolean;
+        pinned?: boolean;
     };
     const sessionUser = session.user as unknown as UserWithPhone;
+
+    if (body.action === "star" || body.action === "pin") {
+        const result = await updateMessageUserFlag({
+            chatRoomId: body.chatRoomId ?? "",
+            messageId: body.messageId ?? "",
+            userId: sessionUser.id,
+            flag: body.action,
+            enabled:
+                body.action === "star"
+                    ? Boolean(body.starred)
+                    : Boolean(body.pinned),
+        });
+
+        if (!result) {
+            return Response.json(
+                { error: "Message not found." },
+                { status: 404 }
+            );
+        }
+
+        if (body.action === "pin") {
+            await broadcastRealtimeMessageFlags({
+                conversationId: result.chatRoomId,
+                messageId: result.messageId,
+                participantUserIds: result.participantUserIds,
+                userIdsPinIt: result.userIdsPinIt,
+                updatedAt: result.updatedAt,
+            });
+        }
+
+        return Response.json({
+            success: true,
+            messageId: result.messageId,
+            userIdsPinIt: result.userIdsPinIt,
+            userIdsStarIt: result.userIdsStarIt,
+            updatedAt: result.updatedAt.toISOString(),
+        });
+    }
 
     try {
         const appliedReaction = await applyMessageReactionToDb({
@@ -544,6 +587,8 @@ export async function GET(request: Request) {
         const beforeCreatedAt = beforeCreatedAtParam
             ? new Date(beforeCreatedAtParam)
             : null;
+        const pinnedOnly = url.searchParams.get("pinnedOnly") === "true";
+        const starredOnly = url.searchParams.get("starredOnly") === "true";
 
         if (beforeCreatedAt && Number.isNaN(beforeCreatedAt.getTime())) {
             return Response.json(
@@ -579,34 +624,44 @@ export async function GET(request: Request) {
             ? buildDirectChatIdVariants(chatRoomId)
             : [];
 
-        const rows = chatRoomId && chatRoomId.includes("::")
-            ? await getDirectChatMessages({
-                  chatRoomId,
-                  chatRoomIds,
-                  limit,
-                  sessionUserId: sessionUser.id,
-                  beforeCreatedAt,
-              })
-            : await db
-                  .select()
-                  .from(message)
-                  .where(
-                      chatRoomId
-                          ? beforeCreatedAt
-                              ? and(
-                                    inArray(message.chat_room_id, chatRoomIds),
-                                    lt(message.created_at, beforeCreatedAt)
-                                )
-                              : inArray(message.chat_room_id, chatRoomIds)
-                          : beforeCreatedAt
-                            ? and(
-                                  eq(message.sender_user_id, sessionUser.id),
-                                  lt(message.created_at, beforeCreatedAt)
-                              )
-                            : eq(message.sender_user_id, sessionUser.id),
-                  )
-                  .orderBy(desc(message.created_at))
-                  .limit(limit + 1);
+        const rows =
+            (pinnedOnly || starredOnly) && chatRoomId
+                ? await getFlaggedChatMessages({
+                      chatRoomId,
+                      chatRoomIds,
+                      limit,
+                      sessionUserId: sessionUser.id,
+                      pinnedOnly,
+                      starredOnly,
+                  })
+                : chatRoomId && chatRoomId.includes("::")
+                  ? await getDirectChatMessages({
+                        chatRoomId,
+                        chatRoomIds,
+                        limit,
+                        sessionUserId: sessionUser.id,
+                        beforeCreatedAt,
+                    })
+                  : await db
+                        .select()
+                        .from(message)
+                        .where(
+                            chatRoomId
+                                ? beforeCreatedAt
+                                    ? and(
+                                          inArray(message.chat_room_id, chatRoomIds),
+                                          lt(message.created_at, beforeCreatedAt)
+                                      )
+                                    : inArray(message.chat_room_id, chatRoomIds)
+                                : beforeCreatedAt
+                                  ? and(
+                                        eq(message.sender_user_id, sessionUser.id),
+                                        lt(message.created_at, beforeCreatedAt)
+                                    )
+                                  : eq(message.sender_user_id, sessionUser.id),
+                        )
+                        .orderBy(desc(message.created_at))
+                        .limit(limit + 1);
 
         const rowIds = rows.map((row) => row.message_id);
         const recipientKeys =
@@ -966,6 +1021,58 @@ async function getDirectChatMessages({
     return filteredRows;
 }
 
+async function getFlaggedChatMessages({
+    chatRoomId,
+    chatRoomIds,
+    limit,
+    sessionUserId,
+    pinnedOnly,
+    starredOnly,
+}: {
+    chatRoomId: string;
+    chatRoomIds: string[];
+    limit: number;
+    sessionUserId: string;
+    pinnedOnly: boolean;
+    starredOnly: boolean;
+}) {
+    const candidateLimit = Math.max(limit + 1, 100);
+    const matchesRequestedFlags = (row: typeof message.$inferSelect) => {
+        const matchesPin = !pinnedOnly || Boolean(row.user_ids_pin_it?.length);
+        const matchesStar =
+            !starredOnly || Boolean(row.user_ids_star_it?.includes(sessionUserId));
+
+        return matchesPin && matchesStar;
+    };
+
+    if (chatRoomId.includes("::")) {
+        const rows = await getDirectChatMessages({
+            chatRoomId,
+            chatRoomIds,
+            limit: candidateLimit,
+            sessionUserId,
+            beforeCreatedAt: null,
+        });
+
+        return rows.filter(matchesRequestedFlags).slice(0, limit + 1);
+    }
+
+    const conditions = [
+        inArray(message.chat_room_id, chatRoomIds),
+        pinnedOnly ? isNotNull(message.user_ids_pin_it) : undefined,
+        starredOnly
+            ? sql`${message.user_ids_star_it} @> ${JSON.stringify([sessionUserId])}::jsonb`
+            : undefined,
+    ].filter(Boolean);
+
+    return db
+        .select()
+        .from(message)
+        .where(and(...conditions))
+        .orderBy(desc(message.created_at))
+        .limit(limit + 1);
+}
+
 async function canUserAccessStoredChat({
     chatId,
     userId,
@@ -1120,5 +1227,201 @@ async function broadcastRealtimeReaction(appliedReaction: AppliedMessageReaction
         );
     } catch {
         // Realtime fanout is best-effort here; the DB write already succeeded.
+    }
+}
+
+type MessageFlagUpdateResult = {
+    chatRoomId: string;
+    messageId: string;
+    participantUserIds: string[];
+    userIdsPinIt: string[] | null;
+    userIdsStarIt: string[] | null;
+    updatedAt: Date;
+};
+
+async function updateMessageUserFlag({
+    chatRoomId,
+    messageId,
+    userId,
+    flag,
+    enabled,
+}: {
+    chatRoomId: string;
+    messageId: string;
+    userId: string;
+    flag: "star" | "pin";
+    enabled: boolean;
+}): Promise<MessageFlagUpdateResult | null> {
+    if (!chatRoomId || !messageId || !userId) {
+        return null;
+    }
+
+    const [targetMessage] = await db
+        .select({
+            messageId: message.message_id,
+            chatRoomId: message.chat_room_id,
+            senderUserId: message.sender_user_id,
+            userIdsPinIt: message.user_ids_pin_it,
+            userIdsStarIt: message.user_ids_star_it,
+        })
+        .from(message)
+        .where(
+            and(
+                eq(message.message_id, messageId),
+                eq(message.chat_room_id, chatRoomId)
+            )
+        )
+        .limit(1);
+
+    if (!targetMessage) {
+        return null;
+    }
+
+    const participantUserIds = await getMessageParticipantUserIds({
+        chatRoomId: targetMessage.chatRoomId,
+        messageId: targetMessage.messageId,
+        senderUserId: targetMessage.senderUserId,
+    });
+
+    if (!participantUserIds.includes(userId)) {
+        return null;
+    }
+
+    const now = new Date();
+    const nextUserIdsPinIt =
+        flag === "pin"
+            ? applyUserFlag(targetMessage.userIdsPinIt, userId, enabled)
+            : targetMessage.userIdsPinIt ?? null;
+    const nextUserIdsStarIt =
+        flag === "star"
+            ? applyUserFlag(targetMessage.userIdsStarIt, userId, enabled)
+            : targetMessage.userIdsStarIt ?? null;
+
+    await db
+        .update(message)
+        .set({
+            user_ids_pin_it: nextUserIdsPinIt,
+            user_ids_star_it: nextUserIdsStarIt,
+            updated_at: now,
+        })
+        .where(eq(message.message_id, targetMessage.messageId));
+
+    return {
+        chatRoomId: targetMessage.chatRoomId,
+        messageId: targetMessage.messageId,
+        participantUserIds,
+        userIdsPinIt: nextUserIdsPinIt,
+        userIdsStarIt: nextUserIdsStarIt,
+        updatedAt: now,
+    };
+}
+
+function applyUserFlag(
+    userIds: string[] | null,
+    userId: string,
+    enabled: boolean
+) {
+    const nextUserIds = new Set((userIds ?? []).filter(Boolean));
+
+    if (enabled) {
+        nextUserIds.add(userId);
+    } else {
+        nextUserIds.delete(userId);
+    }
+
+    return nextUserIds.size > 0 ? [...nextUserIds] : null;
+}
+
+async function getMessageParticipantUserIds({
+    chatRoomId,
+    messageId,
+    senderUserId,
+}: {
+    chatRoomId: string;
+    messageId: string;
+    senderUserId: string;
+}) {
+    const [keyRows, groupRows] = await Promise.all([
+        db
+            .select({
+                recipientUserId: messageRecipientKeys.recipient_user_id,
+            })
+            .from(messageRecipientKeys)
+            .where(eq(messageRecipientKeys.message_id, messageId)),
+        chatRoomId.includes("::")
+            ? Promise.resolve([])
+            : db
+                  .select({
+                      recipientUserId: chatRecipientKeys.recipient_user_id,
+                  })
+                  .from(chatRecipientKeys)
+                  .where(eq(chatRecipientKeys.chat_id, chatRoomId)),
+    ]);
+
+    return [
+        ...new Set([
+            senderUserId,
+            ...keyRows.map((row) => row.recipientUserId),
+            ...groupRows.map((row) => row.recipientUserId),
+        ]),
+    ].filter(Boolean);
+}
+
+async function broadcastRealtimeMessageFlags({
+    conversationId,
+    messageId,
+    participantUserIds,
+    userIdsPinIt,
+    updatedAt,
+}: {
+    conversationId: string;
+    messageId: string;
+    participantUserIds: string[];
+    userIdsPinIt: string[] | null;
+    updatedAt: Date;
+}) {
+    try {
+        const { env } = await getCloudflareContext({ async: true });
+        const bindings = env as unknown as RealtimeBindings;
+        const roomNamespace = bindings.CHAT_ROOM_DO;
+        const presenceNamespace = bindings.USER_PRESENCE_DO;
+
+        if (!roomNamespace || !presenceNamespace) {
+            return;
+        }
+
+        const event = {
+            type: "MESSAGE_FLAGS_UPDATED",
+            conversationId,
+            messageId,
+            userIdsPinIt,
+            updatedAt: updatedAt.toISOString(),
+        };
+        const roomDO = roomNamespace.get(roomNamespace.idFromName(conversationId));
+        await roomDO.fetch("https://do/broadcast", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify(event),
+        });
+
+        await Promise.all(
+            participantUserIds.map(async (participantUserId) => {
+                const userDO = presenceNamespace.get(
+                    presenceNamespace.idFromName(participantUserId)
+                );
+
+                await userDO.fetch("https://do/event", {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json",
+                    },
+                    body: JSON.stringify(event),
+                });
+            })
+        );
+    } catch {
+        // Realtime fanout is best-effort; the database already has the flags.
     }
 }

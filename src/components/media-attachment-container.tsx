@@ -45,7 +45,7 @@ export default function MediaAttachmentContainer() {
             return;
         }
 
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
     }, [attachment?.id, attachment?.mediaType]);
 
     if (!attachment || !chatId) {
@@ -89,6 +89,40 @@ export default function MediaAttachmentContainer() {
         }
     };
 
+    const profileFieldSx = (theme: { palette: { mode: string } }) => ({
+        width: "100%",
+        "& .MuiInput-underline:after": {
+            borderBottomColor: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
+        },
+        "& .MuiInputLabel-root.Mui-focused": {
+            color: theme.palette.mode === "dark" ? "#25D366" : "#15603E",
+        },
+        "& .MuiInputBase-input.Mui-disabled": {
+            WebkitTextFillColor:
+                theme.palette.mode === "dark"
+                    ? "rgba(255,255,255,0.7)"
+                    : "rgba(0,0,0,0.8)",
+        },
+        "& .MuiInputLabel-root": {
+            left: isRTL ? "unset" : 0,
+            right: isRTL ? 0 : "unset",
+            transformOrigin: isRTL ? "top right" : "top left",
+            "&.MuiInputLabel-standard": {
+                transform: "translate(0px, 20px) scale(1)",
+            },
+            "&.MuiInputLabel-standard.MuiInputLabel-shrink": {
+                transform: "translate(0px, -1.5px) scale(0.75)",
+            },
+        },
+        "& .MuiInputBase-input": {
+            textAlign: isRTL ? "right" : "left",
+        },
+        "& .MuiInputAdornment-root": {
+            marginLeft: isRTL ? 0 : "unset",
+            marginRight: isRTL ? "unset" : 0,
+        },
+    });
+
     return (
         <Box
             sx={(theme) => ({
@@ -108,9 +142,8 @@ export default function MediaAttachmentContainer() {
                     justifyContent: "flex-start",
                     px: 2,
                     py: 1,
-                    borderBottom: `1px solid ${
-                        theme.palette.mode === "dark" ? "#2f3131" : "#ececec"
-                    }`,
+                    borderBottom: `1px solid ${theme.palette.mode === "dark" ? "#2f3131" : "#ececec"
+                        }`,
                 })}
             >
                 <IconButton
@@ -188,15 +221,13 @@ export default function MediaAttachmentContainer() {
                     px: 3,
                     py: 2,
                     gap: 2,
-                    borderTop: `1px solid ${
-                        theme.palette.mode === "dark" ? "#404040" : "#d4d4d4"
-                    }`,
+                    borderTop: `1px solid ${theme.palette.mode === "dark" ? "#404040" : "#d4d4d4"
+                        }`,
                 })}
             >
                 <TextField
-                    hiddenLabel
                     id="filled-media-attachment-message-bar"
-                    variant="filled"
+                    variant="standard"
                     size="medium"
                     placeholder={
                         isRTL
@@ -217,28 +248,6 @@ export default function MediaAttachmentContainer() {
                     }}
                     inputRef={inputRef}
                     disabled={isSending}
-                    sx={(theme) => ({
-                        "& .MuiFilledInput-root": {
-                            borderRadius: 8,
-                            px: 3,
-                            backgroundColor:
-                                theme.palette.mode === "dark" ? "#242626" : "#f7f5f3",
-                            "&.Mui-focused": {
-                                outline: "2px solid #25D366",
-                                backgroundColor:
-                                    theme.palette.mode === "dark" ? "#242626" : "#ffffff",
-                            },
-                            "&:hover": {
-                                backgroundColor:
-                                    theme.palette.mode === "dark" ? "#242626" : "#ffffff",
-                            },
-                            "&::before": { display: "none" },
-                            "&::after": { display: "none" },
-                        },
-                    })}
-                    InputProps={{
-                        disableUnderline: true,
-                    }}
                 />
                 <IconButton
                     type="button"
@@ -247,8 +256,8 @@ export default function MediaAttachmentContainer() {
                     sx={(theme) => ({
                         backgroundColor: "#25D366",
                         color: theme.palette.mode === "dark" ? "#161717" : "#ffffff",
-                        width: 48,
-                        height: 48,
+                        width: 38,
+                        height: 38,
                         flexShrink: 0,
                         "&:hover": {
                             backgroundColor: "#25D366",
@@ -257,9 +266,9 @@ export default function MediaAttachmentContainer() {
                     })}
                 >
                     {isSending ? (
-                        <CircularProgress size={22} sx={{ color: "inherit" }} />
+                        <CircularProgress size={20} sx={{ color: "inherit" }} />
                     ) : (
-                        <Send />
+                        <Send fontSize="small" />
                     )}
                 </IconButton>
             </Box>

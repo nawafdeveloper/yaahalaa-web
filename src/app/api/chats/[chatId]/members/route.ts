@@ -3,6 +3,7 @@ import db from "@/db";
 import { chatRecipientKeys, chats, user } from "@/db/schema";
 import {
     broadcastGroupChatUpdate,
+    createAndBroadcastGroupSystemMessage,
     getGroupChatForUser,
     getGroupParticipantIds,
     getSavedContactUserIds,
@@ -84,6 +85,8 @@ export async function POST(
     const invitedUsers = await db
         .select({
             userId: user.id,
+            name: user.name,
+            phoneNumber: user.phoneNumber,
             publicKey: user.yhlaPublicKey,
         })
         .from(user)
@@ -177,6 +180,27 @@ export async function POST(
             })
         )
     );
+
+    const actorName = await getUserDisplayName(sessionUser.id);
+    await createAndBroadcastGroupSystemMessage({
+        chatId,
+        actorUserId: sessionUser.id,
+        participantIds: nextParticipantIds,
+        event: {
+            kind: "group-system",
+            action: "member-added",
+            actor_user_id: sessionUser.id,
+            actor_name: actorName,
+            target_user_ids: requestedMemberIds,
+            target_names: requestedMemberIds.map((memberId) => {
+                const invitedUser = invitedUsers.find(
+                    (member) => member.userId === memberId
+                );
+
+                return invitedUser?.name || invitedUser?.phoneNumber || memberId;
+            }),
+        },
+    });
 
     const chat = await getGroupChatForUser({
         chatId,
@@ -327,6 +351,11 @@ export async function DELETE(
         return jsonError("Member not found.", 404);
     }
 
+    const [actorName, removedMemberName] = await Promise.all([
+        getUserDisplayName(sessionUser.id),
+        getUserDisplayName(memberUserId),
+    ]);
+
     await db
         .delete(chatRecipientKeys)
         .where(
@@ -335,6 +364,20 @@ export async function DELETE(
                 eq(chatRecipientKeys.recipient_user_id, memberUserId)
             )
         );
+
+    await createAndBroadcastGroupSystemMessage({
+        chatId,
+        actorUserId: sessionUser.id,
+        participantIds,
+        event: {
+            kind: "group-system",
+            action: "member-left",
+            actor_user_id: sessionUser.id,
+            actor_name: actorName,
+            target_user_ids: [memberUserId],
+            target_names: [removedMemberName],
+        },
+    });
 
     const chat = await getGroupChatForUser({
         chatId,
@@ -352,4 +395,17 @@ export async function DELETE(
     });
 
     return Response.json({ chat });
+}
+
+async function getUserDisplayName(userId: string) {
+    const [row] = await db
+        .select({
+            name: user.name,
+            phoneNumber: user.phoneNumber,
+        })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+
+    return row?.name || row?.phoneNumber || userId;
 }
