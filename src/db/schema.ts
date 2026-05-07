@@ -368,6 +368,8 @@ export const chatUserSettings = pgTable(
         is_favourite_chat: boolean("is_favourite_chat").default(false).notNull(),
         is_blocked_chat: boolean("is_blocked_chat").default(false).notNull(),
         is_deleted_chat: boolean("is_deleted_chat").default(false).notNull(),
+        blocked_at: timestamp("blocked_at"),
+        deleted_at: timestamp("deleted_at"),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at")
             .defaultNow()

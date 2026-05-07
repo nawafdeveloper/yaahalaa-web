@@ -50,6 +50,13 @@
       "when": 1778112000000,
       "tag": "0006_chat_user_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778112001000,
+      "tag": "0007_chat_user_setting_timestamps",
+      "breakpoints": true
     }
   ]
 }

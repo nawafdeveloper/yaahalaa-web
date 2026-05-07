@@ -4,6 +4,7 @@ import { generateVideoThumbnailFromUrl } from "@/lib/generate-thumbnail";
 import type { Message } from "@/types/messages.type";
 import {
     AccessTime,
+    Check,
     DoneAll,
     ErrorOutline,
     ImageOutlined,
@@ -1255,14 +1256,23 @@ export default function ChatRoomMessageBubble({
                                                 )}
                                                 {(message.client_status === "sent" ||
                                                     !message.client_status) && (
-                                                        <DoneAll
-                                                            sx={{
-                                                                fontSize: 16,
-                                                                color: message.is_read_by_recipient
-                                                                    ? "#53bdeb"
-                                                                    : "gray",
-                                                            }}
-                                                        />
+                                                        message.is_delivered_to_recipient === false ? (
+                                                            <Check
+                                                                sx={{
+                                                                    fontSize: 16,
+                                                                    color: "gray",
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <DoneAll
+                                                                sx={{
+                                                                    fontSize: 16,
+                                                                    color: message.is_read_by_recipient
+                                                                        ? "#53bdeb"
+                                                                        : "gray",
+                                                                }}
+                                                            />
+                                                        )
                                                     )}
                                             </>
                                         )}

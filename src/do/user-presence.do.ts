@@ -4,6 +4,7 @@ import {
     markConversationRead,
 } from "@/lib/chat-read-state";
 import {
+    chatUserSettings,
     chatRecipientKeys,
     chats,
     message as messageTable,
@@ -19,7 +20,7 @@ import type { Message, ReplyMessage } from "@/types/messages.type";
 import { applyMessageReactionToDb } from "@/lib/message-reactions";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { parseManagedMessageMediaUrl } from "@/lib/message-media-url";
 import { normalizeReplyMessage } from "@/lib/message-reply";
 import { normalizeOpenGraphData } from "@/lib/open-graph-data";
@@ -140,6 +141,7 @@ type StoredMessage = {
     updated_at: string;
     contact: null;
     is_read_by_recipient: boolean;
+    is_delivered_to_recipient: boolean;
     read_by_user_ids: string[];
 };
 
@@ -422,6 +424,12 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             data.conversationType === "group"
                 ? await getGroupParticipantIds(conversationId)
                 : [];
+        let normalizedMessageKeys = normalizeRecipientKeys(
+            data.recipientEncryptionKeys ?? null
+        );
+        let normalizedChatPreviewKeys = normalizeRecipientKeys(
+            data.chatPreviewRecipientKeys ?? null
+        );
 
         if (
             data.conversationType === "group" &&
@@ -451,6 +459,25 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             throw new Error("Group previews must be encrypted for every member.");
         }
 
+        if (data.conversationType === "direct") {
+            const blockedRecipientIds = await getBlockedDirectRecipientIds({
+                chatId: conversationId,
+                senderUserId,
+                recipientUserIds: normalizedMessageKeys
+                    .map((key) => key.recipient_user_id)
+                    .filter((recipientUserId) => recipientUserId !== senderUserId),
+            });
+
+            if (blockedRecipientIds.size > 0) {
+                normalizedMessageKeys = normalizedMessageKeys.filter(
+                    (key) => !blockedRecipientIds.has(key.recipient_user_id)
+                );
+                normalizedChatPreviewKeys = normalizedChatPreviewKeys.filter(
+                    (key) => !blockedRecipientIds.has(key.recipient_user_id)
+                );
+            }
+        }
+
         const savedMessage = await saveMessageToDb({
             debugTraceId: data.debugTraceId,
             messageId: data.clientMessageId,
@@ -468,9 +495,17 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
             videoThumbnail: data.videoThumbnail ?? null,
             isForwardMessage: data.isForwardMessage,
             encryptedContent: data.encryptedContent ?? null,
-            recipientEncryptionKeys: data.recipientEncryptionKeys ?? null,
+            recipientEncryptionKeys: normalizedMessageKeys.map((key) => ({
+                recipientUserId: key.recipient_user_id,
+                encryptedAesKey: key.encrypted_aes_key,
+                algorithm: key.algorithm,
+            })),
             encryptedChatPreview: data.encryptedChatPreview ?? null,
-            chatPreviewRecipientKeys: data.chatPreviewRecipientKeys ?? null,
+            chatPreviewRecipientKeys: normalizedChatPreviewKeys.map((key) => ({
+                recipientUserId: key.recipient_user_id,
+                encryptedAesKey: key.encrypted_aes_key,
+                algorithm: key.algorithm,
+            })),
             replyMessage: data.replyMessage ?? null,
             openGraphData: data.openGraphData ?? null,
         });
@@ -1037,6 +1072,19 @@ async function saveMessageToDb({
         }
     }
 
+    const deliveredRecipientUserIds = [
+        ...new Set(
+            normalizedMessageKeys
+                .map((key) => key.recipient_user_id)
+                .filter((recipientUserId) => recipientUserId !== senderUserId)
+        ),
+    ];
+
+    await restoreDeletedChatForParticipants({
+        chatId: chatRoomId,
+        userIds: [senderUserId, ...deliveredRecipientUserIds],
+    });
+
     if (isMediaMessage) {
         logMediaDebug("server.realtime.db-save.complete", {
             debugTraceId: debugTraceId ?? null,
@@ -1088,6 +1136,7 @@ async function saveMessageToDb({
         updated_at: now.toISOString(),
         contact: null,
         is_read_by_recipient: false,
+        is_delivered_to_recipient: deliveredRecipientUserIds.length > 0,
         read_by_user_ids: [],
     };
 }
@@ -1113,6 +1162,68 @@ async function getGroupParticipantIds(chatId: string) {
         .where(eq(chatRecipientKeys.chat_id, chatId));
 
     return [...new Set(rows.map((row) => row.userId).filter(Boolean))];
+}
+
+async function getBlockedDirectRecipientIds({
+    chatId,
+    senderUserId,
+    recipientUserIds,
+}: {
+    chatId: string;
+    senderUserId: string;
+    recipientUserIds: string[];
+}) {
+    const uniqueRecipientIds = [...new Set(recipientUserIds)].filter(Boolean);
+
+    if (uniqueRecipientIds.length === 0) {
+        return new Set<string>();
+    }
+
+    const blockedSettings = await db
+        .select({
+            userId: chatUserSettings.user_id,
+        })
+        .from(chatUserSettings)
+        .where(
+            and(
+                eq(chatUserSettings.chat_id, chatId),
+                inArray(chatUserSettings.user_id, uniqueRecipientIds),
+                eq(chatUserSettings.is_blocked_chat, true)
+            )
+        );
+
+    return new Set(
+        blockedSettings
+            .map((setting) => setting.userId)
+            .filter((userId) => userId !== senderUserId)
+    );
+}
+
+async function restoreDeletedChatForParticipants({
+    chatId,
+    userIds,
+}: {
+    chatId: string;
+    userIds: string[];
+}) {
+    const uniqueUserIds = [...new Set(userIds)].filter(Boolean);
+
+    if (uniqueUserIds.length === 0) {
+        return;
+    }
+
+    await db
+        .update(chatUserSettings)
+        .set({
+            is_deleted_chat: false,
+            updated_at: new Date(),
+        })
+        .where(
+            and(
+                eq(chatUserSettings.chat_id, chatId),
+                inArray(chatUserSettings.user_id, uniqueUserIds)
+            )
+        );
 }
 
 function recipientKeysCoverParticipants(

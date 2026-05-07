@@ -8,6 +8,7 @@ import {
 import {
     chatReadStates,
     chatRecipientKeys,
+    chatUserSettings,
     chats,
     message,
     messageRecipientKeys,
@@ -177,10 +178,10 @@ export async function POST(request: Request) {
 
     const id = clientMessageId ?? crypto.randomUUID();
     const now = new Date();
-    const normalizedMessageKeys = normalizeRecipientKeys(
+    let normalizedMessageKeys = normalizeRecipientKeys(
         recipientEncryptionKeys
     );
-    const normalizedChatPreviewKeys = normalizeRecipientKeys(
+    let normalizedChatPreviewKeys = normalizeRecipientKeys(
         chatPreviewRecipientKeys
     );
     const normalizedReplyMessage = normalizeReplyMessage(replyMessage);
@@ -226,6 +227,23 @@ export async function POST(request: Request) {
             return Response.json(
                 { error: "Group previews must be encrypted for every member." },
                 { status: 400 }
+            );
+        }
+    } else {
+        const blockedRecipientIds = await getBlockedDirectRecipientIds({
+            chatId: finalChatRoomId,
+            senderUserId: finalSenderUserId,
+            recipientUserIds: normalizedMessageKeys
+                .map((key) => key.recipient_user_id)
+                .filter((recipientUserId) => recipientUserId !== finalSenderUserId),
+        });
+
+        if (blockedRecipientIds.size > 0) {
+            normalizedMessageKeys = normalizedMessageKeys.filter(
+                (key) => !blockedRecipientIds.has(key.recipient_user_id)
+            );
+            normalizedChatPreviewKeys = normalizedChatPreviewKeys.filter(
+                (key) => !blockedRecipientIds.has(key.recipient_user_id)
             );
         }
     }
@@ -375,6 +393,19 @@ export async function POST(request: Request) {
             });
     }
 
+    const deliveredRecipientUserIds = [
+        ...new Set(
+            normalizedMessageKeys
+                .map((key) => key.recipient_user_id)
+                .filter((recipientUserId) => recipientUserId !== finalSenderUserId)
+        ),
+    ];
+
+    await restoreDeletedChatForParticipants({
+        chatId: finalChatRoomId,
+        userIds: [finalSenderUserId, ...deliveredRecipientUserIds],
+    });
+
     const responseMessage = {
         message_id: id,
         sender_user_id: finalSenderUserId,
@@ -410,6 +441,7 @@ export async function POST(request: Request) {
         updated_at: now,
         contact: null,
         is_read_by_recipient: false,
+        is_delivered_to_recipient: deliveredRecipientUserIds.length > 0,
         read_by_user_ids: [],
     };
 
@@ -788,6 +820,7 @@ export async function GET(request: Request) {
                     created_at: m.created_at,
                     updated_at: m.updated_at,
                     contact: m.contact,
+                    is_delivered_to_recipient: recipientUserIds.length > 0,
                 };
 
                 return withMessageReadReceipt(responseMessage, readByUserIds);
@@ -958,6 +991,16 @@ async function getDirectChatMessages({
     sessionUserId: string;
     beforeCreatedAt: Date | null;
 }) {
+    const [userSetting] = await db
+        .select()
+        .from(chatUserSettings)
+        .where(
+            and(
+                eq(chatUserSettings.user_id, sessionUserId),
+                inArray(chatUserSettings.chat_id, chatRoomIds)
+            )
+        )
+        .limit(1);
     const directRecipientMessageIds = await db
         .select({ messageId: messageRecipientKeys.message_id })
         .from(messageRecipientKeys)
@@ -1015,10 +1058,38 @@ async function getDirectChatMessages({
                 chatRoomIds.includes(row.chat_room_id) ||
                 areDirectChatIdsEquivalent(row.chat_room_id, chatRoomId)
         )
+        .filter((row) => isMessageVisibleForUserSetting(row, sessionUserId, userSetting))
         .sort((left, right) => right.created_at.getTime() - left.created_at.getTime())
         .slice(0, limit + 1);
 
     return filteredRows;
+}
+
+function isMessageVisibleForUserSetting(
+    row: typeof message.$inferSelect,
+    sessionUserId: string,
+    userSetting?: typeof chatUserSettings.$inferSelect
+) {
+    if (!userSetting) {
+        return true;
+    }
+
+    if (
+        userSetting.deleted_at &&
+        row.created_at <= userSetting.deleted_at
+    ) {
+        return false;
+    }
+
+    if (
+        userSetting.is_blocked_chat &&
+        row.sender_user_id !== sessionUserId &&
+        (!userSetting.blocked_at || row.created_at >= userSetting.blocked_at)
+    ) {
+        return false;
+    }
+
+    return true;
 }
 
 async function getFlaggedChatMessages({
@@ -1094,6 +1165,68 @@ async function canUserAccessStoredChat({
         .limit(1);
 
     return Boolean(membership);
+}
+
+async function getBlockedDirectRecipientIds({
+    chatId,
+    senderUserId,
+    recipientUserIds,
+}: {
+    chatId: string;
+    senderUserId: string;
+    recipientUserIds: string[];
+}) {
+    const uniqueRecipientIds = [...new Set(recipientUserIds)].filter(Boolean);
+
+    if (uniqueRecipientIds.length === 0) {
+        return new Set<string>();
+    }
+
+    const blockedSettings = await db
+        .select({
+            userId: chatUserSettings.user_id,
+        })
+        .from(chatUserSettings)
+        .where(
+            and(
+                eq(chatUserSettings.chat_id, chatId),
+                inArray(chatUserSettings.user_id, uniqueRecipientIds),
+                eq(chatUserSettings.is_blocked_chat, true)
+            )
+        );
+
+    return new Set(
+        blockedSettings
+            .map((setting) => setting.userId)
+            .filter((userId) => userId !== senderUserId)
+    );
+}
+
+async function restoreDeletedChatForParticipants({
+    chatId,
+    userIds,
+}: {
+    chatId: string;
+    userIds: string[];
+}) {
+    const uniqueUserIds = [...new Set(userIds)].filter(Boolean);
+
+    if (uniqueUserIds.length === 0) {
+        return;
+    }
+
+    await db
+        .update(chatUserSettings)
+        .set({
+            is_deleted_chat: false,
+            updated_at: new Date(),
+        })
+        .where(
+            and(
+                eq(chatUserSettings.chat_id, chatId),
+                inArray(chatUserSettings.user_id, uniqueUserIds)
+            )
+        );
 }
 
 async function broadcastRealtimeMessage({

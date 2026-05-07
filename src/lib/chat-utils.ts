@@ -33,6 +33,7 @@ export function normalizeMessage(message: RawMessage): Message {
     return {
         ...message,
         is_read_by_recipient: message.is_read_by_recipient ?? false,
+        is_delivered_to_recipient: message.is_delivered_to_recipient,
         read_by_user_ids: message.read_by_user_ids ?? [],
         created_at: new Date(message.created_at),
         updated_at: new Date(message.updated_at),

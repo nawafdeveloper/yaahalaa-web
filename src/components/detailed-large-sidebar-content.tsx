@@ -58,6 +58,7 @@ import { findContactByUserId, getContactDisplayName } from '@/lib/contact-displa
 import { normalizeChatItem } from '@/lib/chat-utils';
 import { useActiveChatStore } from '@/store/use-active-chat-store';
 import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
+import { useChatMenuActions } from '@/hooks/use-chat-menu-actions';
 import type { ChatGroupMember, ChatItemType } from '@/types/chats.type';
 import type { Contact } from '@/types/contacts.type';
 
@@ -103,6 +104,7 @@ export default function DetailedLargeSidebarContent({
     mediaCount,
     mediaItems,
     muteNotification,
+    isBlocked,
     groupMembers: rawGroupMembers = [],
     currentUserId,
     contacts,
@@ -114,6 +116,11 @@ export default function DetailedLargeSidebarContent({
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
     const removeChat = useActiveChatStore((state) => state.removeChat);
     const { isToggling, setChatNotificationsMuted } = useToggleChatNotifications();
+    const {
+        isUpdating: isChatActionUpdating,
+        setChatPreference,
+        deleteChatForCurrentUser,
+    } = useChatMenuActions();
 
     const [isMuted, setIsMuted] = useState(muteNotification || false);
     const [value, setValue] = useState("");
@@ -126,6 +133,7 @@ export default function DetailedLargeSidebarContent({
     const [inviteOpen, setInviteOpen] = useState(false);
     const [inviteSearchQuery, setInviteSearchQuery] = useState("");
     const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [selectedInviteIds, setSelectedInviteIds] = useState<string[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
     const inviteInputRef = useRef<HTMLInputElement>(null);
@@ -422,6 +430,49 @@ export default function DetailedLargeSidebarContent({
         }
     };
 
+    const handleToggleBlock = async () => {
+        if (!chatId || isGroup || isChatActionUpdating) {
+            return;
+        }
+
+        await setChatPreference(chatId, "is_blocked_chat", !isBlocked);
+    };
+
+    const handleDeleteChatClick = () => {
+        if (!chatId || isGroup || isChatActionUpdating) {
+            return;
+        }
+
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleCancelDeleteChat = () => {
+        if (pendingAction === "delete") {
+            return;
+        }
+
+        setDeleteConfirmOpen(false);
+    };
+
+    const handleConfirmDeleteChat = async () => {
+        if (!chatId || isGroup) {
+            return;
+        }
+
+        setPendingAction("delete");
+        setGroupError(null);
+
+        try {
+            await deleteChatForCurrentUser(chatId);
+            closeDetails();
+            setDeleteConfirmOpen(false);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to delete chat.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
     const handleInviteMembers = async () => {
         if (!chatId || !isCurrentUserAdmin || selectedInviteIds.length === 0) {
             return;
@@ -534,14 +585,14 @@ export default function DetailedLargeSidebarContent({
                 primary: isRTL ? `ط­ط¶ط± ${displayContactName}` : `Block ${displayContactName}`,
                 icon: BlockOutlined,
                 distructive: true,
-                onClick: undefined,
+                onClick: handleToggleBlock,
             },
             {
                 id: '5',
                 primary: isRTL ? 'ط­ط°ظپ ط§ظ„ظ…ط­ط§ط¯ط«ط©' : 'Delete chat',
                 icon: DeleteOutlineOutlined,
                 distructive: true,
-                onClick: undefined,
+                onClick: handleDeleteChatClick,
             },
         ];
 
@@ -1276,6 +1327,94 @@ export default function DetailedLargeSidebarContent({
                             <CircularProgress size={18} />
                         ) : (
                             "Exit"
+                        )}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog
+                open={deleteConfirmOpen}
+                onClose={handleCancelDeleteChat}
+                aria-labelledby="delete-chat-confirm-title"
+                aria-describedby="delete-chat-confirm-description"
+                PaperProps={{
+                    sx: {
+                        borderRadius: "16px",
+                        minWidth: { xs: "calc(100vw - 32px)", sm: "450px" },
+                        padding: "4px",
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                        boxShadow: "0px 12px 30px rgba(0, 0, 0, 0.08)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    id="delete-chat-confirm-title"
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: "18px",
+                        color: (theme) =>
+                            theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                        textAlign: isRTL ? "right" : "left",
+                    }}
+                >
+                    Delete chat?
+                </DialogTitle>
+                <DialogContent sx={{ paddingTop: "4px" }}>
+                    <Typography
+                        id="delete-chat-confirm-description"
+                        sx={{
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
+                            fontSize: "14px",
+                            textAlign: isRTL ? "right" : "left",
+                        }}
+                    >
+                        Messages will be deleted permanently for you. This will not delete the chat for the other person.
+                    </Typography>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        padding: "12px 16px 16px 16px",
+                        gap: "8px",
+                        ...(isRTL && { flexDirection: "row-reverse" }),
+                    }}
+                >
+                    <Button
+                        onClick={handleCancelDeleteChat}
+                        variant="outlined"
+                        disabled={pendingAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#DCDCDC",
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#D8D8D8" : "#5A5A5A",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => void handleConfirmDeleteChat()}
+                        variant="contained"
+                        disabled={pendingAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            backgroundColor: "#25D366",
+                            color: "#0B1B12",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                            boxShadow: "none",
+                            "&:hover": {
+                                backgroundColor: "#1FB75A",
+                            },
+                        }}
+                    >
+                        {pendingAction === "delete" ? (
+                            <CircularProgress size={18} />
+                        ) : (
+                            "Delete"
                         )}
                     </Button>
                 </DialogActions>

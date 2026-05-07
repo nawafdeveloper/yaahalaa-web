@@ -97,6 +97,18 @@ export function useChatRealtime() {
         return directContact ? applyContactToSingleChat(chat, directContact) : chat;
     };
 
+    const isBlockedSingleChat = (chatId: string | null) => {
+        if (!chatId) {
+            return false;
+        }
+
+        const chat = useActiveChatStore
+            .getState()
+            .chats.find((item) => item.chat_id === chatId);
+
+        return chat?.chat_type === "single" && chat.is_blocked_chat;
+    };
+
     useEffect(() => {
         selectedChatIdRef.current = selectedChatId;
     }, [selectedChatId]);
@@ -198,7 +210,9 @@ export function useChatRealtime() {
                 selectedChat.contact_phone ??
                     resolveDirectChatPartner(selectedChat.chat_id, currentPhone)
             );
-            markChatRead(selectedChat.chat_id);
+            if (!selectedChat.is_blocked_chat) {
+                markChatRead(selectedChat.chat_id);
+            }
         } else {
             setRecipientPhone(null);
             markChatRead(selectedChatId);
@@ -339,6 +353,10 @@ export function useChatRealtime() {
                 }
 
                 case "NEW_MESSAGE": {
+                    if (isBlockedSingleChat(event.conversationId)) {
+                        break;
+                    }
+
                     const normalizedMessage = normalizeMessage(event.message);
                     const [nextMessage] = await decryptMessageBatch({
                         currentUserId,
@@ -408,6 +426,10 @@ export function useChatRealtime() {
                 }
 
                 case "CONVERSATION_UPDATED": {
+                    if (isBlockedSingleChat(event.conversationId)) {
+                        break;
+                    }
+
                     const normalizedMessage = normalizeMessage(event.lastMessage);
                     const [nextMessage] = await decryptMessageBatch({
                         currentUserId,
@@ -535,6 +557,10 @@ export function useChatRealtime() {
                 }
 
                 case "CONVERSATION_PRESENCE": {
+                    if (isBlockedSingleChat(event.conversationId)) {
+                        break;
+                    }
+
                     setPresence(event.conversationId, {
                         activeUsers: event.activeUsers,
                         activeUsersCount: event.activeUsersCount,
@@ -543,6 +569,10 @@ export function useChatRealtime() {
                 }
 
                 case "CONVERSATION_TYPING": {
+                    if (isBlockedSingleChat(event.conversationId)) {
+                        break;
+                    }
+
                     setTypingUsers(
                         event.conversationId,
                         event.activeTypingUsers.filter(
@@ -583,7 +613,10 @@ export function useChatRealtime() {
             socket.addEventListener("open", () => {
                 setStatus("connected");
 
-                if (selectedChatIdRef.current) {
+                if (
+                    selectedChatIdRef.current &&
+                    !isBlockedSingleChat(selectedChatIdRef.current)
+                ) {
                     sendEvent({
                         type: "JOIN_CONVERSATION",
                         conversationId: selectedChatIdRef.current,
@@ -660,22 +693,30 @@ export function useChatRealtime() {
 
     useEffect(() => {
         const previousSelectedChatId = joinedChatIdRef.current;
+        const selectedBlocked = isBlockedSingleChat(selectedChatId);
 
-        if (previousSelectedChatId && previousSelectedChatId !== selectedChatId) {
+        if (
+            previousSelectedChatId &&
+            (previousSelectedChatId !== selectedChatId || selectedBlocked)
+        ) {
             sendEvent({
                 type: "LEAVE_CONVERSATION",
                 conversationId: previousSelectedChatId,
             });
         }
 
-        if (selectedChatId && previousSelectedChatId !== selectedChatId) {
+        if (
+            selectedChatId &&
+            previousSelectedChatId !== selectedChatId &&
+            !selectedBlocked
+        ) {
             sendEvent({
                 type: "JOIN_CONVERSATION",
                 conversationId: selectedChatId,
             });
         }
 
-        if (selectedChatId) {
+        if (selectedChatId && !selectedBlocked) {
             sendEvent({
                 type: "MARK_READ",
                 conversationId: selectedChatId,
@@ -683,6 +724,6 @@ export function useChatRealtime() {
         }
 
         selectedChatIdRef.current = selectedChatId;
-        joinedChatIdRef.current = selectedChatId;
-    }, [selectedChatId, sendEvent]);
+        joinedChatIdRef.current = selectedBlocked ? null : selectedChatId;
+    }, [chats, selectedChatId, sendEvent]);
 }

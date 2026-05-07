@@ -156,7 +156,7 @@ export class ChatRoomDO extends DurableObject<DurableBindingsEnv> {
     private async broadcast(event: BroadcastEvent) {
         const users = await this.getActiveUsers();
         await Promise.all(
-            [...users].map(async (userId) => {
+            [...users].filter((userId) => shouldSendEventToUser(event, userId)).map(async (userId) => {
                 const userDO = this.env.USER_PRESENCE_DO.get(
                     this.env.USER_PRESENCE_DO.idFromName(userId)
                 );
@@ -210,4 +210,38 @@ export class ChatRoomDO extends DurableObject<DurableBindingsEnv> {
             activeTypingUsers: [...typingUsers],
         } satisfies TypingBroadcastEvent);
     }
+}
+
+function shouldSendEventToUser(event: BroadcastEvent, userId: string) {
+    if (
+        event.type !== "NEW_MESSAGE" ||
+        event.conversationType !== "direct" ||
+        typeof event.message !== "object" ||
+        event.message === null
+    ) {
+        return true;
+    }
+
+    const message = event.message as {
+        sender_user_id?: unknown;
+        message_recipient_keys?: unknown;
+    };
+
+    if (message.sender_user_id === userId) {
+        return true;
+    }
+
+    const recipientKeys = Array.isArray(message.message_recipient_keys)
+        ? message.message_recipient_keys
+        : [];
+
+    return recipientKeys.some((key) => {
+        if (typeof key !== "object" || key === null) {
+            return false;
+        }
+
+        return (
+            (key as { recipient_user_id?: unknown }).recipient_user_id === userId
+        );
+    });
 }

@@ -71,6 +71,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [groupError, setGroupError] = useState<string | null>(null);
     const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const isDisabled = isUpdating || !selectedChatId || !selectedChat;
@@ -127,7 +128,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
 
         await markChatAsRead(selectedChatId);
     };
-    const handleDeleteChat = async (event: React.MouseEvent<HTMLElement>) => {
+    const handleDeleteChatClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
         event.preventDefault();
         closeMenu();
@@ -136,7 +137,29 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
             return;
         }
 
-        await deleteChatForCurrentUser(selectedChatId);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleCancelDeleteChat = () => {
+        if (pendingAction === "delete") {
+            return;
+        }
+
+        setDeleteConfirmOpen(false);
+    };
+
+    const handleConfirmDeleteChat = async () => {
+        if (!selectedChatId) {
+            return;
+        }
+
+        setPendingAction("delete");
+        try {
+            await deleteChatForCurrentUser(selectedChatId);
+            setDeleteConfirmOpen(false);
+        } finally {
+            setPendingAction(null);
+        }
     };
 
     const handleExitGroupClick = (chatId: string, isGroup: boolean) => {
@@ -173,7 +196,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                 throw new Error(payload?.error ?? "Failed to exit group.");
             }
 
-            handleDeleteChat(event);
+            await deleteChatForCurrentUser(chatId);
             setExitConfirmOpen(false);
         } catch (error) {
             setGroupError(error instanceof Error ? error.message : "Failed to exit group.");
@@ -403,7 +426,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                                     </ListItemText>
                                 </MenuItem>
                                 <MenuItem
-                                    onClick={handleDeleteChat}
+                                    onClick={handleDeleteChatClick}
                                     disabled={isDisabled}
                                     sx={menuItemSx}
                                 >
@@ -514,6 +537,94 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                             <CircularProgress size={18} />
                         ) : (
                             "Exit"
+                        )}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog
+                open={deleteConfirmOpen}
+                onClose={handleCancelDeleteChat}
+                aria-labelledby="delete-chat-confirm-title"
+                aria-describedby="delete-chat-confirm-description"
+                PaperProps={{
+                    sx: {
+                        borderRadius: "16px",
+                        minWidth: { xs: "calc(100vw - 32px)", sm: "450px" },
+                        padding: "4px",
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                        boxShadow: "0px 12px 30px rgba(0, 0, 0, 0.08)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    id="delete-chat-confirm-title"
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: "18px",
+                        color: (theme) =>
+                            theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                        textAlign: isRTL ? "right" : "left",
+                    }}
+                >
+                    Delete chat?
+                </DialogTitle>
+                <DialogContent sx={{ paddingTop: "4px" }}>
+                    <Typography
+                        id="delete-chat-confirm-description"
+                        sx={{
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
+                            fontSize: "14px",
+                            textAlign: isRTL ? "right" : "left",
+                        }}
+                    >
+                        Messages will be deleted permanently for you. This will not delete the chat for the other person.
+                    </Typography>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        padding: "12px 16px 16px 16px",
+                        gap: "8px",
+                        ...(isRTL && { flexDirection: "row-reverse" }),
+                    }}
+                >
+                    <Button
+                        onClick={handleCancelDeleteChat}
+                        variant="outlined"
+                        disabled={pendingAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#DCDCDC",
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#D8D8D8" : "#5A5A5A",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => void handleConfirmDeleteChat()}
+                        variant="contained"
+                        disabled={pendingAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            backgroundColor: "#25D366",
+                            color: "#0B1B12",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                            boxShadow: "none",
+                            "&:hover": {
+                                backgroundColor: "#1FB75A",
+                            },
+                        }}
+                    >
+                        {pendingAction === "delete" ? (
+                            <CircularProgress size={18} />
+                        ) : (
+                            "Delete"
                         )}
                     </Button>
                 </DialogActions>

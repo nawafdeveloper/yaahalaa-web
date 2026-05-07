@@ -30,7 +30,14 @@ import ChatRoomInputForm from "./chat-room-input-form";
 import ChatRoomInputSelectMode from "./chat-room-input-select-mode";
 import ChatRoomMessageBubble from "./chat-room-message-bubble";
 import ChatRoomTypingBubble from "./chat-room-typing-bubble";
-import { CircularProgress } from "@mui/material";
+import {
+    Button,
+    CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+} from "@mui/material";
 import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { useChatMenuActions } from "@/hooks/use-chat-menu-actions";
 
@@ -357,6 +364,7 @@ export default function ChatRoomContent() {
         (state) => state.hasOlderMessagesByChatId
     );
     const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const removeChat = useActiveChatStore((state) => state.removeChat);
     const setMessages = useActiveChatStore((state) => state.setMessages);
     const setOlderMessagesLoading = useActiveChatStore(
         (state) => state.setOlderMessagesLoading
@@ -367,6 +375,7 @@ export default function ChatRoomContent() {
     const {
         isUpdating,
         setChatPreference,
+        deleteChatForCurrentUser,
     } = useChatMenuActions();
     const typingByChatId = useActiveChatStore((state) => state.typingByChatId);
     const locale = getLocaleFromCookie();
@@ -381,6 +390,8 @@ export default function ChatRoomContent() {
     const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
     const [forwardDialogMessages, setForwardDialogMessages] = useState<Message[]>([]);
     const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [pendingChatAction, setPendingChatAction] = useState<"delete" | "exit" | null>(null);
     const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
     const [mediaReadyByMessageId, setMediaReadyByMessageId] = useState<MediaStatusMap>(
         {}
@@ -918,6 +929,94 @@ export default function ChatRoomContent() {
         );
     };
 
+    const handleToggleBlock = async () => {
+        if (
+            !selectedChatId ||
+            !selectedChat ||
+            selectedChat.chat_type === "group" ||
+            isUpdating
+        ) {
+            return;
+        }
+
+        await setChatPreference(
+            selectedChatId,
+            "is_blocked_chat",
+            !selectedChat.is_blocked_chat
+        );
+    };
+
+    const handleDeleteChatClick = () => {
+        if (
+            !selectedChatId ||
+            !selectedChat ||
+            selectedChat.chat_type === "group" ||
+            isUpdating
+        ) {
+            return;
+        }
+
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleCancelDeleteChat = () => {
+        if (pendingChatAction === "delete") {
+            return;
+        }
+
+        setDeleteConfirmOpen(false);
+    };
+
+    const handleConfirmDeleteChat = async () => {
+        if (!selectedChatId || !selectedChat || selectedChat.chat_type === "group") {
+            return;
+        }
+
+        setPendingChatAction("delete");
+        try {
+            await deleteChatForCurrentUser(selectedChatId);
+            setDeleteConfirmOpen(false);
+        } finally {
+            setPendingChatAction(null);
+        }
+    };
+
+    const handleExitGroup = async () => {
+        if (!selectedChatId || selectedChat?.chat_type !== "group") {
+            return;
+        }
+
+        setPendingChatAction("exit");
+        try {
+            const response = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}`, {
+                method: "DELETE",
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            removeChat(selectedChatId);
+        } finally {
+            setPendingChatAction(null);
+        }
+    };
+
+    const contextMenuItems = [
+        { label: isRTL ? "\u0645\u0639\u0644\u0648\u0645\u0627\u062a \u062c\u0647\u0629 \u0627\u0644\u0627\u062a\u0635\u0627\u0644" : "Contact Info", onClick: handleOpenDetails, icon: <InfoOutlined fontSize="medium" /> },
+        { label: isRTL ? "\u062a\u062d\u062f\u064a\u062f \u0627\u0644\u0631\u0633\u0627\u0626\u0644" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
+        { label: isRTL ? "\u0643\u062a\u0645 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a" : "Mute notifications", onClick: () => handleToggleNotifications(), icon: <NotificationsOffOutlined fontSize="medium" /> },
+        { label: isRTL ? "\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Close chat", onClick: () => setSelectedChatId(null), icon: <HighlightOffOutlined fontSize="medium" /> },
+        ...(selectedChat?.chat_type === "group"
+            ? [
+                { label: isRTL ? "\u0627\u0644\u062e\u0631\u0648\u062c \u0645\u0646 \u0627\u0644\u0645\u062c\u0645\u0648\u0639\u0629" : "Exit group", onClick: handleExitGroup, icon: <DoDisturbOnOutlined fontSize="medium" /> },
+            ]
+            : [
+                { label: selectedChat?.is_blocked_chat ? (isRTL ? "\u0625\u0644\u063a\u0627\u0621 \u0627\u0644\u062d\u0638\u0631" : "Unblock") : (isRTL ? "\u062d\u0638\u0631" : "Block"), onClick: handleToggleBlock, icon: <DoNotDisturbOutlined fontSize="medium" /> },
+                { label: isRTL ? "\u062d\u0630\u0641 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Delete chat", onClick: handleDeleteChatClick, icon: <DeleteForeverOutlined fontSize="medium" /> },
+            ]),
+    ];
+
     return (
         <Box
             ref={containerRef}
@@ -1089,15 +1188,96 @@ export default function ChatRoomContent() {
             ) : null}
             <ContextMenu
                 containerRef={containerRef}
-                items={[
-                    { label: isRTL ? "\u0645\u0639\u0644\u0648\u0645\u0627\u062a \u062c\u0647\u0629 \u0627\u0644\u0627\u062a\u0635\u0627\u0644" : "Contact Info", onClick: handleOpenDetails, icon: <InfoOutlined fontSize="medium" /> },
-                    { label: isRTL ? "\u062a\u062d\u062f\u064a\u062f \u0627\u0644\u0631\u0633\u0627\u0626\u0644" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
-                    { label: isRTL ? "\u0643\u062a\u0645 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a" : "Mute notifications", onClick: () => handleToggleNotifications(), icon: <NotificationsOffOutlined fontSize="medium" /> },
-                    { label: isRTL ? "\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Close chat", onClick: () => setSelectedChatId(null), icon: <HighlightOffOutlined fontSize="medium" /> },
-                    { label: isRTL ? "\u062d\u0638\u0631" : "Block", onClick: () => { }, icon: <DoNotDisturbOutlined fontSize="medium" /> },
-                    { label: isRTL ? "\u062d\u0630\u0641 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Delete chat", onClick: () => { }, icon: <DeleteForeverOutlined fontSize="medium" /> },
-                ]}
+                items={contextMenuItems}
             />
+            <Dialog
+                open={deleteConfirmOpen}
+                onClose={handleCancelDeleteChat}
+                aria-labelledby="delete-chat-confirm-title"
+                aria-describedby="delete-chat-confirm-description"
+                PaperProps={{
+                    sx: {
+                        borderRadius: "16px",
+                        minWidth: { xs: "calc(100vw - 32px)", sm: "450px" },
+                        padding: "4px",
+                        backgroundColor: (theme) =>
+                            theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                        boxShadow: "0px 12px 30px rgba(0, 0, 0, 0.08)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    id="delete-chat-confirm-title"
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: "18px",
+                        color: (theme) =>
+                            theme.palette.mode === "dark" ? "#FFFFFF" : "#1C1C1C",
+                        textAlign: isRTL ? "right" : "left",
+                    }}
+                >
+                    Delete chat?
+                </DialogTitle>
+                <DialogContent sx={{ paddingTop: "4px" }}>
+                    <Typography
+                        id="delete-chat-confirm-description"
+                        sx={{
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#CFCFCF" : "#5A5A5A",
+                            fontSize: "14px",
+                            textAlign: isRTL ? "right" : "left",
+                        }}
+                    >
+                        Messages will be deleted permanently for you. This will not delete the chat for the other person.
+                    </Typography>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        padding: "12px 16px 16px 16px",
+                        gap: "8px",
+                        ...(isRTL && { flexDirection: "row-reverse" }),
+                    }}
+                >
+                    <Button
+                        onClick={handleCancelDeleteChat}
+                        variant="outlined"
+                        disabled={pendingChatAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            borderColor: (theme) =>
+                                theme.palette.mode === "dark" ? "#3A3A3A" : "#DCDCDC",
+                            color: (theme) =>
+                                theme.palette.mode === "dark" ? "#D8D8D8" : "#5A5A5A",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={() => void handleConfirmDeleteChat()}
+                        variant="contained"
+                        disabled={pendingChatAction === "delete"}
+                        sx={{
+                            borderRadius: "99px",
+                            backgroundColor: "#25D366",
+                            color: "#0B1B12",
+                            textTransform: "none",
+                            padding: "8px 16px",
+                            boxShadow: "none",
+                            "&:hover": {
+                                backgroundColor: "#1FB75A",
+                            },
+                        }}
+                    >
+                        {pendingChatAction === "delete" ? (
+                            <CircularProgress size={18} />
+                        ) : (
+                            "Delete"
+                        )}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

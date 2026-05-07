@@ -416,10 +416,18 @@ export async function GET(request: Request) {
             const lastMessage = chat.last_message_id
                 ? lastMessageById.get(chat.last_message_id) ?? null
                 : null;
+            const isLastMessageHiddenByBlock = Boolean(
+                chat.chat_type === "single" &&
+                    userSettings?.is_blocked_chat &&
+                    lastMessage &&
+                    lastMessage.senderUserId !== sessionUser.id &&
+                    (!userSettings.blocked_at ||
+                        lastMessage.createdAt >= userSettings.blocked_at)
+            );
             const lastMessageRecipientUserIds = [
                 ...new Set(
                     (
-                        chat.last_message_id
+                        chat.last_message_id && !isLastMessageHiddenByBlock
                             ? recipientUserIdsByLastMessageId.get(
                                   chat.last_message_id
                               ) ?? []
@@ -451,6 +459,16 @@ export async function GET(request: Request) {
 
             return {
                 ...chat,
+                ...(isLastMessageHiddenByBlock
+                    ? {
+                          last_message_id: null,
+                          encrypted_preview_ciphertext: null,
+                          encrypted_preview_iv: null,
+                          encrypted_preview_algorithm: null,
+                          last_message_context: "",
+                          last_message_media: null,
+                      }
+                    : {}),
                 group_members:
                     chat.chat_type === "group"
                         ? groupMembersByChatId.get(chat.chat_id) ?? []
@@ -459,9 +477,12 @@ export async function GET(request: Request) {
                     ? chat.last_message_sender_nickname === sessionUser.id
                     : lastMessage?.senderUserId === sessionUser.id,
                 is_unreaded_chat:
+                    !userSettings?.is_blocked_chat &&
                     (unreadCountsByChatId.get(chat.chat_id) ?? 0) > 0,
                 unreaded_messages_length:
-                    unreadCountsByChatId.get(chat.chat_id) ?? 0,
+                    userSettings?.is_blocked_chat
+                        ? 0
+                        : unreadCountsByChatId.get(chat.chat_id) ?? 0,
                 is_archived_chat: userSettings?.is_archived_chat ?? false,
                 is_muted_chat_notifications:
                     userSettings?.is_muted_chat_notifications ?? false,
@@ -950,6 +971,15 @@ export async function PATCH(request: Request) {
 
     if (Object.keys(preferenceUpdates).length > 0) {
         const now = new Date();
+        const timestampUpdates: Partial<typeof chatUserSettings.$inferInsert> = {};
+
+        if (typeof body.isBlocked === "boolean") {
+            timestampUpdates.blocked_at = body.isBlocked ? now : null;
+        }
+
+        if (typeof body.isDeleted === "boolean") {
+            timestampUpdates.deleted_at = body.isDeleted ? now : undefined;
+        }
 
         await db
             .insert(chatUserSettings)
@@ -958,6 +988,7 @@ export async function PATCH(request: Request) {
                 chat_id: chatId,
                 user_id: sessionUser.id,
                 ...preferenceUpdates,
+                ...timestampUpdates,
                 created_at: now,
                 updated_at: now,
             })
@@ -968,6 +999,7 @@ export async function PATCH(request: Request) {
                 ],
                 set: {
                     ...preferenceUpdates,
+                    ...timestampUpdates,
                     updated_at: now,
                 },
             });

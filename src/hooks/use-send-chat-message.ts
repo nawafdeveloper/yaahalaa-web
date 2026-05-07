@@ -978,6 +978,9 @@ function finalizeReconciledMessage(
             persistedMessage.is_read_by_recipient ??
             fallbackMessage.is_read_by_recipient ??
             false,
+        is_delivered_to_recipient:
+            persistedMessage.is_delivered_to_recipient ??
+            fallbackMessage.is_delivered_to_recipient,
         read_by_user_ids:
             persistedMessage.read_by_user_ids ??
             fallbackMessage.read_by_user_ids ??
