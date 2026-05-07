@@ -26,6 +26,7 @@ export default function SmallSideBar({ activeNav, setActiveNav }: Props) {
     };
 
     const totalUnread = chats
+        .filter((item) => !item.is_archived_chat)
         .map((item) => item.unreaded_messages_length)
         .reduce((acc, curr) => acc + curr, 0);
 

@@ -40,9 +40,13 @@ export function normalizeMessage(message: RawMessage): Message {
 }
 
 export function sortChatsByRecent(chats: ChatItemType[]): ChatItemType[] {
-    return [...chats].sort(
-        (left, right) => right.updated_at.getTime() - left.updated_at.getTime()
-    );
+    return [...chats].sort((left, right) => {
+        if (left.is_pinned_chat !== right.is_pinned_chat) {
+            return left.is_pinned_chat ? -1 : 1;
+        }
+
+        return right.updated_at.getTime() - left.updated_at.getTime();
+    });
 }
 
 export function sortMessagesChronologically(messages: Message[]): Message[] {

@@ -1,11 +1,15 @@
 import { auth } from "@/lib/auth";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import db from "@/db";
-import { getUnreadCountsByChatId } from "@/lib/chat-read-state";
+import {
+    getUnreadCountsByChatId,
+    markConversationRead,
+} from "@/lib/chat-read-state";
 import { isManagedProfileImageUrl } from "@/lib/profile-image-url";
 import {
     chatRecipientKeys,
     chatReadStates,
+    chatUserSettings,
     chats,
     contacts,
     encryptedMedia,
@@ -44,6 +48,7 @@ interface UserWithPhone {
 
 type RealtimeBindings = {
     USER_PRESENCE_DO?: DurableObjectNamespace;
+    CHAT_ROOM_DO?: DurableObjectNamespace;
 };
 
 function getSafeAvatarUrl(value?: string | null): string {
@@ -133,6 +138,22 @@ export async function GET(request: Request) {
     if (rows.length === 0) {
         return Response.json({ chats: [] });
     }
+
+    const userSettingRows = await db
+        .select()
+        .from(chatUserSettings)
+        .where(
+            and(
+                eq(chatUserSettings.user_id, sessionUser.id),
+                inArray(
+                    chatUserSettings.chat_id,
+                    rows.map((row) => row.chat_id)
+                )
+            )
+        );
+    const userSettingsByChatId = new Map(
+        userSettingRows.map((setting) => [setting.chat_id, setting])
+    );
 
     const groupChatIds = rows
         .filter((chat) => chat.chat_type === "group")
@@ -383,7 +404,13 @@ export async function GET(request: Request) {
     }
 
     return Response.json({
-        chats: rows.map((chat) => {
+        chats: rows
+            .filter(
+                (chat) =>
+                    !(userSettingsByChatId.get(chat.chat_id)?.is_deleted_chat)
+            )
+            .map((chat) => {
+            const userSettings = userSettingsByChatId.get(chat.chat_id);
             const lastMessage = chat.last_message_id
                 ? lastMessageById.get(chat.last_message_id) ?? null
                 : null;
@@ -433,6 +460,13 @@ export async function GET(request: Request) {
                     (unreadCountsByChatId.get(chat.chat_id) ?? 0) > 0,
                 unreaded_messages_length:
                     unreadCountsByChatId.get(chat.chat_id) ?? 0,
+                is_archived_chat: userSettings?.is_archived_chat ?? false,
+                is_muted_chat_notifications:
+                    userSettings?.is_muted_chat_notifications ?? false,
+                is_pinned_chat: userSettings?.is_pinned_chat ?? false,
+                is_favourite_chat:
+                    userSettings?.is_favourite_chat ?? false,
+                is_blocked_chat: userSettings?.is_blocked_chat ?? false,
                 last_message_context: chat.last_message_context,
                 last_message_is_read_by_recipient: lastMessageIsReadByRecipient,
                 last_message_read_by_user_ids: lastMessageReadByUserIds,
@@ -847,12 +881,46 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as {
         chatId?: string;
         isMuted?: boolean;
+        isArchived?: boolean;
+        isPinned?: boolean;
+        isFavourite?: boolean;
+        isBlocked?: boolean;
+        isDeleted?: boolean;
+        markRead?: boolean;
     };
     const chatId = body.chatId?.trim();
 
-    if (!chatId || typeof body.isMuted !== "boolean") {
+    if (!chatId) {
         return Response.json(
-            { error: "Missing chatId or isMuted." },
+            { error: "Missing chatId." },
+            { status: 400 }
+        );
+    }
+
+    const preferenceUpdates: Partial<typeof chatUserSettings.$inferInsert> = {};
+    if (typeof body.isMuted === "boolean") {
+        preferenceUpdates.is_muted_chat_notifications = body.isMuted;
+    }
+    if (typeof body.isArchived === "boolean") {
+        preferenceUpdates.is_archived_chat = body.isArchived;
+    }
+    if (typeof body.isPinned === "boolean") {
+        preferenceUpdates.is_pinned_chat = body.isPinned;
+    }
+    if (typeof body.isFavourite === "boolean") {
+        preferenceUpdates.is_favourite_chat = body.isFavourite;
+    }
+    if (typeof body.isBlocked === "boolean") {
+        preferenceUpdates.is_blocked_chat = body.isBlocked;
+    }
+    if (typeof body.isDeleted === "boolean") {
+        preferenceUpdates.is_deleted_chat = body.isDeleted;
+    }
+
+    const shouldMarkRead = body.markRead === true;
+    if (Object.keys(preferenceUpdates).length === 0 && !shouldMarkRead) {
+        return Response.json(
+            { error: "No chat action was provided." },
             { status: 400 }
         );
     }
@@ -876,18 +944,51 @@ export async function PATCH(request: Request) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    await db
-        .update(chats)
-        .set({
-            is_muted_chat_notifications: body.isMuted,
-            updated_at: targetChat.updated_at,
-        })
-        .where(eq(chats.chat_id, chatId));
+    if (Object.keys(preferenceUpdates).length > 0) {
+        const now = new Date();
+
+        await db
+            .insert(chatUserSettings)
+            .values({
+                id: crypto.randomUUID(),
+                chat_id: chatId,
+                user_id: sessionUser.id,
+                ...preferenceUpdates,
+                created_at: now,
+                updated_at: now,
+            })
+            .onConflictDoUpdate({
+                target: [
+                    chatUserSettings.chat_id,
+                    chatUserSettings.user_id,
+                ],
+                set: {
+                    ...preferenceUpdates,
+                    updated_at: now,
+                },
+            });
+    }
+
+    if (shouldMarkRead) {
+        const readAt = new Date();
+
+        await markConversationRead({
+            chatId,
+            userId: sessionUser.id,
+            readAt,
+        });
+        await broadcastMarkRead({
+            chatId,
+            userId: sessionUser.id,
+            readAt,
+        });
+    }
 
     return Response.json({
         success: true,
         chatId,
-        isMuted: body.isMuted,
+        ...preferenceUpdates,
+        ...(shouldMarkRead ? { markRead: true } : {}),
     });
 }
 
@@ -946,6 +1047,43 @@ async function broadcastGroupCreated({
         );
     } catch {
         // Realtime fanout is best-effort; the group is already persisted.
+    }
+}
+
+async function broadcastMarkRead({
+    chatId,
+    userId,
+    readAt,
+}: {
+    chatId: string;
+    userId: string;
+    readAt: Date;
+}) {
+    try {
+        const { env } = await getCloudflareContext({ async: true });
+        const bindings = env as unknown as RealtimeBindings;
+        const roomNamespace = bindings.CHAT_ROOM_DO;
+
+        if (!roomNamespace) {
+            return;
+        }
+
+        const roomDO = roomNamespace.get(roomNamespace.idFromName(chatId));
+        await roomDO.fetch("https://do/broadcast", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({
+                type: "MARK_READ",
+                conversationId: chatId,
+                messageId: null,
+                userId,
+                readAt: readAt.toISOString(),
+            }),
+        });
+    } catch {
+        // Realtime fanout is best-effort; the read state is already persisted.
     }
 }
 

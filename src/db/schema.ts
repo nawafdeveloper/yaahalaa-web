@@ -350,6 +350,40 @@ export const chatReadStates = pgTable(
     ]
 );
 
+export const chatUserSettings = pgTable(
+    "chat_user_settings",
+    {
+        id: text("id").primaryKey(),
+        chat_id: text("chat_id")
+            .notNull()
+            .references(() => chats.chat_id, { onDelete: "cascade" }),
+        user_id: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        is_archived_chat: boolean("is_archived_chat").default(false).notNull(),
+        is_muted_chat_notifications: boolean("is_muted_chat_notifications")
+            .default(false)
+            .notNull(),
+        is_pinned_chat: boolean("is_pinned_chat").default(false).notNull(),
+        is_favourite_chat: boolean("is_favourite_chat").default(false).notNull(),
+        is_blocked_chat: boolean("is_blocked_chat").default(false).notNull(),
+        is_deleted_chat: boolean("is_deleted_chat").default(false).notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at")
+            .defaultNow()
+            .$onUpdate(() => /* @__PURE__ */ new Date())
+            .notNull(),
+    },
+    (table) => [
+        index("chat_user_settings_chatId_idx").on(table.chat_id),
+        index("chat_user_settings_userId_idx").on(table.user_id),
+        uniqueIndex("chat_user_settings_chatUser_unique").on(
+            table.chat_id,
+            table.user_id
+        ),
+    ]
+);
+
 export const contacts = pgTable(
     "contacts",
     {
@@ -392,6 +426,7 @@ export const userRelations = relations(user, ({ many }) => ({
     messageRecipientKeys: many(messageRecipientKeys),
     chatRecipientKeys: many(chatRecipientKeys),
     chatReadStates: many(chatReadStates),
+    chatUserSettings: many(chatUserSettings),
     ownedContacts: many(contacts, {
         relationName: "contact_owner",
     }),
@@ -423,6 +458,7 @@ export const chatsRelations = relations(chats, ({ many, one }) => ({
     }),
     recipientKeys: many(chatRecipientKeys),
     readStates: many(chatReadStates),
+    userSettings: many(chatUserSettings),
 }));
 
 export const messageRelations = relations(message, ({ many, one }) => ({
@@ -482,6 +518,17 @@ export const chatReadStatesRelations = relations(chatReadStates, ({ one }) => ({
     }),
     user: one(user, {
         fields: [chatReadStates.user_id],
+        references: [user.id],
+    }),
+}));
+
+export const chatUserSettingsRelations = relations(chatUserSettings, ({ one }) => ({
+    chat: one(chats, {
+        fields: [chatUserSettings.chat_id],
+        references: [chats.chat_id],
+    }),
+    user: one(user, {
+        fields: [chatUserSettings.user_id],
         references: [user.id],
     }),
 }));

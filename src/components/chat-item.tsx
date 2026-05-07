@@ -4,7 +4,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
 import React from 'react'
-import { AttachFileOutlined, DoneAll, Group, ImageOutlined, KeyboardVoiceOutlined, NotificationsOffOutlined, Person, SlowMotionVideoOutlined } from '@mui/icons-material';
+import { AttachFileOutlined, DoneAll, Favorite, Group, ImageOutlined, KeyboardVoiceOutlined, NotificationsOffOutlined, Person, PushPin, SlowMotionVideoOutlined } from '@mui/icons-material';
 import Badge from '@mui/material/Badge';
 import ChatItemMoreButtonMenu from './chat-item-more-button-menu';
 import { ChatItemType } from '@/types/chats.type';
@@ -89,6 +89,12 @@ export default function ChatItem({ chat_item }: Props) {
                     : "dark:text-[#A5A5A5] text-[#636261]"
                     }`}
             >
+                {chat_item.is_pinned_chat && (
+                    <PushPin sx={{ fontSize: 14 }} />
+                )}
+                {chat_item.is_favourite_chat && (
+                    <Favorite sx={{ fontSize: 14 }} />
+                )}
                 {chat_item.is_muted_chat_notifications && (
                     <NotificationsOffOutlined sx={{ fontSize: 14 }} />
                 )}
@@ -121,9 +127,13 @@ export default function ChatItem({ chat_item }: Props) {
                 <ChatItemMoreButtonMenu
                     chat_id={chat_item.chat_id}
                     chat_type={chat_item.chat_type}
+                    is_archived_chat={chat_item.is_archived_chat}
                     is_muted_chat_notifications={
                         chat_item.is_muted_chat_notifications
                     }
+                    is_pinned_chat={chat_item.is_pinned_chat}
+                    is_favourite_chat={chat_item.is_favourite_chat}
+                    is_blocked_chat={chat_item.is_blocked_chat}
                 />
             </div>
         </div>

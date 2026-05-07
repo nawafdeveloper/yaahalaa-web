@@ -43,6 +43,13 @@
       "when": 1778000001000,
       "tag": "0005_group_member_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778112000000,
+      "tag": "0006_chat_user_settings",
+      "breakpoints": true
     }
   ]
 }

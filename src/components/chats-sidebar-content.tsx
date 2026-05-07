@@ -1,6 +1,6 @@
 "use client";
 
-import { CircularProgress, Typography } from "@mui/material";
+import { CircularProgress } from "@mui/material";
 import List from "@mui/material/List";
 import ChatItem from "./chat-item";
 import { TransitionGroup } from 'react-transition-group';
@@ -22,15 +22,17 @@ export default function ChatsSideBarContent({ activeChatTab }: Props) {
     const chatsLoading = useActiveChatStore((state) => state.chatsLoading);
 
     const filteredChats = useMemo(() => {
+        const visibleChats = chats.filter((chat) => !chat.is_archived_chat);
+
         switch (activeChatTab) {
             case "unread":
-                return chats.filter((chat) => chat.unreaded_messages_length > 0);
+                return visibleChats.filter((chat) => chat.unreaded_messages_length > 0);
             case "favourites":
-                return chats.filter((chat) => chat.is_favourite_chat);
+                return visibleChats.filter((chat) => chat.is_favourite_chat);
             case "groups":
-                return chats.filter((chat) => chat.chat_type === "group");
+                return visibleChats.filter((chat) => chat.chat_type === "group");
             default:
-                return chats;
+                return visibleChats;
         }
     }, [activeChatTab, chats]);
 
