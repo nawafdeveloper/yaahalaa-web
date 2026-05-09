@@ -4,10 +4,13 @@ import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
 import { authClient } from '@/lib/auth-client';
 import useMediaPreviewStore from '@/store/media-preview-store';
 import { CloseOutlined, FileDownloadOutlined, KeyboardDoubleArrowRight, MoodOutlined, Person, PushPin, PushPinOutlined, Shortcut, Star, StarOutline, ZoomIn, ZoomOut } from '@mui/icons-material'
-import { Avatar, Box, IconButton, Tooltip, Typography } from '@mui/material'
-import React from 'react'
+import { Avatar, Box, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material'
+import React, { useState } from 'react'
 import { useActiveChatStore } from '@/store/use-active-chat-store';
 import { useMessageActions } from '@/hooks/use-message-actions';
+import { createReplyMessageFromMessage } from '@/lib/message-reply';
+import { fetchAndDecryptMessageMedia } from '@/lib/message-media-upload';
+import { parseManagedMessageMediaUrl } from '@/lib/message-media-url';
 
 type Props = {
     zoom: number;
@@ -29,6 +32,7 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
     const { data: session } = authClient.useSession();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const {
         closePreview,
@@ -37,9 +41,11 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
         createdAt,
         chatId,
         messageId,
+        mediaUrl,
     } = useMediaPreviewStore();
     const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
     const messagesByChatId = useActiveChatStore((state) => state.messagesByChatId);
+    const setReplyDraft = useActiveChatStore((state) => state.setReplyDraft);
     const { starMessage, pinMessage } = useMessageActions();
     const resolvedChatId = chatId || selectedChatId;
     const previewMessage =
@@ -62,6 +68,55 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
                 : "You"
             : senderDisplayName ?? senderUserId;
 
+    const downloadFileName =
+        previewMessage?.media_file_name ||
+        `${previewMessage?.attached_media === "video" ? "video" : "photo"}-${messageId ?? "media"}`;
+
+    const handleReply = () => {
+        if (!previewMessage || !resolvedChatId) {
+            return;
+        }
+
+        setReplyDraft(resolvedChatId, createReplyMessageFromMessage(previewMessage));
+        closePreview();
+    };
+
+    const triggerDownload = (href: string, shouldRevoke = false) => {
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.download = downloadFileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+
+        if (shouldRevoke) {
+            window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+        }
+    };
+
+    const handleSaveAs = async () => {
+        const targetMediaUrl = previewMessage?.media_url ?? mediaUrl;
+
+        if (!targetMediaUrl || isDownloading) {
+            return;
+        }
+
+        const managedMedia = parseManagedMessageMediaUrl(targetMediaUrl);
+        if (!managedMedia) {
+            triggerDownload(targetMediaUrl);
+            return;
+        }
+
+        setIsDownloading(true);
+        try {
+            const blob = await fetchAndDecryptMessageMedia(managedMedia.objectKey);
+            const objectUrl = URL.createObjectURL(blob);
+            triggerDownload(objectUrl, true);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     const actionButtons: ActionButton[] = [
         {
             id: '1',
@@ -78,22 +133,11 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
             disabled: zoom >= maxZoom,
         },
         {
-            id: '3',
-            tooltip: isRTL ? 'الذهاب للمحادثة' : 'Go to message',
-            icon:
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M3.00208 9L0.942085 5.53C0.542171 4.86348 1.01478 4 1.79207 4H19.3355C20.8082 4 22.0021 5.19391 22.0021 6.66667V17.3333C22.0021 18.8061 20.8082 20 19.3355 20H5.66875C4.19599 20 3.00208 18.8061 3.00208 17.3333V9ZM5.00208 8.44603L3.53447 6H19.3355C19.7037 6 20.0021 6.29848 20.0021 6.66667V17.3333C20.0021 17.7015 19.7037 18 19.3355 18H5.66875C5.30056 18 5.00208 17.7015 5.00208 17.3333V8.44603Z" fill="currentColor" />
-                    <path d="M7 10C7 9.44772 7.44772 9 8 9H17C17.5523 9 18 9.44772 18 10C18 10.5523 17.5523 11 17 11H8C7.44772 11 7 10.5523 7 10Z" fill="currentColor" />
-                    <path d="M7 14C7 13.4477 7.44772 13 8 13H14C14.5523 13 15 13.4477 15 14C15 14.5523 14.5523 15 14 15H8C7.44772 15 7 14.5523 7 14Z" fill="currentColor" />
-                </svg>
-            ,
-            onClick: () => { },
-        },
-        {
             id: '4',
             tooltip: isRTL ? 'رد' : 'Reply',
             icon: Shortcut,
-            onClick: () => { },
+            onClick: handleReply,
+            disabled: !previewMessage || !resolvedChatId,
         },
         {
             id: '5',
@@ -118,22 +162,11 @@ export default function MediaPreviewHeader({ zoom, onZoomIn, onZoomOut, maxZoom,
             disabled: !previewMessage,
         },
         {
-            id: '7',
-            tooltip: isRTL ? 'تفاعل' : 'React',
-            icon: MoodOutlined,
-            onClick: () => { },
-        },
-        {
-            id: '8',
-            tooltip: isRTL ? 'إعادة توجيه' : 'Forward',
-            icon: KeyboardDoubleArrowRight,
-            onClick: () => { },
-        },
-        {
             id: '9',
             tooltip: isRTL ? 'حفظ كـ' : 'Save as',
-            icon: FileDownloadOutlined,
-            onClick: () => { },
+            icon: isDownloading ? <CircularProgress size={22} color="inherit" /> : FileDownloadOutlined,
+            onClick: () => void handleSaveAs(),
+            disabled: isDownloading || !(previewMessage?.media_url ?? mediaUrl),
         },
         {
             id: '10',

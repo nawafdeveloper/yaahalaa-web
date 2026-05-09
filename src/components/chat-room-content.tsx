@@ -42,7 +42,7 @@ import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { useChatMenuActions } from "@/hooks/use-chat-menu-actions";
 
 const EMPTY_MESSAGES: Message[] = [];
-const BLOCKING_MEDIA_TYPES = new Set(["photo", "video", "voice", "file"]);
+const BLOCKING_MEDIA_TYPES = new Set(["photo", "video", "file"]);
 const PAGE_SIZE = 20;
 
 type MediaStatusMap = Record<string, boolean>;
@@ -1032,7 +1032,6 @@ export default function ChatRoomContent() {
                 backgroundColor: theme.palette.mode === "dark" ? "#161717" : "#f5f5f5",
             })}
         >
-            <FloatingDateBadge label={floatingDateLabel} />
             <List
                 ref={listRef}
                 sx={{

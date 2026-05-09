@@ -30,6 +30,7 @@ import DetailedLargeSidebarHeader from "./detailed-large-sidebar-header";
 import type { Message } from "@/types/messages.type";
 import { DetailedSidebarMediaItem } from "./detailed-sidebar-item-media";
 import DetailedLargeSidebarContent from "./detailed-large-sidebar-content";
+import type { Contact } from "@/types/contacts.type";
 
 const preloadingMediaObjectKeys = new Set<string>();
 const EMPTY_MESSAGES: Message[] = [];
@@ -132,6 +133,58 @@ export default function DetailedLargeSidebar() {
                   ? resolveDirectChatPartner(profileChat.chat_id, currentPhone)
                   : null)
             : null;
+    const directTargetPhone =
+        target?.type !== "user" && activeChat?.chat_type === "single"
+            ? activeChat.contact_phone ??
+              resolveDirectChatPartner(activeChat.chat_id, currentPhone)
+            : null;
+    const targetMessageContact: Contact | null =
+        target?.type === "user"
+            ? targetContact
+                ? {
+                      ...targetContact,
+                      linked_user_id:
+                          targetContact.linked_user_id ?? target.userId,
+                      linked_user_public_key:
+                          targetContact.linked_user_public_key ??
+                          targetGroupMember?.public_key ??
+                          undefined,
+                  }
+                : targetPhone
+                  ? {
+                        contact_id: `group-member-${target.userId}`,
+                        linked_user_id: target.userId,
+                        linked_user_public_key:
+                            targetGroupMember?.public_key ?? undefined,
+                        contact_first_name:
+                            targetGroupMember?.name ?? targetPhone,
+                        contact_number: targetPhone,
+                        contact_avatar: targetGroupMember?.avatar ?? "",
+                        contact_letter_group:
+                            (targetGroupMember?.name ?? targetPhone)
+                                .trim()
+                                .charAt(0)
+                                .toUpperCase() || "#",
+                    }
+                  : null
+            : targetContact ??
+              (activeChat?.chat_type === "single" && directTargetPhone
+                  ? {
+                        contact_id: `direct-${activeChat.chat_id}`,
+                        linked_user_id: activeChat.recipient_user_id ?? undefined,
+                        linked_user_public_key:
+                            activeChat.recipient_public_key ?? undefined,
+                        contact_first_name:
+                            activeChat.display_name ?? directTargetPhone,
+                        contact_number: directTargetPhone,
+                        contact_avatar: activeChat.avatar ?? "",
+                        contact_letter_group:
+                            (activeChat.display_name ?? directTargetPhone)
+                                .trim()
+                                .charAt(0)
+                                .toUpperCase() || "#",
+                    }
+                  : null);
 
     const mediaItems = useMemo<DetailedSidebarMediaItem[]>(
         () =>
@@ -299,6 +352,8 @@ export default function DetailedLargeSidebar() {
                     }
                     currentUserId={currentUserId}
                     contacts={contacts}
+                    contact={targetContact}
+                    messageContact={targetMessageContact}
                 />
             </div>
         </div>

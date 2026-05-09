@@ -61,6 +61,13 @@ import { useDetailedSidebarStore } from '@/store/use-detailed-sidebar-store';
 import { useChatMenuActions } from '@/hooks/use-chat-menu-actions';
 import type { ChatGroupMember, ChatItemType } from '@/types/chats.type';
 import type { Contact } from '@/types/contacts.type';
+import { authClient } from '@/lib/auth-client';
+import { useSidebarStore } from '@/store/use-active-sidebar-store';
+import { useSubsidebarStore } from '@/store/use-active-subsidebar-store';
+import { useRightSideContactCreateStore } from '@/store/use-right-side-contact-create-store';
+import { splitPhoneNumber } from '@/utils/split-phone-number';
+import { encryptContactPayload } from '@/lib/contact-crypto';
+import { useCryptoKeys } from '@/context/crypto';
 
 type RawChatItem = Omit<ChatItemType, "created_at" | "updated_at"> & {
     created_at: string | Date;
@@ -81,6 +88,8 @@ type Props = {
     groupMembers?: ChatGroupMember[] | null;
     currentUserId?: string | null;
     contacts: Contact[];
+    contact: Contact | null;
+    messageContact?: Contact | null;
 }
 
 const EMPTY_GROUP_MEMBERS: ChatGroupMember[] = [];
@@ -92,6 +101,16 @@ function getMemberDisplayName(member: ChatGroupMember, contacts: Contact[]) {
 
 function getMemberAvatar(member: ChatGroupMember, contacts: Contact[]) {
     return findContactByUserId(contacts, member.user_id)?.contact_avatar ?? "";
+}
+
+function splitFullName(fullName?: string | null) {
+    const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+    const firstName = parts.shift() ?? "";
+
+    return {
+        firstName,
+        lastName: parts.join(" "),
+    };
 }
 
 export default function DetailedLargeSidebarContent({
@@ -108,24 +127,47 @@ export default function DetailedLargeSidebarContent({
     groupMembers: rawGroupMembers = [],
     currentUserId,
     contacts,
+    contact,
+    messageContact = contact,
 }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
+    const { data: session } = authClient.useSession();
+    const { isReady: areCryptoKeysReady } = useCryptoKeys();
     const { open } = useMediaDisplayAllStore();
     const closeDetails = useDetailedSidebarStore((state) => state.close);
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
     const removeChat = useActiveChatStore((state) => state.removeChat);
+    const setSelectedChatId = useActiveChatStore((state) => state.setSelectedChatId);
+    const setRecipientPhone = useActiveChatStore((state) => state.setRecipientPhone);
+    const setActiveSideBar = useSidebarStore((state) => state.setActiveSideBar);
+    const setActiveSubsideBar = useSubsidebarStore((state) => state.setActiveSubsideBar);
     const { isToggling, setChatNotificationsMuted } = useToggleChatNotifications();
     const {
         isUpdating: isChatActionUpdating,
         setChatPreference,
         deleteChatForCurrentUser,
     } = useChatMenuActions();
+    const openDirectContactChat = useActiveChatStore(
+        (state) => state.openDirectContactChat
+    );
+    const {
+        setIsRightSideContactCreateActive,
+        setFirstName,
+        setLastName,
+        setDialCode,
+        setPhoneNumber,
+    } = useRightSideContactCreateStore();
+    const selectedChatId = useActiveChatStore((state) => state.selectedChatId);
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
 
     const [isMuted, setIsMuted] = useState(muteNotification || false);
     const [value, setValue] = useState("");
     const [isEditingName, setIsEditingName] = useState(false);
     const [groupNameDraft, setGroupNameDraft] = useState(contactName ?? "");
+    const [isEditingContactName, setIsEditingContactName] = useState(false);
+    const [contactNameDraft, setContactNameDraft] = useState(contactName ?? "");
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [groupError, setGroupError] = useState<string | null>(null);
     const [memberMenuAnchor, setMemberMenuAnchor] = useState<HTMLElement | null>(null);
@@ -142,6 +184,12 @@ export default function DetailedLargeSidebarContent({
     const groupMembers = rawGroupMembers ?? EMPTY_GROUP_MEMBERS;
     const currentMember = groupMembers.find((member) => member.user_id === currentUserId);
     const isCurrentUserAdmin = Boolean(isGroup && currentMember?.is_admin);
+    const isSavedSingleContact = Boolean(!isGroup && contact?.contact_id);
+    const canAddSingleContact = Boolean(
+        !isGroup &&
+        !contact &&
+        (messageContact?.contact_number || contactNumber)
+    );
     const displayContactName =
         contactName?.trim() ||
         contactNumber ||
@@ -205,6 +253,7 @@ export default function DetailedLargeSidebarContent({
 
     useEffect(() => {
         setGroupNameDraft(contactName ?? "");
+        setContactNameDraft(contactName ?? "");
     }, [contactName]);
 
     const mergeUpdatedChat = (rawChat: RawChatItem) => {
@@ -262,6 +311,61 @@ export default function DetailedLargeSidebarContent({
             setIsEditingName(false);
         } catch (error) {
             setGroupError(error instanceof Error ? error.message : "Failed to update group name.");
+        } finally {
+            setPendingAction(null);
+        }
+    };
+
+    const handleSaveContactName = async () => {
+        if (!contact?.contact_id || !contactNameDraft.trim()) {
+            return;
+        }
+
+        if (!areCryptoKeysReady) {
+            setGroupError("Unlock your encryption keys before saving a contact.");
+            return;
+        }
+
+        const { firstName, lastName } = splitFullName(contactNameDraft);
+
+        if (!firstName) {
+            return;
+        }
+
+        setPendingAction("contact-name");
+        setGroupError(null);
+
+        try {
+            const encryptedContact = await encryptContactPayload({
+                contact_first_name: firstName,
+                contact_second_name: lastName || undefined,
+                contact_number:
+                    contact.contact_number ||
+                    messageContact?.contact_number ||
+                    contactNumber ||
+                    "",
+                contact_avatar: contact.contact_avatar,
+                contact_bio: contact.contact_bio,
+            });
+            const response = await fetch("/api/contacts", {
+                method: "PATCH",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contactId: contact.contact_id,
+                    encryptedContact,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error ?? "Failed to update contact name.");
+            }
+
+            window.dispatchEvent(new Event("contacts:changed"));
+            setIsEditingContactName(false);
+        } catch (error) {
+            setGroupError(error instanceof Error ? error.message : "Failed to update contact name.");
         } finally {
             setPendingAction(null);
         }
@@ -538,16 +642,59 @@ export default function DetailedLargeSidebarContent({
         }
     };
 
+    const handleMessageContactPrivatly = () => {
+        if (chatId && chatId !== selectedChatId) {
+            setSelectedChatId(chatId);
+            setRecipientPhone(messageContact?.contact_number ?? contactNumber);
+        } else if (messageContact && currentPhone && session?.user.id) {
+            openDirectContactChat({
+                contact: messageContact,
+                currentPhone,
+                currentUserId: session.user.id,
+            });
+        } else {
+            return;
+        }
+
+        setActiveSubsideBar(null);
+        setActiveSideBar("main-chat");
+        closeDetails();
+    };
+
+    const handleAddUserAsContact = () => {
+        const targetPhone = messageContact?.contact_number ?? contactNumber ?? "";
+
+        if (!targetPhone) {
+            return;
+        }
+
+        const { dialCode, phoneNumber } = splitPhoneNumber(targetPhone);
+        const fallbackName =
+            messageContact?.contact_first_name ||
+            (contactName && contactName !== contactNumber ? contactName : "");
+        const fallbackLastName = messageContact?.contact_second_name ?? "";
+        const splitName =
+            fallbackName && !fallbackLastName
+                ? splitFullName(fallbackName)
+                : { firstName: fallbackName, lastName: fallbackLastName };
+
+        setFirstName(splitName.firstName);
+        setLastName(splitName.lastName);
+        setDialCode(dialCode);
+        setPhoneNumber(phoneNumber);
+        setIsRightSideContactCreateActive(true);
+    };
+
     const listItems = [
-        {
-            id: '1',
-            primary: isRTL ? 'ظ†ط¬ظ…ط©' : 'Starred',
-            secondary: isRTL ? 'ط§ظ„ط±ط³ط§ط¦ظ„ ط§ظ„ظ…ظ…ظٹط²ط©' : 'Starred messages',
-            icon: StarOutline,
-            href: 'detailed-starred',
-            disabled: false,
-            onClick: undefined as undefined | (() => void),
-        },
+        // {
+        //     id: '1',
+        //     primary: isRTL ? 'ظ†ط¬ظ…ط©' : 'Starred',
+        //     secondary: isRTL ? 'ط§ظ„ط±ط³ط§ط¦ظ„ ط§ظ„ظ…ظ…ظٹط²ط©' : 'Starred messages',
+        //     icon: StarOutline,
+        //     href: 'detailed-starred',
+        //     disabled: false,
+        //     onClick: undefined as undefined | (() => void),
+        // },
         ...(isGroup
             ? [
                 {
@@ -604,54 +751,6 @@ export default function DetailedLargeSidebarContent({
                 width: '100%',
             }}
         >
-            <TextField
-                hiddenLabel
-                id="filled-search-bar"
-                variant="filled"
-                size="small"
-                placeholder={isRTL ? "ط¥ط¨ط­ط« ظپظٹ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ" : "Search for messages"}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                inputRef={inputRef}
-                sx={{
-                    "& .MuiFilledInput-root": {
-                        borderRadius: 8,
-                        "&.Mui-focused": {
-                            outline: "2px solid #25D366",
-                        },
-                    },
-                    width: '100%',
-                }}
-                InputProps={{
-                    disableUnderline: true,
-                    startAdornment: (
-                        <InputAdornment position="start">
-                            <SearchOutlined
-                                sx={{
-                                    color: (theme) =>
-                                        theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                    width: 20,
-                                    height: 20,
-                                }}
-                            />
-                        </InputAdornment>
-                    ),
-                    endAdornment: value ? (
-                        <InputAdornment position="end">
-                            <IconButton onClick={handleClear} size="small">
-                                <CloseOutlined
-                                    sx={{
-                                        color: (theme) =>
-                                            theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                        width: 18,
-                                        height: 18,
-                                    }}
-                                />
-                            </IconButton>
-                        </InputAdornment>
-                    ) : null,
-                }}
-            />
             <Stack
                 spacing={1}
                 alignItems={'center'}
@@ -766,6 +865,33 @@ export default function DetailedLargeSidebarContent({
                             )}
                         </IconButton>
                     </Stack>
+                ) : !isGroup && isEditingContactName ? (
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
+                        <TextField
+                            variant="standard"
+                            value={contactNameDraft}
+                            onChange={(event) => setContactNameDraft(event.target.value)}
+                            fullWidth
+                            autoFocus
+                            inputProps={{ maxLength: 80 }}
+                        />
+                        <IconButton
+                            type="button"
+                            onClick={() => void handleSaveContactName()}
+                            disabled={
+                                !contactNameDraft.trim() ||
+                                pendingAction === "contact-name" ||
+                                !areCryptoKeysReady
+                            }
+                            sx={{ color: "#25D366" }}
+                        >
+                            {pendingAction === "contact-name" ? (
+                                <CircularProgress size={18} />
+                            ) : (
+                                <Check />
+                            )}
+                        </IconButton>
+                    </Stack>
                 ) : (
                     <Stack direction="row" spacing={1} alignItems="center">
                         <Typography variant='h6'>
@@ -776,6 +902,15 @@ export default function DetailedLargeSidebarContent({
                                 type="button"
                                 size="small"
                                 onClick={() => setIsEditingName(true)}
+                            >
+                                <EditOutlined sx={{ fontSize: 18 }} />
+                            </IconButton>
+                        ) : null}
+                        {isSavedSingleContact ? (
+                            <IconButton
+                                type="button"
+                                size="small"
+                                onClick={() => setIsEditingContactName(true)}
                             >
                                 <EditOutlined sx={{ fontSize: 18 }} />
                             </IconButton>
@@ -806,23 +941,26 @@ export default function DetailedLargeSidebarContent({
                             gap: 2,
                         }}
                     >
-                        <div className='flex flex-col items-center justify-center space-y-1'>
-                            <IconButton size="large" sx={{ color: '#25D366' }}>
-                                <AddComment fontSize='small' />
-                            </IconButton>
-                            <Typography sx={{ color: '#25D366' }} variant='body2'>
-                                Message
-                            </Typography>
-                        </div>
-
-                        <div className='flex flex-col items-center justify-center space-y-1'>
-                            <IconButton size="large" sx={{ color: '#25D366' }}>
-                                <PersonAdd fontSize='small' />
-                            </IconButton>
-                            <Typography sx={{ color: '#25D366' }} variant='body2'>
-                                Add
-                            </Typography>
-                        </div>
+                        {chatId !== selectedChatId && (
+                            <div className='flex flex-col items-center justify-center space-y-1'>
+                                <IconButton onClick={handleMessageContactPrivatly} size="large" sx={{ color: '#25D366' }}>
+                                    <AddComment fontSize='small' />
+                                </IconButton>
+                                <Typography sx={{ color: '#25D366' }} variant='body2'>
+                                    Message
+                                </Typography>
+                            </div>
+                        )}
+                        {canAddSingleContact && (
+                            <div onClick={handleAddUserAsContact} className='flex flex-col items-center justify-center space-y-1'>
+                                <IconButton size="large" sx={{ color: '#25D366' }}>
+                                    <PersonAdd fontSize='small' />
+                                </IconButton>
+                                <Typography sx={{ color: '#25D366' }} variant='body2'>
+                                    Add
+                                </Typography>
+                            </div>
+                        )}
                     </Box>
                 )}
             </Stack>

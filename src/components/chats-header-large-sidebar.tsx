@@ -6,7 +6,6 @@ import Image from "next/image";
 import ChatsMoreButtonMenu from "./chats-more-button-menu";
 import { useSidebarStore } from "@/store/use-active-sidebar-store";
 import { getLocaleFromCookie, isRTLClient } from '@/lib/locale-client';
-import { useTheme } from '@mui/material/styles';
 
 type Props = {
     logout: () => void;
@@ -16,7 +15,6 @@ export default function ChatsHeaderLargeSideBar({ logout }: Props) {
     const { setActiveSideBar } = useSidebarStore();
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
-    const theme = useTheme();
 
     return (
         <div className={`flex flex-row items-center justify-between`}>

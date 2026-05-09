@@ -441,6 +441,24 @@ export function useChatRealtime() {
                     const isSelected =
                         useActiveChatStore.getState().selectedChatId ===
                         event.conversationId;
+                    const messageAlreadyExists = Boolean(
+                        useActiveChatStore
+                            .getState()
+                            .messagesByChatId[event.conversationId]?.some(
+                                (message) =>
+                                    message.message_id === nextMessage.message_id
+                            )
+                    );
+
+                    if (isSelected && !messageAlreadyExists) {
+                        appendMessage(event.conversationId, {
+                            ...nextMessage,
+                            client_status: "sent",
+                            client_error: null,
+                            client_received_via_realtime:
+                                nextMessage.sender_user_id !== currentUserId,
+                        });
+                    }
 
                     const nextChat = applyKnownContactOverride(
                         buildChatFromMessage({

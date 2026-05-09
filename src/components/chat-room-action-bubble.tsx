@@ -211,35 +211,6 @@ export default function ChatRoomActionBubble({
                         }}
                     >{isRTL ? 'نجمة' : 'Star'}</ListItemText>
                 </MenuItem>
-                <MenuItem
-                    onClick={handleClose}
-                    sx={(theme) => ({
-                        "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
-                        },
-                        borderRadius: 2,
-                        paddingY: 1,
-                        paddingX: 1
-                    })}
-                >
-                    <ListItemIcon>
-                        <DeleteForeverOutlined
-                            fontSize="small"
-                            sx={(theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                            })}
-                        />
-                    </ListItemIcon>
-                    <ListItemText
-                        primaryTypographyProps={{
-                            sx: (theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261",
-                                fontWeight: 500,
-                                fontSize: "15px",
-                            }),
-                        }}
-                    >{isRTL ? 'حذف' : 'Delete'}</ListItemText>
-                </MenuItem>
             </Menu>
         </div>
     )

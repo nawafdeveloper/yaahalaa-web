@@ -18,6 +18,8 @@ import { useSyncProfileImageRecipients } from '@/hooks/use-sync-profile-image-re
 import { useMediaDisplayAllStore } from '@/store/use-media-display-all-store';
 import MediaDisplayAllChatRoom from './media-display-all-chat-room';
 import Notification from './test/notification';
+import { useRightSideContactCreateStore } from '@/store/use-right-side-contact-create-store';
+import RightSideContactCreate from './right-side-contact-create';
 
 export default function MainClientUIAppWrapper({ children, country }: { children: React.ReactNode, country: string | null; }) {
     const { isOpen } = useMediaPreviewStore();
@@ -32,6 +34,7 @@ export default function MainClientUIAppWrapper({ children, country }: { children
         logout
     } = useLogout(isRTL);
     useChatRealtime();
+    const { isRightSideContactCreateActive } = useRightSideContactCreateStore();
     useSyncProfileImageRecipients();
     const { isOpen: isMediaAllOpen } = useMediaDisplayAllStore();
 
@@ -95,6 +98,17 @@ export default function MainClientUIAppWrapper({ children, country }: { children
                                     className="absolute inset-0 bg-white dark:bg-[#161717] z-20"
                                 >
                                     <MediaDisplayAllChatRoom />
+                                </motion.div>
+                            )}
+                            {isRightSideContactCreateActive && (
+                                <motion.div
+                                    initial={{ x: isRTL ? '-100%' : '100%', opacity: 1 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: isRTL ? '-100%' : '100%', opacity: 1 }}
+                                    transition={{ duration: 0.15, ease: customEasing }}
+                                    className="absolute inset-0 bg-white dark:bg-[#161717] z-30"
+                                >
+                                    <RightSideContactCreate />
                                 </motion.div>
                             )}
                         </AnimatePresence>

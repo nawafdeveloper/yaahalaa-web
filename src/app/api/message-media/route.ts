@@ -21,7 +21,7 @@ type RecipientKeyInput = {
     encryptedAesKey: string;
 };
 
-const MESSAGE_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
+const MESSAGE_MEDIA_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
 function jsonError(message: string, status: number): Response {
     return Response.json({ error: message }, { status });
@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         if (file.size > MESSAGE_MEDIA_MAX_SIZE_BYTES) {
-            return jsonError("Message media exceeds 100 MB limit.", 400);
+            return jsonError("Message media exceeds 50 MB limit.", 400);
         }
 
         const originalSizeBytes = Number(

@@ -191,3 +191,87 @@ export async function POST(request: Request) {
         { status: 201, headers: noStoreHeaders }
     );
 }
+
+export async function PATCH(request: Request) {
+    const session = await auth.api.getSession({
+        headers: new Headers(request.headers),
+    });
+
+    if (!session) {
+        return Response.json(
+            { error: "Unauthorized" },
+            { status: 401, headers: noStoreHeaders }
+        );
+    }
+
+    const sessionUser = session.user as UserSessionShape;
+    const body = (await request.json()) as {
+        contactId?: string;
+        encryptedContact?: EncryptedTextPayload | null;
+    };
+
+    if (
+        !body.contactId ||
+        !body.encryptedContact?.ciphertext ||
+        !body.encryptedContact.encryptedAesKey ||
+        !body.encryptedContact.iv ||
+        !body.encryptedContact.algorithm
+    ) {
+        return Response.json(
+            { error: "Missing required contact fields." },
+            { status: 400, headers: noStoreHeaders }
+        );
+    }
+
+    const now = new Date();
+    const updatedRows = await db
+        .update(contacts)
+        .set({
+            contact_ciphertext: body.encryptedContact.ciphertext,
+            contact_encrypted_aes_key: body.encryptedContact.encryptedAesKey,
+            contact_iv: body.encryptedContact.iv,
+            contact_algorithm: body.encryptedContact.algorithm,
+            updated_at: now,
+        })
+        .where(
+            and(
+                eq(contacts.owner_user_id, sessionUser.id),
+                eq(contacts.contact_id, body.contactId)
+            )
+        )
+        .returning({ contact_id: contacts.contact_id });
+
+    if (updatedRows.length === 0) {
+        return Response.json(
+            { error: "Contact not found." },
+            { status: 404, headers: noStoreHeaders }
+        );
+    }
+
+    const [savedContact] = await db
+        .select({
+            contact_id: contacts.contact_id,
+            owner_user_id: contacts.owner_user_id,
+            linked_user_id: contacts.linked_user_id,
+            linked_user_image: user.image,
+            linked_user_public_key: user.yhlaPublicKey,
+            linked_user_phone_number: user.phoneNumber,
+            contact_ciphertext: contacts.contact_ciphertext,
+            contact_encrypted_aes_key: contacts.contact_encrypted_aes_key,
+            contact_iv: contacts.contact_iv,
+            contact_algorithm: contacts.contact_algorithm,
+            normalized_phone_hash: contacts.normalized_phone_hash,
+            created_at: contacts.created_at,
+            updated_at: contacts.updated_at,
+        })
+        .from(contacts)
+        .leftJoin(user, eq(contacts.linked_user_id, user.id))
+        .where(
+            and(
+                eq(contacts.owner_user_id, sessionUser.id),
+                eq(contacts.contact_id, body.contactId)
+            )
+        );
+
+    return Response.json({ contact: savedContact }, { headers: noStoreHeaders });
+}

@@ -13,6 +13,11 @@ import {
     createMediaDebugTraceId,
     logMediaDebug,
 } from "@/lib/message-media-debug";
+import {
+    MESSAGE_MEDIA_INPUT_MAX_BYTES,
+    MESSAGE_MEDIA_TARGET_MAX_BYTES,
+    prepareMessageMediaFile,
+} from "@/lib/message-media-compression";
 import { persistDecryptedMessageMedia, uploadEncryptedMessageMedia } from "@/lib/message-media-upload";
 import {
     createMessageMediaPreview,
@@ -582,11 +587,31 @@ export function useSendChatMessage() {
             return false;
         }
 
+        let preparedMedia: Awaited<ReturnType<typeof prepareMessageMediaFile>>;
+        try {
+            preparedMedia = await prepareMessageMediaFile(file, attachedMedia);
+        } catch (error) {
+            logMediaDebug("client.attachment.rejected", {
+                attachedMedia,
+                fileName: file.name,
+                fileType: file.type || null,
+                fileSize: file.size,
+                targetMaxBytes: MESSAGE_MEDIA_TARGET_MAX_BYTES,
+                inputMaxBytes: MESSAGE_MEDIA_INPUT_MAX_BYTES,
+                error:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to prepare attachment",
+            });
+            return false;
+        }
+
+        const uploadFile = preparedMedia.file;
         const messageId = crypto.randomUUID();
         const debugTraceId = createMediaDebugTraceId(attachedMedia);
-        const localMediaUrl = URL.createObjectURL(file);
-        const mediaDimensions = await getMessageMediaDimensions(file);
-        const localPreviewBlob = await createMessageMediaPreview(file);
+        const localMediaUrl = URL.createObjectURL(uploadFile);
+        const mediaDimensions = await getMessageMediaDimensions(uploadFile);
+        const localPreviewBlob = await createMessageMediaPreview(uploadFile);
         const localPreviewUrl =
             localPreviewBlob ? URL.createObjectURL(localPreviewBlob) : localMediaUrl;
         const trimmedText = text?.trim() ?? "";
@@ -611,9 +636,14 @@ export function useSendChatMessage() {
             messageId,
             attachedMedia,
             chatId,
-            fileName: file.name,
-            fileType: file.type || null,
-            fileSize: file.size,
+            fileName: uploadFile.name,
+            fileType: uploadFile.type || null,
+            fileSize: uploadFile.size,
+            originalFileName: preparedMedia.originalFile.name,
+            originalFileSize: preparedMedia.originalFile.size,
+            didCompress: preparedMedia.didCompress,
+            targetMaxBytes: MESSAGE_MEDIA_TARGET_MAX_BYTES,
+            inputMaxBytes: MESSAGE_MEDIA_INPUT_MAX_BYTES,
             previewSize: localPreviewBlob?.size ?? null,
             recipientIds: conversation.recipients.map((recipient) => recipient.userId),
         });
@@ -624,15 +654,15 @@ export function useSendChatMessage() {
             attachedMedia,
             mediaUrl: localMediaUrl,
             mediaPreviewUrl: localPreviewUrl,
-            mediaSizeBytes: file.size,
+            mediaSizeBytes: uploadFile.size,
             mediaWidth: mediaDimensions?.width ?? null,
             mediaHeight: mediaDimensions?.height ?? null,
-            mediaFileName: file.name,
+            mediaFileName: uploadFile.name,
             plaintext: trimmedText.length > 0 ? trimmedText : null,
             replyMessage,
-            clientLocalMediaName: file.name,
-            clientLocalMediaSize: file.size,
-            clientLocalMediaMimeType: file.type || null,
+            clientLocalMediaName: uploadFile.name,
+            clientLocalMediaSize: uploadFile.size,
+            clientLocalMediaMimeType: uploadFile.type || null,
             isForwarded: isForwardMessage,
         });
 
@@ -653,7 +683,7 @@ export function useSendChatMessage() {
 
         try {
             const upload = await uploadEncryptedMessageMedia(
-                file,
+                uploadFile,
                 conversation.recipients.map((recipient) => ({
                     recipientUserId: recipient.userId,
                     publicKey: recipient.publicKey,
@@ -669,12 +699,12 @@ export function useSendChatMessage() {
                 media_size_bytes: upload.sizeBytes,
                 media_width: mediaDimensions?.width ?? null,
                 media_height: mediaDimensions?.height ?? null,
-                media_file_name: file.name,
+                media_file_name: uploadFile.name,
                 client_status: "sending",
                 client_error: null,
             }));
 
-            await persistDecryptedMessageMedia(upload.objectKey, file);
+            await persistDecryptedMessageMedia(upload.objectKey, uploadFile);
             logMediaDebug("client.attachment.upload-complete", {
                 debugTraceId,
                 messageId,
@@ -696,7 +726,7 @@ export function useSendChatMessage() {
                     media_size_bytes: upload.sizeBytes,
                     media_width: mediaDimensions?.width ?? null,
                     media_height: mediaDimensions?.height ?? null,
-                    media_file_name: file.name,
+                    media_file_name: uploadFile.name,
                 },
                 conversation,
                 existingMessageId: messageId,

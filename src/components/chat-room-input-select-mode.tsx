@@ -32,12 +32,6 @@ export default function ChatRoomInputSelectMode({
                 </Typography>
             </div>
             <div className='flex flex-row items-center gap-x-3'>
-                <IconButton disabled={selectedCount === 0}>
-                    <StarOutline fontSize="inherit" />
-                </IconButton>
-                <IconButton disabled={selectedCount === 0}>
-                    <DeleteOutline fontSize="inherit" />
-                </IconButton>
                 <IconButton
                     disabled={selectedCount === 0}
                     onClick={onForwardSelected}

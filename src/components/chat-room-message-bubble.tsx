@@ -47,13 +47,16 @@ import { useDecryptedMessageMedia } from "@/hooks/use-decrypted-message-media";
 import { authClient } from "@/lib/auth-client";
 import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import { encryptContactPayload, sha256Hex } from "@/lib/contact-crypto";
 import {
     findContactByPhone,
     findContactByUserId,
     getContactDisplayName,
 } from "@/lib/contact-display";
+import { normalizePhoneNumber } from "@/lib/contact-utils";
 import { logMediaDebug } from "@/lib/message-media-debug";
 import { getMessageMediaAutoDownload } from "@/lib/message-media";
+import { fetchAndDecryptMessageMedia } from "@/lib/message-media-upload";
 import FileIcon from "./file-icon";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { buildChatFromReaction } from "@/lib/chat-utils";
@@ -62,6 +65,8 @@ import {
     createReplyMessageFromMessage,
     getReplyMessageLabel,
 } from "@/lib/message-reply";
+import type { Contact as DirectoryContact } from "@/types/contacts.type";
+import type { ContactCheckResponse } from "@/types/contacts.type";
 
 type Props = {
     message: Message;
@@ -97,6 +102,9 @@ export default function ChatRoomMessageBubble({
     const updateMessage = useActiveChatStore((state) => state.updateMessage);
     const upsertChat = useActiveChatStore((state) => state.upsertChat);
     const setReplyDraft = useActiveChatStore((state) => state.setReplyDraft);
+    const openDirectContactChat = useActiveChatStore(
+        (state) => state.openDirectContactChat
+    );
     const { contacts } = useDecryptedContacts();
     const { starMessage, pinMessage } = useMessageActions();
 
@@ -128,6 +136,9 @@ export default function ChatRoomMessageBubble({
     const [isBubbleEnter, setIsBubbleEnter] = useState(false);
     const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
     const [isReplyTargetBlinking, setIsReplyTargetBlinking] = useState(false);
+    const [isSavingContact, setIsSavingContact] = useState(false);
+    const [isDownloadingFile, setIsDownloadingFile] = useState(false);
+    const [contactActionError, setContactActionError] = useState<string | null>(null);
     const rowRef = useRef<HTMLDivElement | null>(null);
     const replyTargetBlinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
         null
@@ -226,6 +237,9 @@ export default function ChatRoomMessageBubble({
     ]);
 
     const currentUserId = session?.user.id ?? null;
+    const currentPhone =
+        (session?.user as { phoneNumber?: string | null } | undefined)
+            ?.phoneNumber ?? null;
     const isSender = message.sender_user_id === currentUserId;
     const isStarredByCurrentUser = Boolean(
         currentUserId && message.user_ids_star_it?.includes(currentUserId)
@@ -270,6 +284,45 @@ export default function ChatRoomMessageBubble({
                 : isGroupChat && replySenderGroupMember
                     ? (replySenderGroupMember.name?.trim() || replySenderGroupMember.phone_number) ?? ""
                     : replySenderUserId ?? "";
+
+    const sharedContact = message.contact;
+    const savedSharedContact =
+        findContactByUserId(contacts, sharedContact?.linked_user_id) ??
+        findContactByPhone(contacts, sharedContact?.contact_phone);
+    const sharedContactPhone =
+        savedSharedContact?.contact_number ??
+        sharedContact?.contact_phone ??
+        null;
+    const sharedContactName =
+        savedSharedContact
+            ? getContactDisplayName(savedSharedContact)
+            : sharedContact?.contact_name ?? sharedContactPhone ?? "";
+
+    const buildSharedDirectoryContact = (): DirectoryContact | null => {
+        if (!sharedContactPhone) {
+            return null;
+        }
+
+        if (savedSharedContact) {
+            return savedSharedContact;
+        }
+
+        const [firstName = "", ...lastNameParts] = (sharedContact?.contact_name ?? "")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+
+        return {
+            contact_id: sharedContact?.contact_id || `shared-${sharedContactPhone}`,
+            linked_user_id: sharedContact?.linked_user_id ?? undefined,
+            contact_first_name: firstName || sharedContactPhone,
+            contact_second_name: lastNameParts.join(" ") || undefined,
+            contact_number: sharedContactPhone,
+            contact_avatar: sharedContact?.contact_image ?? "",
+            contact_letter_group:
+                (firstName || sharedContactPhone).charAt(0).toUpperCase() || "#",
+        };
+    };
 
     const handleReactToMessage = async (reactionEmoji: string) => {
         const currentUserId = session?.user.id;
@@ -343,6 +396,142 @@ export default function ChatRoomMessageBubble({
 
     const handleTogglePinMessage = () => {
         void pinMessage(message, !isPinnedByCurrentUser);
+    };
+
+    const handleDownloadFile = async (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        event.stopPropagation();
+
+        if (!message.media_url || isDownloadingFile) {
+            return;
+        }
+
+        setIsDownloadingFile(true);
+        try {
+            let downloadUrl = decryptedMediaUrl;
+            let objectUrl: string | null = null;
+
+            if (!downloadUrl) {
+                const blob = await fetchAndDecryptMessageMedia(message.media_url);
+                objectUrl = URL.createObjectURL(blob);
+                downloadUrl = objectUrl;
+            }
+
+            const anchor = document.createElement("a");
+            anchor.href = downloadUrl;
+            anchor.download =
+                message.media_file_name ||
+                message.client_local_media_name ||
+                "download";
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+
+            if (objectUrl) {
+                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            }
+        } finally {
+            setIsDownloadingFile(false);
+        }
+    };
+
+    const handleMessageSharedContact = (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        event.stopPropagation();
+        setContactActionError(null);
+
+        const contact = buildSharedDirectoryContact();
+        if (!contact || !currentPhone || !currentUserId) {
+            setContactActionError("Missing contact details.");
+            return;
+        }
+
+        openDirectContactChat({
+            contact,
+            currentPhone,
+            currentUserId,
+        });
+    };
+
+    const handleSaveSharedContact = async (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        event.stopPropagation();
+
+        const contact = buildSharedDirectoryContact();
+        if (!contact?.contact_number || isSavingContact) {
+            return;
+        }
+
+        setIsSavingContact(true);
+        setContactActionError(null);
+
+        try {
+            const normalizedPhone = normalizePhoneNumber(contact.contact_number);
+            if (!normalizedPhone) {
+                throw new Error("Missing contact phone number.");
+            }
+
+            let linkedUserId =
+                contact.linked_user_id ?? sharedContact?.linked_user_id ?? null;
+
+            if (!linkedUserId) {
+                const response = await fetch(
+                    `/api/contacts/check?phone=${encodeURIComponent(normalizedPhone)}`,
+                    {
+                        cache: "no-store",
+                        credentials: "same-origin",
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to verify this contact.");
+                }
+
+                const result = (await response.json()) as ContactCheckResponse;
+                linkedUserId = result.linkedUserId;
+            }
+
+            if (!linkedUserId) {
+                throw new Error("This contact does not have an account.");
+            }
+
+            const encryptedContact = await encryptContactPayload({
+                contact_first_name: contact.contact_first_name || sharedContactName,
+                contact_second_name: contact.contact_second_name || undefined,
+                contact_number: normalizedPhone,
+                contact_avatar: contact.contact_avatar,
+            });
+            const response = await fetch("/api/contacts", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    linkedUserId,
+                    phoneHash: await sha256Hex(normalizedPhone),
+                    encryptedContact,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => null)) as
+                    | { error?: string }
+                    | null;
+                throw new Error(payload?.error || "Failed to save contact.");
+            }
+
+            window.dispatchEvent(new Event("contacts:changed"));
+        } catch (error) {
+            setContactActionError(
+                error instanceof Error ? error.message : "Failed to save contact."
+            );
+        } finally {
+            setIsSavingContact(false);
+        }
     };
 
     const handleShowOriginalReplyMessage = (
@@ -1294,14 +1483,34 @@ export default function ChatRoomMessageBubble({
                                         borderTopColor: isSender ? theme.palette.mode === 'dark' ? '#2F4537' : '#C3E3BD' : theme.palette.mode === 'dark' ? '#3A3C3C' : '#E5E5E5'
                                     })}
                                 >
-                                    <button className={`flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366] border-r ${isSender ? 'border-r-[#C3E3BD] dark:border-r-[#2C5F4B]' : 'border-r-[#E5E5E5] dark:border-r-[#3A3C3C]'}`}>
+                                    <button
+                                        type="button"
+                                        onClick={handleMessageSharedContact}
+                                        className={`flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366] border-r ${isSender ? 'border-r-[#C3E3BD] dark:border-r-[#2C5F4B]' : 'border-r-[#E5E5E5] dark:border-r-[#3A3C3C]'}`}
+                                    >
                                         <p>{isRTL ? 'مراسلة' : 'Message'}</p>
                                     </button>
-                                    <button className="flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366]">
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSharedContact}
+                                        disabled={isSavingContact}
+                                        className="flex flex-1 py-2 cursor-pointer justify-center items-center gap-x-2 text-[#25D366] disabled:cursor-default"
+                                    >
+                                        {isSavingContact && (
+                                            <CircularProgress size={18} sx={{ color: "#25D366" }} />
+                                        )}
                                         <p>{isRTL ? 'حفظ' : 'Save contact'}</p>
                                     </button>
                                 </Box>
                             )}
+                            {message.attached_media === "contact" && contactActionError ? (
+                                <Typography
+                                    variant="caption"
+                                    sx={{ px: 1, pb: 1, color: "#d32f2f", display: "block" }}
+                                >
+                                    {contactActionError}
+                                </Typography>
+                            ) : null}
                             {message.attached_media === "file" && (
                                 <Box
                                     sx={(theme) => ({
@@ -1317,7 +1526,15 @@ export default function ChatRoomMessageBubble({
                                         borderTopColor: isSender ? theme.palette.mode === 'dark' ? '#2F4537' : '#C3E3BD' : theme.palette.mode === 'dark' ? '#3A3C3C' : '#E5E5E5'
                                     })}
                                 >
-                                    <button className="flex flex-1 py-2 cursor-pointer justify-center items-center text-[#25D366]">
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadFile}
+                                        disabled={isDownloadingFile || (!decryptedMediaUrl && !message.media_url)}
+                                        className="flex flex-1 py-2 cursor-pointer justify-center items-center gap-x-2 text-[#25D366] disabled:cursor-default"
+                                    >
+                                        {isDownloadingFile && (
+                                            <CircularProgress size={18} sx={{ color: "#25D366" }} />
+                                        )}
                                         <p>{isRTL ? 'تنزيل' : 'Download'}</p>
                                     </button>
                                 </Box>

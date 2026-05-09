@@ -52,7 +52,7 @@ export default function ArchiveSectionLargeSidebar() {
                     </div>
                 ) : archivedChats.length === 0 ? (
                     <label className="flex flex-col gap-y-4 text-start w-full md:max-w-xl md:mx-auto">
-                        <p className="text-[#636261] dark:text-[#A5A5A5]">
+                        <p className="text-[#636261] dark:text-[#A5A5A5] leading-tight">
                             <ArchiveOutlined fontSize="inherit" />{" "}
                             {isRTL
                                 ? "لا توجد محادثات مؤرشفة."
