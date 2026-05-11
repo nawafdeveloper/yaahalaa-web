@@ -14,6 +14,8 @@ declare namespace Cloudflare {
 		NEXT_PUBLIC_VAPID_PUBLIC_KEY: string;
 		VAPID_SUBJECT: string;
 		PROFILE_IMAGE_MASTER_KEY: string;
+		FIREBASE_PROJECT_ID: string;
+		FIREBASE_SERVICE_ACCOUNT_JSON: string;
 		USER_PRESENCE_DO: DurableObjectNamespace<import("./.open-next/worker-with-do").UserPresenceDO>;
 		CHAT_ROOM_DO: DurableObjectNamespace<import("./.open-next/worker-with-do").ChatRoomDO>;
 		PROFILE_IMAGES_BUCKET: R2Bucket;
@@ -27,7 +29,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DATABASE_URL" | "BETTER_AUTH_SECRET" | "VAPID_PRIVATE_KEY" | "BETTER_AUTH_URL" | "NEXT_PUBLIC_VAPID_PUBLIC_KEY" | "VAPID_SUBJECT" | "PROFILE_IMAGE_MASTER_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DATABASE_URL" | "BETTER_AUTH_SECRET" | "VAPID_PRIVATE_KEY" | "BETTER_AUTH_URL" | "NEXT_PUBLIC_VAPID_PUBLIC_KEY" | "VAPID_SUBJECT" | "PROFILE_IMAGE_MASTER_KEY" | "FIREBASE_PROJECT_ID" | "FIREBASE_SERVICE_ACCOUNT_JSON">> {}
 }
 
 // Begin runtime types

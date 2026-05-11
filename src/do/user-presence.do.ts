@@ -79,10 +79,12 @@ type SendMessagePayload = {
           conversationType: "direct" | "group";
           senderUserId?: string;
           senderNickname?: string;
+          senderAvatarUrl?: string | null;
           recipientUserId?: string;
           senderPhone?: string;
           recipientPhone?: string;
           participantIds?: string[];
+          notificationPlaintext?: string | null;
           content?: string;
           messageTextContent?: string | null;
           attachedMedia?: Message["attached_media"];
@@ -598,12 +600,14 @@ export class UserPresenceDO extends DurableObject<DurableBindingsEnv> {
                 conversationId,
                 conversationType: data.conversationType,
                 message: savedMessage,
+                notificationPlaintext: data.notificationPlaintext ?? null,
                 recipientUserIds: (savedMessage.message_recipient_keys ?? [])
                     .map((key) => key.recipient_user_id)
                     .filter(
                         (recipientUserId) =>
                             recipientUserId !== senderUserId
                     ),
+                senderAvatarUrl: data.senderAvatarUrl ?? null,
                 senderDisplayName: data.senderNickname ?? senderUserId,
             });
         } catch {

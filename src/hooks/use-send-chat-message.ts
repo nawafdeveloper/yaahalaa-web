@@ -47,10 +47,12 @@ type HttpMessagePayload = {
     clientMessageId: string;
     senderUserId: string;
     senderNickname: string;
+    senderAvatarUrl?: string | null;
     chatRoomId: string;
     conversationType: "group" | "direct";
     senderPhone: string;
     recipientPhone?: string;
+    notificationPlaintext?: string | null;
     attachedMedia?: Message["attached_media"] | null;
     mediaUrl?: string | null;
     mediaPreviewUrl?: string | null;
@@ -83,6 +85,19 @@ function createChatPreviewText(text: string) {
     }
 
     return `${text.slice(0, CHAT_PREVIEW_MAX_LENGTH).trimEnd()}...`;
+}
+
+function getNotificationPlaintextForMessage(message: Message) {
+    const text = message.message_text_content?.trim();
+    if (text) {
+        return createChatPreviewText(text);
+    }
+
+    if (message.attached_media === "contact" && message.contact?.contact_name) {
+        return `Contact: ${message.contact.contact_name}`;
+    }
+
+    return null;
 }
 
 export function useSendChatMessage() {
@@ -258,6 +273,9 @@ export function useSendChatMessage() {
         isForwardMessage?: boolean;
     }) => {
         const senderNickname = session?.user.name ?? currentPhone;
+        const senderAvatarUrl = session?.user.image ?? null;
+        const notificationPlaintext =
+            getNotificationPlaintextForMessage(optimisticMessage);
         const optimisticMessageWithRecipientKeys: Message =
             recipientEncryptionKeys?.length
                 ? {
@@ -329,10 +347,12 @@ export function useSendChatMessage() {
                     conversationType: conversation.conversationType,
                     senderUserId: currentUserId,
                     senderNickname,
+                    senderAvatarUrl,
                     senderPhone: currentPhone,
                     recipientUserId: conversation.recipientUserId,
                     recipientPhone: conversation.recipientPhoneForTransport,
                     participantIds: conversation.participantIds,
+                    notificationPlaintext,
                     attachedMedia: optimisticMessage.attached_media,
                     mediaUrl: optimisticMessage.media_url,
                     mediaPreviewUrl: optimisticMessage.media_preview_url ?? null,
@@ -354,10 +374,12 @@ export function useSendChatMessage() {
                 clientMessageId: messageId,
                 senderUserId: currentUserId,
                 senderNickname,
+                senderAvatarUrl,
                 chatRoomId: chatId,
                 conversationType: conversation.conversationType,
                 senderPhone: currentPhone,
                 recipientPhone: conversation.recipientPhoneForTransport,
+                notificationPlaintext,
                 attachedMedia: optimisticMessage.attached_media,
                 mediaUrl: optimisticMessage.media_url,
                 mediaPreviewUrl: optimisticMessage.media_preview_url ?? null,

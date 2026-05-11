@@ -4,6 +4,8 @@ declare namespace Cloudflare {
 		BETTER_AUTH_SECRET: string
 		DATABASE_URL: string
 		PROFILE_IMAGE_MASTER_KEY: string
+		FIREBASE_PROJECT_ID: string
+		FIREBASE_SERVICE_ACCOUNT_JSON: string
 		PROFILE_IMAGES_BUCKET: R2Bucket
 	}
 }
@@ -16,5 +18,7 @@ declare namespace NodeJS {
 		BETTER_AUTH_SECRET?: string
 		DATABASE_URL?: string
 		PROFILE_IMAGE_MASTER_KEY?: string
+		FIREBASE_PROJECT_ID?: string
+		FIREBASE_SERVICE_ACCOUNT_JSON?: string
 	}
 }

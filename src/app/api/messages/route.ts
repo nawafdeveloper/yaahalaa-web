@@ -46,6 +46,7 @@ import { sendMessagePushNotifications } from "@/lib/expo-push-notifications";
 interface UserWithPhone {
     id: string;
     name?: string | null;
+    image?: string | null;
     phoneNumber?: string | null;
 }
 
@@ -74,10 +75,12 @@ export async function POST(request: Request) {
         clientMessageId?: string;
         senderUserId?: string;
         senderNickname?: string;
+        senderAvatarUrl?: string | null;
         chatRoomId?: string;
         conversationType?: "direct" | "group";
         senderPhone?: string;
         recipientPhone?: string;
+        notificationPlaintext?: string | null;
         content?: string | null;
         messageTextContent?: string | null;
         attachedMedia?: Message["attached_media"];
@@ -103,10 +106,12 @@ export async function POST(request: Request) {
         senderUserId,
         clientMessageId,
         senderNickname,
+        senderAvatarUrl,
         chatRoomId,
         conversationType,
         senderPhone,
         recipientPhone,
+        notificationPlaintext,
         content,
         messageTextContent,
         attachedMedia,
@@ -485,11 +490,13 @@ export async function POST(request: Request) {
             conversationId: finalChatRoomId,
             conversationType: conversationType === "group" ? "group" : "direct",
             message: responseMessage,
+            notificationPlaintext: notificationPlaintext ?? null,
             recipientUserIds: normalizedMessageKeys
                 .map((key) => key.recipient_user_id)
                 .filter(
                     (recipientUserId) => recipientUserId !== finalSenderUserId
                 ),
+            senderAvatarUrl: senderAvatarUrl ?? sessionUser.image ?? null,
             senderDisplayName:
                 senderNickname ?? sessionUser.name ?? finalSenderUserId,
         });

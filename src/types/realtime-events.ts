@@ -27,10 +27,12 @@ export type ClientRealtimeEvent =
           conversationType: "direct" | "group";
           senderUserId?: string;
           senderNickname?: string;
+          senderAvatarUrl?: string | null;
           recipientUserId?: string;
           senderPhone?: string;
           recipientPhone?: string;
           participantIds?: string[];
+          notificationPlaintext?: string | null;
           content?: string;
           messageTextContent?: string | null;
           attachedMedia?: Message["attached_media"];
