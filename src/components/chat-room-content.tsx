@@ -1003,17 +1003,17 @@ export default function ChatRoomContent() {
     };
 
     const contextMenuItems = [
-        { label: isRTL ? "\u0645\u0639\u0644\u0648\u0645\u0627\u062a \u062c\u0647\u0629 \u0627\u0644\u0627\u062a\u0635\u0627\u0644" : "Contact Info", onClick: handleOpenDetails, icon: <InfoOutlined fontSize="medium" /> },
-        { label: isRTL ? "\u062a\u062d\u062f\u064a\u062f \u0627\u0644\u0631\u0633\u0627\u0626\u0644" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
-        { label: isRTL ? "\u0643\u062a\u0645 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a" : "Mute notifications", onClick: () => handleToggleNotifications(), icon: <NotificationsOffOutlined fontSize="medium" /> },
-        { label: isRTL ? "\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Close chat", onClick: () => setSelectedChatId(null), icon: <HighlightOffOutlined fontSize="medium" /> },
+        { label: isRTL ? "معلومات جهة الإتصال" : "Contact Info", onClick: handleOpenDetails, icon: <InfoOutlined fontSize="medium" /> },
+        { label: isRTL ? "تحديد الرسائل" : "Select messages", onClick: () => setIsSelectMode(true), icon: <CheckBoxOutlined fontSize="medium" /> },
+        { label: isRTL ? "كتم الإشعارات" : "Mute notifications", onClick: () => handleToggleNotifications(), icon: <NotificationsOffOutlined fontSize="medium" /> },
+        { label: isRTL ? "إغلاق المحادثة" : "Close chat", onClick: () => setSelectedChatId(null), icon: <HighlightOffOutlined fontSize="medium" /> },
         ...(selectedChat?.chat_type === "group"
             ? [
-                { label: isRTL ? "\u0627\u0644\u062e\u0631\u0648\u062c \u0645\u0646 \u0627\u0644\u0645\u062c\u0645\u0648\u0639\u0629" : "Exit group", onClick: handleExitGroup, icon: <DoDisturbOnOutlined fontSize="medium" /> },
+                { label: isRTL ? "الخروج من المجموعة" : "Exit group", onClick: handleExitGroup, icon: <DoDisturbOnOutlined fontSize="medium" /> },
             ]
             : [
-                { label: selectedChat?.is_blocked_chat ? (isRTL ? "\u0625\u0644\u063a\u0627\u0621 \u0627\u0644\u062d\u0638\u0631" : "Unblock") : (isRTL ? "\u062d\u0638\u0631" : "Block"), onClick: handleToggleBlock, icon: <DoNotDisturbOutlined fontSize="medium" /> },
-                { label: isRTL ? "\u062d\u0630\u0641 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629" : "Delete chat", onClick: handleDeleteChatClick, icon: <DeleteForeverOutlined fontSize="medium" /> },
+                { label: selectedChat?.is_blocked_chat ? (isRTL ? "إلغاء الحضر" : "Unblock") : (isRTL ? "\u062d\u0638\u0631" : "Block"), onClick: handleToggleBlock, icon: <DoNotDisturbOutlined fontSize="medium" /> },
+                { label: isRTL ? "حذف المحادثة" : "Delete chat", onClick: handleDeleteChatClick, icon: <DeleteForeverOutlined fontSize="medium" /> },
             ]),
     ];
 

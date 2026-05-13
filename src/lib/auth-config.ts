@@ -1,6 +1,7 @@
 import type { DBFieldAttribute } from "better-auth/db";
 import { phoneNumber } from "better-auth/plugins";
 import { expo } from "@better-auth/expo";
+import { sendAuthenticaMessage } from "@/utils/send-authentica-message";
 
 type UserAdditionalFields = Record<string, DBFieldAttribute>;
 
@@ -160,8 +161,11 @@ export const userAdditionalFields = {
 export const authSharedOptions = {
     plugins: [
         phoneNumber({
-            sendOTP: ({ code }) => {
-                console.log("OTP: ", code);
+            sendOTP: async ({ phoneNumber, code }) => {
+                await sendAuthenticaMessage({
+                    phone: phoneNumber,
+                    otp: code,
+                });
             },
             signUpOnVerification: {
                 getTempEmail: (phoneNumber) => `${phoneNumber}@yaahalaa.com`,

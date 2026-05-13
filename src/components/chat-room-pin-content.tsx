@@ -9,6 +9,7 @@ import {
     PushPinOutlined,
     VideocamRounded,
     KeyboardVoiceOutlined,
+    PushPin,
 } from "@mui/icons-material";
 import { IconButton, Typography } from "@mui/material";
 import React from "react";
@@ -66,15 +67,14 @@ export default function ChatRoomPinContent({
         <button
             type="button"
             onClick={onOpen}
-            className="flex cursor-pointer flex-row items-center justify-between bg-white px-4 py-2.5 duration-150 hover:bg-neutral-50 dark:bg-[#242626] hover:dark:bg-[#313434]"
+            className="absolute top-0 left-0 right-0 z-40 flex cursor-pointer flex-row items-center justify-between bg-white/70 backdrop-blur-sm px-4 py-3 duration-150 hover:bg-neutral-50/70 hover:backdrop-blur-sm dark:bg-[#161717bb] dark:hover:bg-[#1d1e1eb5] border-t dark:border-t-neutral-800 border-t-neutral-200"
         >
             <div className="flex min-w-0 flex-row items-center gap-x-2">
-                <PushPinOutlined fontSize="inherit" className="shrink-0" />
-                <span className="shrink-0 text-sm">
-                    {getPinnedMessageIcon(pinnedMessage)}
-                </span>
+                <div className="justify-center items-center px-1.5 py-1 rounded-lg dark:bg-neutral-700 bg-neutral-200">
+                    <PushPin fontSize="small" className="shrink-0" />
+                </div>
                 <Typography
-                    variant="caption"
+                    variant="body1"
                     sx={{
                         minWidth: 0,
                         overflow: "hidden",
@@ -83,7 +83,7 @@ export default function ChatRoomPinContent({
                         textAlign: "left",
                     }}
                 >
-                    {getPinnedMessageLabel(pinnedMessage)}
+                    {getPinnedMessageLabel(pinnedMessage || null)}
                 </Typography>
             </div>
             {onUnpin ? (

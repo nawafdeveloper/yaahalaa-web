@@ -160,7 +160,7 @@ export default function ChatRoomSection() {
 
         setActivePinnedMessageId((current) =>
             current &&
-            pinnedMessages.some((message) => message.message_id === current)
+                pinnedMessages.some((message) => message.message_id === current)
                 ? current
                 : pinnedMessages[0].message_id
         );
@@ -230,13 +230,15 @@ export default function ChatRoomSection() {
         <div className="flex h-full w-full flex-col overflow-hidden">
             <ChatRoomHeader />
             {activePinnedMessage ? (
-                <ChatRoomPinContent
-                    pinnedMessage={activePinnedMessage}
-                    onOpen={handleOpenPinnedMessage}
-                    onUnpin={() =>
-                        void pinMessage(activePinnedMessage, false)
-                    }
-                />
+                <div className="relative">
+                    <ChatRoomPinContent
+                        pinnedMessage={activePinnedMessage}
+                        onOpen={handleOpenPinnedMessage}
+                        onUnpin={() =>
+                            void pinMessage(activePinnedMessage, false)
+                        }
+                    />
+                </div>
             ) : null}
             {attachment ? <MediaAttachmentContainer /> : <ChatRoomContent />}
         </div>

@@ -161,7 +161,7 @@ function DocumentListItem({
     );
     const displayFileName =
         item.fileName?.trim() ||
-        (isRTL ? "\u0645\u0644\u0641 \u0645\u0634\u0641\u0631" : "Encrypted file");
+        (isRTL ? "ملف مشفر" : "Encrypted file");
     const extension = getDocumentExtension({
         fileName: item.fileName,
         mediaUrl: item.mediaUrl,
@@ -213,7 +213,7 @@ function DocumentListItem({
             disablePadding
             secondaryAction={
                 <Tooltip
-                    title={isRTL ? "\u062a\u0646\u0632\u064a\u0644" : "Download"}
+                    title={isRTL ? "تنزيل" : "Download"}
                     placement="bottom"
                     slotProps={{
                         tooltip: {
@@ -520,7 +520,7 @@ export default function MediaDisplayAllChatRoom() {
                                 textAlign: 'center',
                             }}
                         >
-                            {isRTL ? "\u0644\u0627 \u062a\u0648\u062c\u062f \u0648\u0633\u0627\u0626\u0637" : "No media"}
+                            {isRTL ? "لا يوجد وسائط" : "No media"}
                         </Typography>
                     )}
                 </CustomTabPanel>
@@ -549,7 +549,7 @@ export default function MediaDisplayAllChatRoom() {
                                 textAlign: 'center',
                             }}
                         >
-                            {isRTL ? "\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0633\u062a\u0646\u062f\u0627\u062a" : "No documents"}
+                            {isRTL ? "لا يوجد مستندات" : "No documents"}
                         </Typography>
                     )}
                 </CustomTabPanel>

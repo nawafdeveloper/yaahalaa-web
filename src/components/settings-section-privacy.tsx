@@ -145,24 +145,12 @@ export default function SettingsSectionPrivacy() {
             secondary: t.aboutSecondary,
             href: 'about-seen'
         },
-        {
-            id: '5',
-            primary: t.defaultTimer,
-            secondary: t.defaultTimerSecondary,
-            href: 'messages-disappear'
-        },
-        {
-            id: '6',
-            primary: t.groups,
-            secondary: t.groupsSecondary,
-            href: 'settings-privacy-groups'
-        },
-        {
-            id: '7',
-            primary: t.blockedContacts,
-            secondary: t.blockedContactsSecondary,
-            href: 'blocked-contacts'
-        }
+        // {
+        //     id: '7',
+        //     primary: t.blockedContacts,
+        //     secondary: t.blockedContactsSecondary,
+        //     href: 'blocked-contacts'
+        // }
     ];
 
     const renderListItem = (item: typeof subItemList[0]) => (

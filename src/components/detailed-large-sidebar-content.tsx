@@ -193,7 +193,7 @@ export default function DetailedLargeSidebarContent({
     const displayContactName =
         contactName?.trim() ||
         contactNumber ||
-        (isRTL ? "ط¬ظ‡ط© ط§ظ„ط¥طھطµط§ظ„" : "contact");
+        (isRTL ? "جهة الإتصال" : "contact");
     const groupMemberIds = useMemo(
         () => new Set(groupMembers.map((member) => member.user_id)),
         [groupMembers]
@@ -699,13 +699,13 @@ export default function DetailedLargeSidebarContent({
             ? [
                 {
                     id: 'invite',
-                    primary: isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user',
+                    primary: isRTL ? 'إضافة عضو' : 'Invite new user',
                     secondary: isCurrentUserAdmin
                         ? isRTL
-                            ? 'ط¥ط¶ط§ظپط© ط¬ظ‡ط© ط§طھطµط§ظ„ ط¥ظ„ظ‰ ط§ظ„ظ…ط¬ظ…ظˆط¹ط©'
+                            ? 'قم بإضافة عضو جديد إلى هذه المجموعة'
                             : 'Add a contact to this group'
                         : isRTL
-                            ? 'ط§ظ„ظ…ط´ط±ظپظˆظ† ظپظ‚ط·'
+                            ? 'فقط المشرفين'
                             : 'Admins only',
                     icon: PersonAddOutlined,
                     href: 'group-invite',
@@ -720,7 +720,7 @@ export default function DetailedLargeSidebarContent({
         ? [
             {
                 id: 'exit-group',
-                primary: isRTL ? 'ط§ظ„ط®ط±ظˆط¬ ظ…ظ† ط§ظ„ظ…ط¬ظ…ظˆط¹ط©' : 'Exit group',
+                primary: isRTL ? 'الخروج من المجموعة' : 'Exit group',
                 icon: LogoutOutlined,
                 distructive: true,
                 onClick: handleExitGroupClick,
@@ -729,14 +729,14 @@ export default function DetailedLargeSidebarContent({
         : [
             {
                 id: '3',
-                primary: isRTL ? `ط­ط¶ط± ${displayContactName}` : `Block ${displayContactName}`,
+                primary: isRTL ? `حضر ${displayContactName}` : `Block ${displayContactName}`,
                 icon: BlockOutlined,
                 distructive: true,
                 onClick: handleToggleBlock,
             },
             {
                 id: '5',
-                primary: isRTL ? 'ط­ط°ظپ ط§ظ„ظ…ط­ط§ط¯ط«ط©' : 'Delete chat',
+                primary: isRTL ? 'حذف المحادثة' : 'Delete chat',
                 icon: DeleteOutlineOutlined,
                 distructive: true,
                 onClick: handleDeleteChatClick,
@@ -835,7 +835,7 @@ export default function DetailedLargeSidebarContent({
                                             textTransform: "uppercase",
                                         }}
                                     >
-                                        {isRTL ? 'ط£ط¶ظپ طµظˆط±ط©' : 'Add Photo'}
+                                        {isRTL ? 'إضافة صورة' : 'Add Photo'}
                                     </Typography>
                                 </>
                             )}
@@ -975,7 +975,7 @@ export default function DetailedLargeSidebarContent({
                         variant='body1'
                         className='text-gray-400!'
                     >
-                        {isRTL ? 'ظ†ط¨ط°ط© ظ…ط®طھطµط±ط©' : 'About'}
+                        {isRTL ? 'نبذة' : 'About'}
                     </Typography>
                     <Typography
                         variant='body1'
@@ -1032,7 +1032,7 @@ export default function DetailedLargeSidebarContent({
                             <CollectionsOutlined className='size-6! text-gray-600 dark:text-gray-300' />
                         </ListItemIcon>
                         <ListItemText
-                            primary={isRTL ? 'ط§ظ„ظˆط³ط§ط¦ط·, ط§ظ„ط±ظˆط§ط¨ط· ظˆ ط§ظ„ظ…ط³طھظ†ط¯ط§طھ' : 'Media, links & docs'}
+                            primary={isRTL ? 'وسائط, روابط و مستندات' : 'Media, links & docs'}
                             sx={{
                                 transition: "max-width 100ms ease",
                                 maxWidth: "75%",
@@ -1132,14 +1132,14 @@ export default function DetailedLargeSidebarContent({
                         <NotificationsOutlined className='size-6! text-gray-600 dark:text-gray-300' />
                     </ListItemIcon>
                     <ListItemText
-                        primary={isRTL ? 'ظƒطھظ… ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ' : 'Mute notifications'}
+                        primary={isRTL ? 'كتم الإشعارات' : 'Mute notifications'}
                         sx={{
                             display: "block",
                             textAlign: isRTL ? 'right' : 'left',
                         }}
                         secondary={
                             isRTL ?
-                                'ط¥ظٹظ‚ط§ظپ ط¥ط´ط¹ط§ط±ط§طھ ظ‡ط°ظ‡ ط§ظ„ظ…ط­ط§ط¯ط«ط©' :
+                                'قم بكتم الإشعارات لدى هذه المحادثة' :
                                 'Turn off notifications for this conversation'
                         }
                         secondaryTypographyProps={{
@@ -1587,10 +1587,10 @@ export default function DetailedLargeSidebarContent({
                         <CloseOutlined />
                     </IconButton>
                     <Typography>
-                        {isRTL ? 'Ø·Â¥Ø·Â¶Ø·Â§Ø¸Ù¾Ø·Â© Ø·Â¹Ø·Â¶Ø¸Ë†' : 'Invite new user'}
+                        {isRTL ? 'دعوة عضو' : 'Invite new user'}
                     </Typography>
                 </div>
-                <DialogTitle>{isRTL ? 'ط¥ط¶ط§ظپط© ط¹ط¶ظˆ' : 'Invite new user'}</DialogTitle>
+                <DialogTitle>{isRTL ? 'دعوة عضو' : 'Invite new user'}</DialogTitle>
                 <Box sx={{ px: 5 }}>
                     <TextField
                         hiddenLabel
@@ -1665,7 +1665,7 @@ export default function DetailedLargeSidebarContent({
                 <DialogContent sx={{ p: 0, overflow: "hidden" }}>
                     {inviteCandidates.length === 0 ? (
                         <Typography color="text.secondary">
-                            {isRTL ? 'ظ„ط§ طھظˆط¬ط¯ ط¬ظ‡ط§طھ ط§طھطµط§ظ„ ظ…طھط§ط­ط©.' : 'No eligible contacts to invite.'}
+                            {isRTL ? 'لا يوجد جهاة إتصال ليتم دعوتها' : 'No eligible contacts to invite.'}
                         </Typography>
                     ) : (
                         <List
@@ -1804,7 +1804,7 @@ export default function DetailedLargeSidebarContent({
                         {selectedInviteLabels.join(", ")}
                     </Typography>
                     <Button onClick={() => setInviteOpen(false)} sx={{ display: "none" }}>
-                        {isRTL ? 'ط¥ظ„ط؛ط§ط،' : 'Cancel'}
+                        {isRTL ? 'إلغاء' : 'Cancel'}
                     </Button>
                     <Button
                         onClick={() => void handleInviteMembers()}
@@ -1837,7 +1837,7 @@ export default function DetailedLargeSidebarContent({
                     >
                         {pendingAction === "invite" ? (
                             <CircularProgress size={18} />
-                        ) : isRTL ? 'ط¥ط¶ط§ظپط©' : 'Invite'}
+                        ) : isRTL ? 'دعوة' : 'Invite'}
                     </Button>
                 </DialogActions>
             </Dialog>

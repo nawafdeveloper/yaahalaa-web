@@ -35,7 +35,7 @@ type UseUpdateUserOptions = {
 
 function getGenericErrorMessage(isRTL: boolean): string {
     return isRTL
-        ? "ط­ط¯ط« ط®ط·ط£ ظ…ط§طŒ ظٹط±ط¬ظ‰ ط¥ط¹ط§ط¯ط© ط§ظ„ظ…ط­ط§ظˆظ„ط©."
+        ? "حدث خطأ ما، يرجى إعادة المحاولة."
         : "Something went wrong, please try again.";
 }
 
@@ -206,7 +206,7 @@ export const useUpdateUser = ({
             setIsError(true);
             setErrorMsg(
                 isRTL
-                    ? "ظ†ظˆط¹ ط§ظ„طµظˆط±ط© ط؛ظٹط± ظ…ط¯ط¹ظˆظ…."
+                    ? "نوع صورة الملف الشخصي غير مدعوم."
                     : "Unsupported profile image type.",
             );
             return;
@@ -216,7 +216,7 @@ export const useUpdateUser = ({
             setIsError(true);
             setErrorMsg(
                 isRTL
-                    ? "ط§ظ„طµظˆط±ط© طھطھط¬ط§ظˆط² ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ 5 ظ…ظٹط¬ط§ط¨ط§ظٹطھ."
+                    ? "صورة الملف الشخصي تتجاوز الحد الأقصى 5 ميجابايت."
                     : "Profile image exceeds the 5 MB limit.",
             );
             return;
@@ -238,7 +238,7 @@ export const useUpdateUser = ({
         if (!trimmedName) {
             setIsError(true);
             setErrorMsg(
-                isRTL ? "ظٹط±ط¬ظ‰ ط¥ط¯ط®ط§ظ„ ط§ظ„ط¥ط³ظ… ط§ظ„ظƒط§ظ…ظ„." : "Please enter your full name.",
+                isRTL ? "يرجى إدخال الاسم الكامل." : "Please enter your full name.",
             );
             return;
         }
@@ -247,7 +247,7 @@ export const useUpdateUser = ({
             setIsError(true);
             setErrorMsg(
                 isRTL
-                    ? "ظ†طµ ط§ظ„ظ†ط¨ط°ط© ظٹط¬ط¨ ط£ظ„ط§ ظٹطھط¬ط§ظˆط² 99 ط­ط±ظپط§."
+                    ? "يجب ألا تتجاوز النبذة 99 حرفًا."
                     : "About must be 99 characters or less.",
             );
             return;

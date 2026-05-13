@@ -59,7 +59,10 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["UserPresenceDO", "ChatRoomDO"]
+			"new_sqlite_classes": [
+				"UserPresenceDO",
+				"ChatRoomDO"
+			]
 		}
 	],
 	"r2_buckets": [
@@ -97,6 +100,9 @@
 	//   wrangler secret put PROFILE_IMAGE_MASTER_KEY
 	//   wrangler secret put FIREBASE_PROJECT_ID
 	//   wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON
+	//   wrangler secret put AUTHENTICA_API_KEY
+	//   wrangler secret put AUTHENTICA_TEMPLATE_ID
+	//   wrangler secret put AUTHENTICA_BASE_URL
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/

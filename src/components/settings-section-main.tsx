@@ -46,13 +46,6 @@ export default function SettingsSectionMain() {
             href: 'settings-profile'
         },
         {
-            id: '3',
-            primary: isRTL ? 'الحساب' : 'Account',
-            secondary: isRTL ? 'أمان الحساب والمعلومات' : 'Account security and information',
-            icon: VpnKeyOutlined,
-            href: 'settings-account'
-        },
-        {
             id: '4',
             primary: isRTL ? 'الخصوصية' : 'Privacy',
             secondary: isRTL ? 'حظر جهات الاتصال، الرسائل المختفية' : 'Block contacts, disappearing messages',
@@ -73,13 +66,13 @@ export default function SettingsSectionMain() {
             icon: NotificationsOutlined,
             href: 'settings-notifications'
         },
-        {
-            id: '7',
-            primary: isRTL ? 'المساعدة' : 'Help & feedback',
-            secondary: isRTL ? 'مركز المساعدة، اتصل بنا، الخصوصية والسياسة' : 'Help center, contact us, privacy and policy',
-            icon: HelpOutline,
-            href: 'settings-help'
-        }
+        // {
+        //     id: '7',
+        //     primary: isRTL ? 'المساعدة' : 'Help & feedback',
+        //     secondary: isRTL ? 'مركز المساعدة، اتصل بنا، الخصوصية والسياسة' : 'Help center, contact us, privacy and policy',
+        //     icon: HelpOutline,
+        //     href: 'settings-help'
+        // }
     ];
 
     return (
