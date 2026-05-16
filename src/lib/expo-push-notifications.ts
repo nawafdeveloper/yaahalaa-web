@@ -1,5 +1,5 @@
 import db from "@/db";
-import { chats, user } from "@/db/schema";
+import { chatUserSettings, user } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Message } from "@/types/messages.type";
 
@@ -171,15 +171,19 @@ export async function sendMessagePushNotifications({
         return;
     }
 
-    const [chatRow] = await db
-        .select({ isMuted: chats.is_muted_chat_notifications })
-        .from(chats)
-        .where(eq(chats.chat_id, conversationId))
-        .limit(1);
-
-    if (chatRow?.isMuted) {
-        return;
-    }
+    const mutedRecipientRows = await db
+        .select({ userId: chatUserSettings.user_id })
+        .from(chatUserSettings)
+        .where(
+            and(
+                eq(chatUserSettings.chat_id, conversationId),
+                inArray(chatUserSettings.user_id, uniqueRecipientUserIds),
+                eq(chatUserSettings.is_muted_chat_notifications, true)
+            )
+        );
+    const mutedRecipientUserIds = new Set(
+        mutedRecipientRows.map((row) => row.userId)
+    );
 
     const recipientRows = await db
         .select({
@@ -199,6 +203,9 @@ export async function sendMessagePushNotifications({
 
     // Accept both FCM tokens and old Expo tokens during migration period
     const pushTargets = recipientRows.filter((recipient) => {
+        if (mutedRecipientUserIds.has(recipient.id)) {
+            return false;
+        }
         if (!isFCMToken(recipient.pushToken) && !isExpoPushToken(recipient.pushToken)) {
             return false;
         }

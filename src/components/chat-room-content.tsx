@@ -42,10 +42,8 @@ import { useDetailedSidebarStore } from "@/store/use-detailed-sidebar-store";
 import { useChatMenuActions } from "@/hooks/use-chat-menu-actions";
 
 const EMPTY_MESSAGES: Message[] = [];
-const BLOCKING_MEDIA_TYPES = new Set(["photo", "video", "file"]);
 const PAGE_SIZE = 20;
 
-type MediaStatusMap = Record<string, boolean>;
 type RenderableMessageItem =
     | {
         type: "date";
@@ -274,81 +272,6 @@ function buildRenderableMessageItems(
     return items;
 }
 
-async function preloadImageAsset(src: string) {
-    await new Promise<void>((resolve, reject) => {
-        const image = new window.Image();
-
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error("Failed to preload image asset"));
-        image.src = src;
-    });
-}
-
-function ChatRoomMessageMediaPreloader({
-    message,
-    onStatusChange,
-}: {
-    message: Message;
-    onStatusChange: (messageId: string, ready: boolean) => void;
-}) {
-    useEffect(() => {
-        let isActive = true;
-
-        const markReady = (ready: boolean) => {
-            if (isActive) {
-                onStatusChange(message.message_id, ready);
-            }
-        };
-
-        const prepare = async () => {
-            const attachedMedia = message.attached_media;
-            const shouldBlock =
-                Boolean(message.client_received_via_realtime) &&
-                attachedMedia !== null &&
-                BLOCKING_MEDIA_TYPES.has(attachedMedia);
-
-            if (!shouldBlock) {
-                markReady(true);
-                return;
-            }
-
-            if (!message.media_url) {
-                markReady(false);
-                return;
-            }
-
-            if (
-                (message.attached_media === "photo" ||
-                    message.attached_media === "video") &&
-                message.media_preview_url
-            ) {
-                try {
-                    await preloadImageAsset(message.media_preview_url);
-                } catch {
-                    // Avoid blocking the bubble forever on a failed preview decode.
-                }
-            }
-
-            markReady(true);
-        };
-
-        void prepare();
-
-        return () => {
-            isActive = false;
-        };
-    }, [
-        message.attached_media,
-        message.client_received_via_realtime,
-        message.media_preview_url,
-        message.media_url,
-        message.message_id,
-        onStatusChange,
-    ]);
-
-    return null;
-}
-
 export default function ChatRoomContent() {
     const { isReady } = useCryptoKeys();
     const { data: session } = authClient.useSession();
@@ -393,9 +316,6 @@ export default function ChatRoomContent() {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [pendingChatAction, setPendingChatAction] = useState<"delete" | "exit" | null>(null);
     const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
-    const [mediaReadyByMessageId, setMediaReadyByMessageId] = useState<MediaStatusMap>(
-        {}
-    );
     const containerRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -424,58 +344,13 @@ export default function ChatRoomContent() {
         ? typingByChatId[selectedChatId]?.activeTypingUsers ?? []
         : [];
     const currentUserId = session?.user.id ?? null;
-    const shouldDelayRealtimeMediaBubble = React.useCallback(
-        (message: Message) => {
-            if (
-                !currentUserId ||
-                !message.client_received_via_realtime ||
-                message.sender_user_id === currentUserId ||
-                !message.attached_media
-            ) {
-                return false;
-            }
-
-            return BLOCKING_MEDIA_TYPES.has(message.attached_media);
-        },
-        [currentUserId]
-    );
-    const blockingMediaMessages = messages.filter((message) => {
-        return shouldDelayRealtimeMediaBubble(message);
-    });
-    const visibleMessages = messages.filter((message) => {
-        if (!shouldDelayRealtimeMediaBubble(message)) {
-            return true;
-        }
-
-        return mediaReadyByMessageId[message.message_id] === true;
-    });
+    const visibleMessages = messages;
     const renderableMessageItems = React.useMemo(
         () => buildRenderableMessageItems(visibleMessages, locale),
         [locale, visibleMessages]
     );
-    const isMediaReady =
-        blockingMediaMessages.length === 0 ||
-        blockingMediaMessages.every(
-            (message) => mediaReadyByMessageId[message.message_id] === true
-        );
     const shouldShowInitialLoader =
-        (messagesLoading && visibleMessages.length === 0) ||
-        (!isMediaReady && visibleMessages.length === 0);
-    const handleMediaReadyChange = React.useCallback(
-        (messageId: string, ready: boolean) => {
-            setMediaReadyByMessageId((current) => {
-                if (current[messageId] === ready) {
-                    return current;
-                }
-
-                return {
-                    ...current,
-                    [messageId]: ready,
-                };
-            });
-        },
-        []
-    );
+        messagesLoading && visibleMessages.length === 0;
 
     const scrollToBottom = (behavior: ScrollBehavior) => {
         bottomRef.current?.scrollIntoView({ behavior });
@@ -808,31 +683,6 @@ export default function ChatRoomContent() {
         setShowScrollToBottomButton(false);
     }, [selectedChatId]);
 
-    useEffect(() => {
-        const nextStatuses = blockingMediaMessages.reduce<MediaStatusMap>(
-            (accumulator, message) => {
-                accumulator[message.message_id] =
-                    mediaReadyByMessageId[message.message_id] ?? false;
-                return accumulator;
-            },
-            {}
-        );
-
-        setMediaReadyByMessageId((current) => {
-            const currentKeys = Object.keys(current);
-            const nextKeys = Object.keys(nextStatuses);
-
-            if (
-                currentKeys.length === nextKeys.length &&
-                nextKeys.every((key) => current[key] === nextStatuses[key])
-            ) {
-                return current;
-            }
-
-            return nextStatuses;
-        });
-    }, [blockingMediaMessages, mediaReadyByMessageId]);
-
     const getWallpaper = (mode: "dark" | "light") => {
         if (!session) {
             return mode === "dark"
@@ -1043,13 +893,6 @@ export default function ChatRoomContent() {
                     paddingBottom: 8,
                 }}
             >
-                {blockingMediaMessages.map((message) => (
-                    <ChatRoomMessageMediaPreloader
-                        key={`preload-${message.message_id}`}
-                        message={message}
-                        onStatusChange={handleMediaReadyChange}
-                    />
-                ))}
                 {!shouldShowInitialLoader &&
                     olderMessagesLoading &&
                     messages.length > 0 && (
