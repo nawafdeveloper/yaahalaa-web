@@ -9,32 +9,64 @@ import { useActiveChatStore } from "@/store/use-active-chat-store";
 import { useMemo } from "react";
 import { getLocaleFromCookie, isRTLClient } from "@/lib/locale-client";
 import { AddCommentOutlined } from "@mui/icons-material";
+import { authClient } from "@/lib/auth-client";
+import { getChatDisplayName } from "@/lib/chat-utils";
+import { useDecryptedContacts } from "@/hooks/use-decrypted-contacts";
+import {
+    getContactDisplayName,
+    resolveDirectChatContact,
+} from "@/lib/contact-display";
 
 type Props = {
     activeChatTab: "all" | "unread" | "favourites" | "groups";
+    searchQuery: string;
 }
 
-export default function ChatsSideBarContent({ activeChatTab }: Props) {
+export default function ChatsSideBarContent({ activeChatTab, searchQuery }: Props) {
     const locale = getLocaleFromCookie();
     const isRTL = locale ? isRTLClient(locale) : false;
 
+    const { data: session } = authClient.useSession();
+    const { contacts } = useDecryptedContacts();
     const chats = useActiveChatStore((state) => state.chats);
     const chatsLoading = useActiveChatStore((state) => state.chatsLoading);
+    const currentPhone = (session?.user as { phoneNumber?: string | null } | undefined)
+        ?.phoneNumber ?? null;
 
     const filteredChats = useMemo(() => {
         const visibleChats = chats.filter((chat) => !chat.is_archived_chat);
+        const tabFilteredChats = (() => {
+            switch (activeChatTab) {
+                case "unread":
+                    return visibleChats.filter((chat) => chat.unreaded_messages_length > 0);
+                case "favourites":
+                    return visibleChats.filter((chat) => chat.is_favourite_chat);
+                case "groups":
+                    return visibleChats.filter((chat) => chat.chat_type === "group");
+                default:
+                    return visibleChats;
+            }
+        })();
+        const normalizedQuery = searchQuery.trim().toLowerCase();
 
-        switch (activeChatTab) {
-            case "unread":
-                return visibleChats.filter((chat) => chat.unreaded_messages_length > 0);
-            case "favourites":
-                return visibleChats.filter((chat) => chat.is_favourite_chat);
-            case "groups":
-                return visibleChats.filter((chat) => chat.chat_type === "group");
-            default:
-                return visibleChats;
+        if (!normalizedQuery) {
+            return tabFilteredChats;
         }
-    }, [activeChatTab, chats]);
+
+        return tabFilteredChats.filter((chat) => {
+            const directContact = resolveDirectChatContact(
+                chat,
+                contacts,
+                currentPhone
+            );
+            const chatTitle =
+                chat.chat_type === "single" && directContact
+                    ? getContactDisplayName(directContact)
+                    : getChatDisplayName(chat, currentPhone);
+
+            return chatTitle.toLowerCase().includes(normalizedQuery);
+        });
+    }, [activeChatTab, chats, contacts, currentPhone, searchQuery]);
 
     return (
         <List sx={{ bgcolor: 'transparent', overflowY: "scroll", height: "100%", paddingBottom: '24px', paddingX: '20px' }}>
@@ -44,13 +76,19 @@ export default function ChatsSideBarContent({ activeChatTab }: Props) {
                 </div>
             ) : filteredChats.length === 0 ? (
                 <label className='flex flex-col gap-y-4 text-start w-full md:max-w-xl md:mx-auto'>
-                    <p className='text-[#636261] dark:text-[#A5A5A5]'>
-                        {isRTL ? 'ابدأ محادثة جديدة بالضغط على زر' : 'Start a new conversation by tapping the'}
-                        {' '}
-                        <AddCommentOutlined fontSize="inherit" />
-                        {' '}
-                        {isRTL ? 'وتواصل مع أصدقائك أو جهات اتصالك.' : 'button and connect with your friends or contacts.'}
-                    </p>
+                    {searchQuery.trim() ? (
+                        <p className='text-[#636261] dark:text-[#A5A5A5]'>
+                            {isRTL ? 'لا توجد محادثات مطابقة.' : 'No matching chats found.'}
+                        </p>
+                    ) : (
+                        <p className='text-[#636261] dark:text-[#A5A5A5]'>
+                            {isRTL ? 'ابدأ محادثة جديدة بالضغط على زر' : 'Start a new conversation by tapping the'}
+                            {' '}
+                            <AddCommentOutlined fontSize="inherit" />
+                            {' '}
+                            {isRTL ? 'وتواصل مع أصدقائك أو جهات اتصالك.' : 'button and connect with your friends or contacts.'}
+                        </p>
+                    )}
                 </label>
             ) : (
                 <TransitionGroup>
