@@ -43,7 +43,7 @@ export default function CreateChatMoreInfoButton() {
                             elevation={3}
                             sx={(theme) => ({
                                 p: 2,
-                                backgroundColor: theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                                backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#ffffff",
                                 borderRadius: 3,
                                 boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                                 color: theme.palette.mode === 'dark' ? '#FFFFFF' : '#000000',

@@ -259,7 +259,7 @@ export default function ChatRoomInputAttachButton() {
                 PaperProps={{
                     sx: (theme) => ({
                         backgroundColor:
-                            theme.palette.mode === "dark" ? "#222424" : "#ffffff",
+                            theme.palette.mode === "dark" ? "#1d1f1f" : "#ffffff",
                         borderRadius: 3,
                         boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                         mt: -4,
@@ -278,7 +278,7 @@ export default function ChatRoomInputAttachButton() {
                     onClick={(event) => openPicker(event, documentInputRef)}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
                         },
                         borderRadius: 2,
                         paddingY: 1,
@@ -308,7 +308,7 @@ export default function ChatRoomInputAttachButton() {
                     onClick={(event) => openPicker(event, mediaInputRef)}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
                         },
                         borderRadius: 2,
                         paddingY: 1,
@@ -338,7 +338,7 @@ export default function ChatRoomInputAttachButton() {
                     onClick={(event) => openPicker(event, audioInputRef)}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
                         },
                         borderRadius: 2,
                         paddingY: 1,
@@ -379,7 +379,7 @@ export default function ChatRoomInputAttachButton() {
                     }}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#333" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
                         },
                         borderRadius: 2,
                         paddingY: 1,
