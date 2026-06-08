@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, RefObject } from "react";
+import React, { useState, useEffect } from "react";
 import { ListItemIcon, ListItemText, Menu, MenuItem, MenuList } from "@mui/material";
 import { SvgIconComponent } from "@mui/icons-material";
 
@@ -48,15 +48,15 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items, containerRef }) => {
             anchorPosition={anchorPosition ? { top: anchorPosition.top, left: anchorPosition.left } : undefined}
             PaperProps={{
                 sx: (theme) => ({
-                    backgroundColor: theme.palette.mode === "dark" ? "#222424" : "#fff",
-                    borderRadius: 3,
+                    backgroundColor: theme.palette.mode === "dark" ? "#161717" : "#ffffff",
+                    borderRadius: 5,
                     boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                 }),
             }}
             slotProps={{
                 list: {
                     "aria-labelledby": "context-menu",
-                    sx: { p: 1 },
+                    sx: { p: 0.5 },
                 },
             }}
         >
@@ -70,9 +70,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ items, containerRef }) => {
                         }}
                         sx={(theme) => ({
                             "&:hover": {
-                                backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+                                backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
                             },
-                            borderRadius: 2,
+                            borderRadius: 4,
                             py: 1,
                             px: 1,
                         })}

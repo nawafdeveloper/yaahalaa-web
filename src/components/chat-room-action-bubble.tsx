@@ -80,17 +80,17 @@ export default function ChatRoomActionBubble({
                 onClose={handleClose}
                 PaperProps={{
                     sx: (theme) => ({
-                        backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#ffffff",
-                        borderRadius: 3,
+                        backgroundColor: theme.palette.mode === "dark" ? "#161717" : "#ffffff",
+                        borderRadius: 5,
                         boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
-                        width: '170px'
+                        width: '130px'
                     }),
                 }}
                 slotProps={{
                     list: {
                         'aria-labelledby': 'basic-button',
                         sx: {
-                            padding: 1,
+                            padding: 0.5,
                         },
                     },
                 }}
@@ -99,20 +99,17 @@ export default function ChatRoomActionBubble({
                     onClick={handleReply}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
                         },
-                        borderRadius: 2,
+                        borderRadius: 4,
                         paddingY: 1,
                         paddingX: 1
                     })}
                 >
-                    <ListItemIcon>
-                        <TurnLeftOutlined
-                            fontSize="small"
-                            sx={(theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                            })}
-                        />
+                    <ListItemIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#A5A5A5" : "#636261" }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                            <path d="M760-200v-160q0-50-35-85t-85-35H273l144 144-57 56-240-240 240-240 57 56-144 144h367q83 0 141.5 58.5T840-360v160h-80Z" />
+                        </svg>
                     </ListItemIcon>
                     <ListItemText
                         primaryTypographyProps={{
@@ -128,20 +125,17 @@ export default function ChatRoomActionBubble({
                     onClick={handleForward}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
                         },
-                        borderRadius: 2,
+                        borderRadius: 4,
                         paddingY: 1,
                         paddingX: 1
                     })}
                 >
-                    <ListItemIcon>
-                        <ShortcutRounded
-                            fontSize="small"
-                            sx={(theme) => ({
-                                color: theme.palette.mode === "dark" ? "#A5A5A5" : "#636261"
-                            })}
-                        />
+                    <ListItemIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#A5A5A5" : "#636261" }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
+                            <path d="m640-280-57-56 184-184-184-184 57-56 240 240-240 240ZM80-200v-160q0-83 58.5-141.5T280-560h247L383-704l57-56 240 240-240 240-57-56 144-144H280q-50 0-85 35t-35 85v160H80Z" />
+                        </svg>
                     </ListItemIcon>
                     <ListItemText
                         primaryTypographyProps={{
@@ -157,9 +151,9 @@ export default function ChatRoomActionBubble({
                     onClick={handlePin}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
                         },
-                        borderRadius: 2,
+                        borderRadius: 4,
                         paddingY: 1,
                         paddingX: 1
                     })}
@@ -186,9 +180,9 @@ export default function ChatRoomActionBubble({
                     onClick={handleStar}
                     sx={(theme) => ({
                         "&:hover": {
-                            backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+                            backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
                         },
-                        borderRadius: 2,
+                        borderRadius: 4,
                         paddingY: 1,
                         paddingX: 1
                     })}

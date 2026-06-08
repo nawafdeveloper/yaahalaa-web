@@ -1,6 +1,7 @@
 import type { DBFieldAttribute } from "better-auth/db";
 import { phoneNumber } from "better-auth/plugins";
 import { expo } from "@better-auth/expo";
+import { electron } from "@better-auth/electron";
 import { sendAuthenticaMessage } from "@/utils/send-authentica-message";
 
 type UserAdditionalFields = Record<string, DBFieldAttribute>;
@@ -172,12 +173,14 @@ export const authSharedOptions = {
                 getTempName: () => "",
             },
         }),
-        expo()
+        expo(),
+        electron()
+    ],
+    trustedOrigins: [
+        "chatappandroid://",
+        "YaHla.YaHla:/",
     ],
     user: {
         additionalFields: userAdditionalFields,
-    },
-    advanced: {
-        disableCSRFCheck: true,
     },
 };

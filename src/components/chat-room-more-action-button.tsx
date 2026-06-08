@@ -37,11 +37,11 @@ type PreferenceKey =
 
 const menuItemSx = (theme: Theme) => ({
     "&:hover": {
-        backgroundColor: theme.palette.mode === "dark" ? "#353939" : "#eee",
+        backgroundColor: theme.palette.mode === "dark" ? "#1d1f1f" : "#eee",
     },
-    borderRadius: 2,
+    borderRadius: 4,
     paddingY: 1,
-    paddingX: 1,
+    paddingX: 1
 });
 
 const iconSx = (theme: Theme) => ({
@@ -266,7 +266,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                     <IconButton
                         type="button"
                         id="more-button"
-                        size="medium"
+                        size="small"
                         className="chat-hover-action"
                         aria-controls={open ? "basic-menu" : undefined}
                         aria-haspopup="true"
@@ -289,19 +289,17 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                         onClose={handleClose}
                         PaperProps={{
                             sx: (theme) => ({
-                                backgroundColor:
-                                    theme.palette.mode === "dark"
-                                        ? "#222424"
-                                        : "#ffffff",
-                                borderRadius: 3,
+                                backgroundColor: theme.palette.mode === "dark" ? "#161717" : "#ffffff",
+                                borderRadius: 5,
                                 boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
+                                width: "250px"
                             }),
                         }}
                         slotProps={{
                             list: {
                                 "aria-labelledby": "basic-button",
                                 sx: {
-                                    padding: 1,
+                                    padding: 0.5,
                                 },
                             },
                         }}
@@ -315,7 +313,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                             sx={menuItemSx}
                         >
                             <ListItemIcon>
-                                <ArchiveOutlined fontSize="medium" sx={iconSx} />
+                                <ArchiveOutlined fontSize="small" sx={iconSx} />
                             </ListItemIcon>
                             <ListItemText primaryTypographyProps={{ sx: textSx }}>
                                 {labels.archive}
@@ -329,12 +327,12 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                             <ListItemIcon>
                                 {selectedChat?.is_muted_chat_notifications ? (
                                     <NotificationsOutlined
-                                        fontSize="medium"
+                                        fontSize="small"
                                         sx={iconSx}
                                     />
                                 ) : (
                                     <NotificationsOffOutlined
-                                        fontSize="medium"
+                                        fontSize="small"
                                         sx={iconSx}
                                     />
                                 )}
@@ -353,7 +351,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                             sx={menuItemSx}
                         >
                             <ListItemIcon>
-                                <PushPinOutlined fontSize="medium" sx={iconSx} />
+                                <PushPinOutlined fontSize="small" sx={iconSx} />
                             </ListItemIcon>
                             <ListItemText primaryTypographyProps={{ sx: textSx }}>
                                 {labels.pin}
@@ -364,8 +362,13 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                             disabled={isDisabled}
                             sx={menuItemSx}
                         >
-                            <ListItemIcon>
-                                <MarkChatReadOutlined fontSize="medium" sx={iconSx} />
+                            <ListItemIcon sx={iconSx}>
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M5.83203 8.33333C5.83203 7.8731 6.20512 7.5 6.66536 7.5H14.1654C14.6256 7.5 14.9987 7.8731 14.9987 8.33333C14.9987 8.79358 14.6256 9.16667 14.1654 9.16667H6.66536C6.20512 9.16667 5.83203 8.79358 5.83203 8.33333Z" fill="currentColor" />
+                                    <path d="M5.83203 11.6693C5.83203 11.209 6.20512 10.8359 6.66536 10.8359H11.6654C12.1256 10.8359 12.4987 11.209 12.4987 11.6693C12.4987 12.1295 12.1256 12.5026 11.6654 12.5026H6.66536C6.20512 12.5026 5.83203 12.1295 5.83203 11.6693Z" fill="currentColor" />
+                                    <path fillRule="evenodd" clipRule="evenodd" d="M13.3351 4.16927C13.3351 3.70904 12.962 3.33594 12.5018 3.33594H1.49342C0.845677 3.33594 0.451805 4.0555 0.785067 4.61094L2.50176 7.5026V14.447C2.50176 15.6744 3.49668 16.6693 4.72398 16.6693H16.1129C17.3401 16.6693 18.3351 15.6744 18.3351 14.447V9.16927C18.3351 8.70902 17.962 8.33594 17.5018 8.33594C17.0415 8.33594 16.6685 8.70902 16.6685 9.16927V14.447C16.6685 14.7539 16.4197 15.0026 16.1129 15.0026H4.72398C4.41715 15.0026 4.16843 14.7539 4.16843 14.447V7.04096L2.94541 5.0026H12.5018C12.962 5.0026 13.3351 4.6295 13.3351 4.16927Z" fill="currentColor" />
+                                    <path d="M17.5 6.66406C18.1667 6.66406 18.8 6.3974 19.2667 5.93073C19.7333 5.46406 20 4.8224 20 4.16406C20 3.50573 19.7333 2.86406 19.2667 2.3974C18.8 1.93073 18.1583 1.66406 17.5 1.66406C16.8417 1.66406 16.2 1.93073 15.7333 2.3974C15.2667 2.86406 15 3.50573 15 4.16406C15 4.8224 15.2667 5.46406 15.7333 5.93073C16.2 6.3974 16.8417 6.66406 17.5 6.66406Z" fill="currentColor" />
+                                </svg>
                             </ListItemIcon>
                             <ListItemText primaryTypographyProps={{ sx: textSx }}>
                                 {labels.read}
@@ -381,7 +384,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                         >
                             <ListItemIcon>
                                 <FavoriteBorderOutlined
-                                    fontSize="medium"
+                                    fontSize="small"
                                     sx={iconSx}
                                 />
                             </ListItemIcon>
@@ -397,7 +400,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                                 sx={menuItemSx}
                             >
                                 <ListItemIcon>
-                                    <LogoutOutlined fontSize="medium" sx={iconSx} />
+                                    <LogoutOutlined fontSize="small" sx={iconSx} />
                                 </ListItemIcon>
                                 <ListItemText primaryTypographyProps={{ sx: textSx }}>
                                     {labels.exit}
@@ -415,7 +418,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                                 >
                                     <ListItemIcon>
                                         <BlockOutlined
-                                            fontSize="medium"
+                                            fontSize="small"
                                             sx={iconSx}
                                         />
                                     </ListItemIcon>
@@ -432,7 +435,7 @@ export default function ChatRoomMoreActionButton({ chat_type, chat_id }: Props) 
                                 >
                                     <ListItemIcon>
                                         <DeleteForeverOutlined
-                                            fontSize="medium"
+                                            fontSize="small"
                                             sx={iconSx}
                                         />
                                     </ListItemIcon>
