@@ -1,6 +1,7 @@
 // proxy.ts
 import { NextResponse, NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { applySecurityHeaders } from "@/lib/security-policy";
 
 const LOCALES = ['ar', 'en'] as const;
 const DEFAULT_LOCALE = 'ar';
@@ -27,33 +28,12 @@ function detectLocale(request: NextRequest): Locale {
 
 export function middleware(request: NextRequest) {
     const { cf } = getCloudflareContext();
+    const isApiRequest = request.nextUrl.pathname.startsWith('/api/');
     const locale = detectLocale(request);
     const response = NextResponse.next();
 
     // ========== Security Headers ==========
-    response.headers.set(
-        "Content-Security-Policy",
-        [
-            "default-src 'self'",
-            "script-src 'self'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob:",
-            "media-src 'self' blob:",
-            "connect-src 'self' https://api.yourdomain.com wss:",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-        ].join("; ")
-    );
-
-    response.headers.set("X-Frame-Options", "DENY");
-    response.headers.set("X-Content-Type-Options", "nosniff");
-    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    response.headers.set(
-        "Permissions-Policy",
-        "camera=(), microphone=(), geolocation=(), payment=()"
-    );
-    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    applySecurityHeaders(response.headers);
 
     // ========== Cloudflare Headers ==========
     if (cf) {
@@ -66,18 +46,20 @@ export function middleware(request: NextRequest) {
     const isMobile = request.headers.get("sec-ch-ua-mobile") ?? "?0";
     response.headers.set("X-Is-Mobile", isMobile);
 
-    // ========== Locale Handling ==========
-    // Inject for Server Components
-    response.headers.set('x-locale', locale);
+    if (!isApiRequest) {
+        // ========== Locale Handling ==========
+        // Inject for Server Components
+        response.headers.set('x-locale', locale);
 
-    // Set cookie only if missing (don't overwrite user's choice)
-    if (!request.cookies.has(COOKIE_NAME)) {
-        response.cookies.set(COOKIE_NAME, locale, {
-            path: '/',
-            maxAge: 60 * 60 * 24 * 365, // 1 year
-            sameSite: 'lax',
-            httpOnly: false, // must be false if you read it client-side
-        });
+        // Set cookie only if missing (don't overwrite user's choice)
+        if (!request.cookies.has(COOKIE_NAME)) {
+            response.cookies.set(COOKIE_NAME, locale, {
+                path: '/',
+                maxAge: 60 * 60 * 24 * 365, // 1 year
+                sameSite: 'lax',
+                httpOnly: false, // must be false if you read it client-side
+            });
+        }
     }
 
     return response;
@@ -87,11 +69,10 @@ export const config = {
     matcher: [
         /*
          * Match all request paths except for the ones starting with:
-         * - api (API routes)
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico, sitemap.xml, robots.txt (metadata files)
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+        '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
     ],
 };

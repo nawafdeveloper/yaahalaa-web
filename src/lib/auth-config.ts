@@ -3,6 +3,8 @@ import { phoneNumber } from "better-auth/plugins";
 import { expo } from "@better-auth/expo";
 import { electron } from "@better-auth/electron";
 import { sendAuthenticaMessage } from "@/utils/send-authentica-message";
+import { enforcePhoneOtpRateLimit } from "@/lib/auth-rate-limit";
+import { getAuthTrustedOrigins } from "@/lib/security-policy";
 
 type UserAdditionalFields = Record<string, DBFieldAttribute>;
 
@@ -159,12 +161,26 @@ export const userAdditionalFields = {
     },
 } satisfies UserAdditionalFields;
 
+function isValidOtpPhoneNumber(phoneNumber: string) {
+    return /^\+[1-9]\d{7,14}$/.test(normalizeOtpPhoneNumber(phoneNumber));
+}
+
+function normalizeOtpPhoneNumber(phoneNumber: string) {
+    return phoneNumber.trim().replace(/[^\d+]/g, "");
+}
+
 export const authSharedOptions = {
     plugins: [
         phoneNumber({
+            allowedAttempts: 3,
+            expiresIn: 5 * 60,
+            otpLength: 6,
+            phoneNumberValidator: isValidOtpPhoneNumber,
             sendOTP: async ({ phoneNumber, code }) => {
+                const normalizedPhoneNumber = normalizeOtpPhoneNumber(phoneNumber);
+                await enforcePhoneOtpRateLimit(normalizedPhoneNumber);
                 await sendAuthenticaMessage({
-                    phone: phoneNumber,
+                    phone: normalizedPhoneNumber,
                     otp: code,
                 });
             },
@@ -176,10 +192,45 @@ export const authSharedOptions = {
         expo(),
         electron()
     ],
-    trustedOrigins: [
-        "chatappandroid://",
-        "YaHla.YaHla:/",
-    ],
+    trustedOrigins: () => getAuthTrustedOrigins(),
+    rateLimit: {
+        enabled: true,
+        storage: "database" as const,
+        window: 60,
+        max: 120,
+        customRules: {
+            "/phone-number/send-otp": {
+                window: 60,
+                max: 3,
+            },
+            "/phone-number/verify": {
+                window: 60,
+                max: 5,
+            },
+            "/sign-in/phone-number": {
+                window: 60,
+                max: 5,
+            },
+            "/phone-number/request-password-reset": {
+                window: 60,
+                max: 3,
+            },
+            "/phone-number/reset-password": {
+                window: 60,
+                max: 5,
+            },
+        },
+    },
+    advanced: {
+        ipAddress: {
+            ipAddressHeaders: [
+                "cf-connecting-ip",
+                "x-forwarded-for",
+                "x-real-ip",
+            ],
+            ipv6Subnet: 64,
+        },
+    },
     user: {
         additionalFields: userAdditionalFields,
     },

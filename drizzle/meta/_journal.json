@@ -57,6 +57,13 @@
       "when": 1778112001000,
       "tag": "0007_chat_user_setting_timestamps",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781020000000,
+      "tag": "0008_auth_rate_limit",
+      "breakpoints": true
     }
   ]
 }
